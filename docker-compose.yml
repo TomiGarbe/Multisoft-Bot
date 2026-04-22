@@ -1,31 +1,59 @@
 services:
+  # ========== POSTGRESQL DATABASE ==========
+  postgres:
+    image: postgres:15-alpine
+    container_name: multisoft_bot_db
+    environment:
+      # These MUST match the DB_* variables in .env.docker
+      POSTGRES_DB: ${DB_NAME:-multisoft_bot}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-multisoft_bot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - multisoft_network
+  
+  # ========== FASTAPI BACKEND ==========
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: multisoft_bot_backend
     ports:
       - "8000:8000"
     env_file:
-      - ./backend/.env.docker
+      - ./backend/.env.docker  # Load Docker-specific environment
+    environment:
+      # Explicitly ensure these are set correctly for Docker
+      DB_HOST: postgres  # Service name in Docker network (NOT localhost)
+      ENV: production
+      DEBUG: "false"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - ./backend:/app
-
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: multisoft_bot
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
+    networks:
+      - multisoft_network
+    restart: unless-stopped
+  
+  # ========== NEXT.JS FRONTEND ==========
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: multisoft_bot_frontend
     ports:
       - "3000:3000"
     environment:
+      # Frontend env variables
       NEXT_PUBLIC_API_URL: http://backend:8000
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
@@ -33,6 +61,16 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    networks:
+      - multisoft_network
+    restart: unless-stopped
 
+# ========== VOLUMES ==========
 volumes:
   postgres_data:
+    driver: local
+
+# ========== NETWORKS ==========
+networks:
+  multisoft_network:
+    driver: bridge

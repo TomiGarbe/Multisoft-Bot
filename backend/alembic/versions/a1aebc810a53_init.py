@@ -1,8 +1,8 @@
-"""initial schema
+"""init
 
-Revision ID: 5536be942a9f
-Revises: ca3b3a0c8dd8
-Create Date: 2026-04-21 17:41:48.283949
+Revision ID: a1aebc810a53
+Revises: 
+Create Date: 2026-04-22 12:06:01.382152
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '5536be942a9f'
-down_revision: Union[str, None] = 'ca3b3a0c8dd8'
+revision: str = 'a1aebc810a53'
+down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -24,9 +24,8 @@ def upgrade() -> None:
     sa.Column('code', sa.String(length=100), nullable=False),
     sa.Column('name', sa.String(length=150), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('code')
     )
@@ -182,6 +181,22 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['updated_by_user_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('chat_threads',
+    sa.Column('tenant_id', sa.UUID(), nullable=False),
+    sa.Column('channel_id', sa.UUID(), nullable=False),
+    sa.Column('external_chat_id', sa.String(length=255), nullable=False),
+    sa.Column('type', sa.String(length=20), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=True),
+    sa.Column('metadata_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['channel_id'], ['channels.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('channel_id', 'external_chat_id', name='uq_chat_threads_channel_external')
+    )
+    op.create_index('ix_chat_threads_tenant_channel', 'chat_threads', ['tenant_id', 'channel_id'], unique=False)
     op.create_table('contact_identities',
     sa.Column('contact_id', sa.UUID(), nullable=False),
     sa.Column('channel_type', sa.String(length=50), nullable=False),
@@ -210,30 +225,10 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('contact_id', 'date', name='uq_contact_usage_daily_contact_date')
     )
-    op.create_table('conversations',
-    sa.Column('tenant_id', sa.UUID(), nullable=False),
-    sa.Column('contact_id', sa.UUID(), nullable=False),
-    sa.Column('channel_id', sa.UUID(), nullable=False),
-    sa.Column('assigned_user_id', sa.UUID(), nullable=True),
-    sa.Column('status', sa.String(length=30), nullable=False),
-    sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('last_message_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['assigned_user_id'], ['users.id'], ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['channel_id'], ['channels.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['contact_id'], ['contacts.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('role_permissions',
     sa.Column('role_id', sa.UUID(), nullable=False),
     sa.Column('permission_id', sa.UUID(), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['permission_id'], ['permissions.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
@@ -254,9 +249,37 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('tenant_id', 'user_id', name='uq_tenant_users_tenant_user')
     )
+    op.create_table('conversations',
+    sa.Column('tenant_id', sa.UUID(), nullable=False),
+    sa.Column('chat_thread_id', sa.UUID(), nullable=False),
+    sa.Column('assigned_user_id', sa.UUID(), nullable=True),
+    sa.Column('status', sa.String(length=30), nullable=False),
+    sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_message_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('closed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['assigned_user_id'], ['users.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['chat_thread_id'], ['chat_threads.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('user_permissions',
+    sa.Column('tenant_user_id', sa.UUID(), nullable=False),
+    sa.Column('permission_id', sa.UUID(), nullable=False),
+    sa.Column('allowed', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.ForeignKeyConstraint(['permission_id'], ['permissions.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['tenant_user_id'], ['tenant_users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('tenant_user_id', 'permission_id', name='uq_user_permissions_tenant_user_perm')
+    )
     op.create_table('messages',
     sa.Column('conversation_id', sa.UUID(), nullable=False),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
+    sa.Column('sender_contact_id', sa.UUID(), nullable=True),
     sa.Column('direction', sa.String(length=30), nullable=False),
     sa.Column('sender_type', sa.String(length=30), nullable=False),
     sa.Column('message_type', sa.String(length=30), nullable=False),
@@ -268,20 +291,9 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['conversation_id'], ['conversations.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['sender_contact_id'], ['contacts.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
-    )
-    op.create_table('user_permissions',
-    sa.Column('tenant_user_id', sa.UUID(), nullable=False),
-    sa.Column('permission_id', sa.UUID(), nullable=False),
-    sa.Column('allowed', sa.Boolean(), nullable=False),
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['permission_id'], ['permissions.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['tenant_user_id'], ['tenant_users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('tenant_user_id', 'permission_id', name='uq_user_permissions_tenant_user_perm')
     )
     op.create_table('message_attachments',
     sa.Column('message_id', sa.UUID(), nullable=False),
@@ -309,13 +321,15 @@ def upgrade() -> None:
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('message_attachments')
-    op.drop_table('user_permissions')
     op.drop_table('messages')
+    op.drop_table('user_permissions')
+    op.drop_table('conversations')
     op.drop_table('tenant_users')
     op.drop_table('role_permissions')
-    op.drop_table('conversations')
     op.drop_table('contact_usage_daily')
     op.drop_table('contact_identities')
+    op.drop_index('ix_chat_threads_tenant_channel', table_name='chat_threads')
+    op.drop_table('chat_threads')
     op.drop_table('channel_bot_configs')
     op.drop_table('usage_daily')
     op.drop_table('tenant_settings')

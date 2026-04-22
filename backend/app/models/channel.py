@@ -21,8 +21,8 @@ class Channel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="channels")
-    conversations: Mapped[List["Conversation"]] = relationship(
-        "Conversation", back_populates="channel", cascade="all, delete-orphan"
+    chat_threads: Mapped[List["ChatThread"]] = relationship(
+        "ChatThread", back_populates="channel", cascade="all, delete-orphan"
     )
     channel_bot_configs: Mapped[List["ChannelBotConfig"]] = relationship(
         "ChannelBotConfig", back_populates="channel", cascade="all, delete-orphan"

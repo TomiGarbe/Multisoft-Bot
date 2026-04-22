@@ -23,14 +23,14 @@ class Contact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="contacts")
-    conversations: Mapped[List["Conversation"]] = relationship(
-        "Conversation", back_populates="contact", cascade="all, delete-orphan"
-    )
     contact_identities: Mapped[List["ContactIdentity"]] = relationship(
         "ContactIdentity", back_populates="contact", cascade="all, delete-orphan"
     )
     contact_usage_daily: Mapped[List["ContactUsageDaily"]] = relationship(
         "ContactUsageDaily", back_populates="contact", cascade="all, delete-orphan"
+    )
+    messages: Mapped[List["Message"]] = relationship(
+        "Message", back_populates="sender_contact", cascade="all, delete-orphan"
     )
 
 

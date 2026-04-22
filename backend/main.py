@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy import text
+
+from app.api.routes import auth, permissions, roles, users
 from app.core.config import settings
-from app.api.v1.api import api_router
-from app.modules.auth.routes import router as auth_router
-from app.db.session import SessionLocal, engine
+from app.db.session import SessionLocal
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,8 +21,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router, prefix=settings.API_V1_STR)
-app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth")
+app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users")
+app.include_router(roles.router, prefix=f"{settings.API_V1_STR}/roles")
+app.include_router(permissions.router, prefix=f"{settings.API_V1_STR}/permissions")
 
 
 @app.get('/health')
@@ -31,7 +33,7 @@ async def health_check():
     return {
         'status': 'healthy',
         'service': settings.PROJECT_NAME,
-        'version': settings.VERSION
+        'version': settings.VERSION,
     }
 
 
@@ -39,11 +41,9 @@ async def health_check():
 async def health_check_db():
     """Health check with database connection test."""
     try:
-        # Try to get a connection from the pool
         db = SessionLocal()
         try:
-            # Execute a simple query to verify connection
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             db.close()
             return {
                 'status': 'healthy',

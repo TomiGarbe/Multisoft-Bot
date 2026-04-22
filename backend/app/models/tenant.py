@@ -25,6 +25,9 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     contacts: Mapped[List["Contact"]] = relationship(
         "Contact", back_populates="tenant", cascade="all, delete-orphan"
     )
+    chat_threads: Mapped[List["ChatThread"]] = relationship(
+        "ChatThread", back_populates="tenant", cascade="all, delete-orphan"
+    )
     conversations: Mapped[List["Conversation"]] = relationship(
         "Conversation", back_populates="tenant", cascade="all, delete-orphan"
     )

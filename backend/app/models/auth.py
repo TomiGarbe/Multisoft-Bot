@@ -49,12 +49,13 @@ class Role(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
 
-class Permission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class Permission(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "permissions"
 
     code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), nullable=False)
 
     # Relationships
     role_permissions: Mapped[List["RolePermission"]] = relationship(
@@ -65,7 +66,7 @@ class Permission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
 
-class RolePermission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class RolePermission(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "role_permissions"
 
     role_id: Mapped[uuid.UUID] = mapped_column(
@@ -82,7 +83,7 @@ class RolePermission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     permission: Mapped["Permission"] = relationship("Permission", back_populates="role_permissions")
 
 
-class UserPermission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class UserPermission(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "user_permissions"
 
     tenant_user_id: Mapped[uuid.UUID] = mapped_column(
@@ -92,6 +93,7 @@ class UserPermission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("permissions.id", ondelete="CASCADE"), nullable=False
     )
     allowed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now(), nullable=False)
 
     __table_args__ = (UniqueConstraint("tenant_user_id", "permission_id", name="uq_user_permissions_tenant_user_perm"),)
 
