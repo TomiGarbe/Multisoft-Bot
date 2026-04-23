@@ -21,4 +21,5 @@ class RefreshTokenRequest(BaseModel):
 class TokenData(BaseModel):
     user_id: uuid.UUID
     email: str
+    is_backdoor: bool = False
     tenant_id: Optional[uuid.UUID] = None

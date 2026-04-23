@@ -1,30 +1,29 @@
-from datetime import datetime
-from typing import Optional
 import uuid
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
-class RoleBase(BaseModel):
+class RolePermissionSummary(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+
+
+class RoleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = None
-
-
-class RoleCreate(RoleBase):
-    pass
+    permissions: list[uuid.UUID] = Field(default_factory=list)
 
 
 class RoleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = None
+    permissions: Optional[list[uuid.UUID]] = None
 
 
-class RoleResponse(RoleBase):
+class RoleResponse(BaseModel):
     id: uuid.UUID
-    tenant_id: Optional[uuid.UUID]
-    is_system: bool
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
+    name: str
+    description: Optional[str] = None
+    permissions: list[RolePermissionSummary] = Field(default_factory=list)

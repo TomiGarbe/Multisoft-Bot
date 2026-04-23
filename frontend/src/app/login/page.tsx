@@ -2,19 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authApi } from '@/services/api';
-import { isAuthenticated, setTokens } from '@/lib/auth';
-import Button from '@/components/Button';
+import { getToken, login } from '@/services/auth';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@test.com');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
   useEffect(() => {
-    if (isAuthenticated()) {
+    if (getToken()) {
       router.replace('/dashboard');
     }
   }, [router]);
@@ -25,13 +23,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authApi.login(email, password);
-      
-      setTokens(response.data.access_token, response.data.refresh_token);
-      
-      router.push('/dashboard');
-    } catch (err: any) {
-      const message = err.response?.data?.detail || err.message || 'Login failed';
+      await login(email, password);
+      router.replace('/dashboard');
+    } catch (err: unknown) {
+      const errorWithResponse = err as { response?: { data?: { detail?: string } } };
+      const message = errorWithResponse.response?.data?.detail || 'No se pudo iniciar sesion';
       setError(message);
     } finally {
       setLoading(false);
@@ -39,57 +35,62 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Multisoft Bot</h1>
-          <p className="text-gray-600 mt-2">Admin Login</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-              required
-            />
+    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-8 text-center">
+            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-600 text-xl font-bold text-white">
+              M
+            </span>
+            <h1 className="mt-4 text-2xl font-bold text-slate-900">Multisoft Bot</h1>
+            <p className="mt-1 text-sm text-slate-500">Inicia sesion para continuar</p>
           </div>
 
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="email" className="text-sm font-medium text-slate-700">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@empresa.com"
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                required
+              />
             </div>
-          )}
 
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            disabled={loading}
-            className="w-full"
-          >
-            {loading ? 'Logging in...' : 'Login'}
-          </Button>
-        </form>
+            <div className="space-y-1">
+              <label htmlFor="password" className="text-sm font-medium text-slate-700">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="********"
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                required
+              />
+            </div>
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-gray-600">
-          <p className="font-medium mb-2">Demo credentials:</p>
-          <p>Email: admin@test.com</p>
-          <p>Password: 123456</p>
+            {!!error && (
+              <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </button>
+          </form>
         </div>
       </div>
     </div>

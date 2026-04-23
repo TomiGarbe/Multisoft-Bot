@@ -3,17 +3,10 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.dependencies.permissions import require_permission
 from app.db.session import get_db
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
-from app.services.user_service import (
-    create_user,
-    delete_user,
-    get_user_by_email,
-    get_user_by_id,
-    get_users,
-    update_user,
-)
+from app.services.user_service import create_user, delete_user, get_users, update_user
 
 
 router = APIRouter(tags=["users"])
@@ -24,49 +17,33 @@ async def read_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
+    _: None = Depends(require_permission("users.read")),
 ):
-    """Get all users."""
     return get_users(db, skip=skip, limit=limit)
 
 
-@router.post("/", response_model=UserResponse)
+@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_endpoint(
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
+    _: None = Depends(require_permission("users.create")),
 ):
-    """Create a new user."""
-    existing_user = get_user_by_email(db, user_data.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+    try:
+        return create_user(
+            db=db,
+            name=user_data.name,
+            email=user_data.email,
+            password=user_data.password,
+            role_id=user_data.role_id,
+            permissions=user_data.permissions,
+            is_active=user_data.is_active,
+            is_superadmin=user_data.is_superadmin,
+            is_backdoor=user_data.is_backdoor,
         )
-
-    return create_user(
-        db,
-        name=user_data.name,
-        email=user_data.email,
-        password=user_data.password,
-        is_active=user_data.is_active,
-    )
-
-
-@router.get("/{user_id}", response_model=UserResponse)
-async def read_user(
-    user_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
-):
-    """Get user by ID."""
-    user = get_user_by_id(db, user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    return user
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -74,11 +51,20 @@ async def update_user_endpoint(
     user_id: uuid.UUID,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
+    _: None = Depends(require_permission("users.update")),
 ):
-    """Update user."""
-    user = update_user(db, user_id, **user_data.model_dump(exclude_unset=True))
-    if not user:
+    try:
+        user = update_user(
+            db=db,
+            user_id=user_id,
+            **user_data.model_dump(exclude_unset=True),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
@@ -90,9 +76,8 @@ async def update_user_endpoint(
 async def delete_user_endpoint(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
+    _: None = Depends(require_permission("users.delete")),
 ):
-    """Delete user."""
     success = delete_user(db, user_id)
     if not success:
         raise HTTPException(

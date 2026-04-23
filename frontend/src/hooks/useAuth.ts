@@ -2,68 +2,77 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { authApi } from '@/services/api';
-import { setTokens, clearTokens, isAuthenticated, getAccessToken } from '@/lib/auth';
+import { getToken, login as loginService, logout as logoutService } from '@/services/auth';
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  is_active: boolean;
+  role: string;
 }
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
-  // Check authentication status on mount
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = getAccessToken();
-      if (token) {
-        // In a real app, you'd validate the token with the server
-        setUser({ id: '', name: '', email: '', is_active: true });
-      }
-      setLoading(false);
-    };
+    const token = getToken();
+    if (!token) {
+      return;
+    }
 
-    checkAuth();
+    setIsAuthenticated(true);
+    setUser({
+      id: 'placeholder',
+      name: 'Admin User',
+      email: 'admin@multisoft.local',
+      role: 'admin',
+    });
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    try {
-      setError(null);
-      setLoading(true);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      try {
+        setError(null);
+        setLoading(true);
 
-      const response = await authApi.login(email, password);
+        await loginService(email, password);
+        setIsAuthenticated(true);
+        setUser({
+          id: 'placeholder',
+          name: 'Admin User',
+          email,
+          role: 'admin',
+        });
 
-      setTokens(response.data.access_token, response.data.refresh_token);
-      setUser({ id: '', name: '', email, is_active: true });
-
-      router.push('/dashboard');
-      return true;
-    } catch (err: any) {
-      const message = err.response?.data?.detail || 'Login failed';
-      setError(message);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+        router.replace('/dashboard');
+      } catch (err: unknown) {
+        const errorWithResponse = err as { response?: { data?: { detail?: string } } };
+        const message =
+          errorWithResponse.response?.data?.detail || 'No se pudo iniciar sesion';
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
 
   const logout = useCallback(() => {
-    clearTokens();
+    logoutService();
+    setIsAuthenticated(false);
     setUser(null);
-    router.push('/login');
+    router.replace('/login');
   }, [router]);
 
   return {
     user,
     loading,
     error,
-    isAuthenticated: !!user,
+    isAuthenticated,
     login,
     logout,
   };

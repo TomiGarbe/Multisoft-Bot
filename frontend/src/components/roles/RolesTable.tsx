@@ -1,0 +1,58 @@
+import Table from '@/components/ui/Table';
+import Button from '@/components/ui/Button';
+import type { Role } from '@/types/access';
+
+interface Props {
+  roles: Role[];
+  isDeletingId: string | null;
+  onEdit: (role: Role) => void;
+  onDelete: (role: Role) => void;
+}
+
+export default function RolesTable({
+  roles,
+  isDeletingId,
+  onEdit,
+  onDelete,
+}: Props) {
+  return (
+    <Table
+      headers={['Name', 'Description', 'Actions']}
+      hasRows={roles.length > 0}
+      emptyMessage="No roles found. Create your first role to get started."
+    >
+      {roles.map((role) => (
+        <tr key={role.id}>
+          <td className="px-4 py-3 text-sm font-medium text-slate-900">
+            {role.name}
+          </td>
+
+          <td className="px-4 py-3 text-sm text-slate-700">
+            {role.description ?? '—'}
+          </td>
+
+          <td className="px-4 py-3 text-sm">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                className="px-3 py-1.5"
+                onClick={() => onEdit(role)}
+              >
+                Edit
+              </Button>
+
+              <Button
+                variant="danger"
+                className="px-3 py-1.5"
+                onClick={() => onDelete(role)}
+                disabled={isDeletingId === role.id}
+              >
+                {isDeletingId === role.id ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </td>
+        </tr>
+      ))}
+    </Table>
+  );
+}

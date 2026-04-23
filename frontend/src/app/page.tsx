@@ -2,25 +2,25 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { isAuthenticated } from '@/lib/auth';
+import { getToken } from '@/services/auth';
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (isAuthenticated()) {
-      router.push('/dashboard');
+    if (getToken()) {
+      router.replace('/dashboard');
     } else {
-      router.push('/login');
+      router.replace('/login');
     }
   }, [router]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Multisoft Bot Admin Panel</h1>
-        <p className="text-gray-600">Redirecting...</p>
+        <h1 className="mb-4 text-3xl font-bold text-slate-900">Multisoft Bot</h1>
+        <p className="text-slate-600">Redirecting...</p>
       </div>
-    </main>
+    </div>
   );
 }

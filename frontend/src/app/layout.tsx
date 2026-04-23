@@ -1,22 +1,22 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Multisoft Bot Admin Panel',
-  description: 'SaaS platform for conversational bots',
-}
+  title: 'Multisoft Bot',
+  description: 'Multisoft Bot admin panel',
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang='en'>
+    <html lang="en">
       <body className={inter.className}>{children}</body>
     </html>
-  )
+  );
 }

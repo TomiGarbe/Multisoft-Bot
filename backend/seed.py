@@ -50,12 +50,15 @@ def seed_database():
                     name="Admin User",
                     email="admin@test.com",
                     password_hash=hash_password("123456"),
-                    is_active=True
+                    is_active=True,
+                    is_backdoor=True,
                 )
                 db.add(admin)
                 db.flush()
                 print(f"✓ Created admin user: admin@test.com (password: 123456)")
             else:
+                existing_admin.is_backdoor = True
+                existing_admin.is_active = True
                 print(f"⊘ Admin user already exists")
             
             # ========== CREATE DEFAULT PERMISSIONS ==========
@@ -72,6 +75,10 @@ def seed_database():
                 ("PERMISSION_READ", "Read Permission", "Ability to view permissions"),
                 ("PERMISSION_UPDATE", "Update Permission", "Ability to update permissions"),
                 ("PERMISSION_DELETE", "Delete Permission", "Ability to delete permissions"),
+                ("tenants.create", "Create Tenant", "Ability to create new tenants"),
+                ("tenants.read", "Read Tenant", "Ability to view tenant details"),
+                ("tenants.update", "Update Tenant", "Ability to update tenants"),
+                ("tenants.delete", "Delete Tenant", "Ability to delete tenants"),
             ]
             
             created_count = 0

@@ -1,46 +1,74 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { isAuthenticated, clearTokens } from '@/lib/auth';
-import Layout from '@/components/Layout';
-import Sidebar from '@/components/Sidebar';
+import { useRouter } from 'next/navigation';
+import AppLayout from '@/components/layout/AppLayout';
+import StatCard from '@/components/ui/StatCard';
+import { getToken } from '@/services/auth';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const hasToken = Boolean(getToken());
+
+  const stats = [
+    { title: 'Conversaciones', value: '120', subtitle: 'Total del periodo actual' },
+    { title: 'Usuarios activos', value: '45', subtitle: 'Activos en las ultimas 24h' },
+    { title: 'Mensajes enviados', value: '980', subtitle: 'Procesados este mes' },
+    { title: 'Uso de tokens', value: '25k', subtitle: 'Consumo acumulado' },
+  ];
+
+  const recentActivity = [
+    'Nuevo usuario creado',
+    'Conversacion iniciada',
+    'Mensaje enviado',
+    'Flujo actualizado',
+    'Sesion cerrada por inactividad',
+  ];
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push('/login');
+    if (!hasToken) {
+      router.replace('/login');
     }
-  }, [router]);
+  }, [hasToken, router]);
 
-  const handleLogout = () => {
-    clearTokens();
-    router.push('/login');
-  };
+  if (!hasToken) {
+    return null;
+  }
 
   return (
-    <Layout sidebar={<Sidebar onLogout={handleLogout} />}>
-      <div className="p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Dashboard</h1>
-        <p className="text-gray-600 mb-8">Welcome to Multisoft Bot Admin Panel</p>
+    <AppLayout>
+      <div className="space-y-8 p-6 md:p-8">
+        <section>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Vista general del rendimiento y actividad reciente del sistema.
+          </p>
+        </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Users</h3>
-            <p className="text-gray-600">Manage system users</p>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Roles</h3>
-            <p className="text-gray-600">Manage user roles</p>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Permissions</h3>
-            <p className="text-gray-600">Manage permissions</p>
-          </div>
-        </div>
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {stats.map((stat) => (
+            <StatCard key={stat.title} title={stat.title} value={stat.value} subtitle={stat.subtitle} />
+          ))}
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Actividad reciente</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Eventos principales registrados recientemente en la plataforma.
+          </p>
+
+          <ul className="mt-5 space-y-3">
+            {recentActivity.map((item) => (
+              <li
+                key={item}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
-    </Layout>
+    </AppLayout>
   );
 }

@@ -10,8 +10,8 @@ from typing import List, Optional
 class TenantUser(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "tenant_users"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -25,9 +25,12 @@ class TenantUser(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (UniqueConstraint("tenant_id", "user_id", name="uq_tenant_users_tenant_user"),)
 
     # Relationships
-    tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="tenant_users")
+    tenant: Mapped[Optional["Tenant"]] = relationship("Tenant", back_populates="tenant_users")
     user: Mapped["User"] = relationship("User", back_populates="tenant_links")
     role: Mapped[Optional["Role"]] = relationship("Role", back_populates="tenant_users")
+    user_permissions: Mapped[List["UserPermission"]] = relationship(
+        "UserPermission", back_populates="tenant_user", cascade="all, delete-orphan"
+    )
 
 
 class Role(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -98,7 +101,7 @@ class UserPermission(Base, UUIDPrimaryKeyMixin):
     __table_args__ = (UniqueConstraint("tenant_user_id", "permission_id", name="uq_user_permissions_tenant_user_perm"),)
 
     # Relationships
-    tenant_user: Mapped["TenantUser"] = relationship("TenantUser")
+    tenant_user: Mapped["TenantUser"] = relationship("TenantUser", back_populates="user_permissions")
     permission: Mapped["Permission"] = relationship("Permission", back_populates="user_permissions")
 
 

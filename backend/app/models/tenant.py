@@ -12,8 +12,12 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     slug: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="active", nullable=False)
     plan_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    industry: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    timezone: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     # Relationships
     tenant_users: Mapped[List["TenantUser"]] = relationship(

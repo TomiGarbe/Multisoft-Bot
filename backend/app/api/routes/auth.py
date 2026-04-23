@@ -88,7 +88,7 @@ async def login(
     user.last_login_at = datetime.utcnow()
     db.commit()
 
-    access_token = create_access_token(user.id, user.email)
+    access_token = create_access_token(user.id, user.email, is_backdoor=user.is_backdoor)
     refresh_token = create_refresh_token(db, user.id)
 
     return {
@@ -133,7 +133,7 @@ async def refresh(
             detail="User not found or inactive",
         )
 
-    access_token = create_access_token(user.id, user.email)
+    access_token = create_access_token(user.id, user.email, is_backdoor=user.is_backdoor)
     new_refresh_token = create_refresh_token(db, user.id)
 
     return {
