@@ -36,20 +36,16 @@ def _validate_permissions(db: Session, permission_ids: list[uuid.UUID]) -> list[
     permissions = db.execute(stmt).scalars().all()
     if len(permissions) != len(unique_ids):
         found_ids = {permission.id for permission in permissions}
-        missing = [str(permission_id) for permission_id in unique_ids if permission_id not in found_ids]
+        missing = [str(pid) for pid in unique_ids if pid not in found_ids]
         raise LookupError(f"Invalid permission IDs: {', '.join(missing)}")
     return permissions
 
 
-def _resolve_tenant_id(db: Session, role: Optional[Role]) -> uuid.UUID:
-    if role and role.tenant_id:
-        return role.tenant_id
-
-    tenant_stmt = select(Tenant.id).limit(1)
-    tenant_id = db.execute(tenant_stmt).scalar_one_or_none()
-    if tenant_id is None:
-        raise LookupError("No tenant available to link user")
-    return tenant_id
+def _validate_tenant(db: Session, tenant_id: uuid.UUID) -> Tenant:
+    tenant = db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise LookupError("Tenant not found")
+    return tenant
 
 
 def _build_user_response(user: User) -> UserResponse:
@@ -83,6 +79,7 @@ def _build_user_response(user: User) -> UserResponse:
         name=user.name,
         email=user.email,
         is_backdoor=user.is_backdoor,
+        tenant_id=tenant_link.tenant_id if tenant_link else None,
         role=role_data,
         permissions=list(permission_map.values()),
     )
@@ -113,18 +110,22 @@ def create_user(
     role_id: Optional[uuid.UUID] = None,
     permissions: Optional[list[uuid.UUID]] = None,
     is_active: bool = True,
-    is_superadmin: bool = False,
     is_backdoor: bool = False,
+    tenant_id: Optional[uuid.UUID] = None,
 ) -> UserResponse:
     try:
         if get_user_by_email(db, email):
             raise ValueError("Email already registered")
 
-        has_global_access = is_superadmin or is_backdoor
-        if has_global_access and role_id is not None:
-            raise ValueError("Global-access user cannot have tenant-scoped role")
-        if has_global_access and (permissions or []):
-            raise ValueError("Global-access user cannot have tenant-scoped direct permissions")
+        if is_backdoor and tenant_id is not None:
+            raise ValueError("Backdoor user cannot be associated with a tenant")
+        if is_backdoor and role_id is not None:
+            raise ValueError("Backdoor user cannot have a tenant-scoped role")
+        if is_backdoor and (permissions or []):
+            raise ValueError("Backdoor user cannot have tenant-scoped direct permissions")
+
+        if tenant_id is not None:
+            _validate_tenant(db, tenant_id)
 
         role = _validate_role(db, role_id)
         permission_records = _validate_permissions(db, permissions or [])
@@ -134,19 +135,16 @@ def create_user(
             email=email,
             password_hash=hash_password(password),
             is_active=is_active,
-            is_superadmin=is_superadmin,
             is_backdoor=is_backdoor,
         )
         db.add(user)
         db.flush()
 
-        if not has_global_access:
-            tenant_id = _resolve_tenant_id(db, role)
+        if tenant_id is not None:
             tenant_user = TenantUser(
                 tenant_id=tenant_id,
                 user_id=user.id,
                 role_id=role.id if role else None,
-                is_active=is_active,
             )
             db.add(tenant_user)
             db.flush()
@@ -176,13 +174,14 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
         if user is None:
             return None
 
-        final_is_superadmin = updates.get("is_superadmin", user.is_superadmin)
         final_is_backdoor = updates.get("is_backdoor", user.is_backdoor)
-        has_global_access = final_is_superadmin or final_is_backdoor
-        if has_global_access and updates.get("role_id") is not None:
-            raise ValueError("Global-access user cannot have tenant-scoped role")
-        if has_global_access and (updates.get("permissions") or []):
-            raise ValueError("Global-access user cannot have tenant-scoped direct permissions")
+
+        if final_is_backdoor and updates.get("role_id") is not None:
+            raise ValueError("Backdoor user cannot have a tenant-scoped role")
+        if final_is_backdoor and (updates.get("permissions") or []):
+            raise ValueError("Backdoor user cannot have tenant-scoped direct permissions")
+        if final_is_backdoor and updates.get("tenant_id") is not None:
+            raise ValueError("Backdoor user cannot be associated with a tenant")
 
         if "email" in updates:
             email = updates["email"]
@@ -201,12 +200,10 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
         if "is_active" in updates and updates["is_active"] is not None:
             user.is_active = updates["is_active"]
 
-        if has_global_access:
-            user.is_superadmin = final_is_superadmin
-            user.is_backdoor = final_is_backdoor
+        if final_is_backdoor:
+            user.is_backdoor = True
             db.execute(delete(TenantUser).where(TenantUser.user_id == user.id))
         else:
-            user.is_superadmin = False
             user.is_backdoor = False
 
             role = None
@@ -214,29 +211,29 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
                 role_id = updates["role_id"]
                 role = _validate_role(db, role_id) if role_id is not None else None
 
+            incoming_tenant_id = updates.get("tenant_id")
+            if incoming_tenant_id is not None:
+                _validate_tenant(db, incoming_tenant_id)
+
             tenant_user_stmt = select(TenantUser).where(TenantUser.user_id == user.id).limit(1)
             tenant_user = db.execute(tenant_user_stmt).scalar_one_or_none()
-            if tenant_user is None:
+
+            if tenant_user is None and incoming_tenant_id is not None:
                 tenant_user = TenantUser(
-                    tenant_id=_resolve_tenant_id(db, role),
+                    tenant_id=incoming_tenant_id,
                     user_id=user.id,
                     role_id=role.id if role else None,
-                    is_active=user.is_active,
                 )
                 db.add(tenant_user)
                 db.flush()
+            elif tenant_user is not None:
+                if incoming_tenant_id is not None and tenant_user.tenant_id != incoming_tenant_id:
+                    tenant_user.tenant_id = incoming_tenant_id
 
-            if "is_active" in updates and updates["is_active"] is not None:
-                tenant_user.is_active = updates["is_active"]
+                if "role_id" in updates:
+                    tenant_user.role_id = role.id if role else None
 
-            if "role_id" in updates:
-                tenant_user.role_id = role.id if role else None
-                if role and role.tenant_id:
-                    tenant_user.tenant_id = role.tenant_id
-                elif tenant_user.tenant_id is None:
-                    tenant_user.tenant_id = _resolve_tenant_id(db, role=None)
-
-            if "permissions" in updates:
+            if tenant_user is not None and "permissions" in updates:
                 permissions = updates["permissions"]
                 permission_records = _validate_permissions(db, permissions or [])
                 db.execute(delete(UserPermission).where(UserPermission.tenant_user_id == tenant_user.id))
@@ -273,20 +270,41 @@ def delete_user(db: Session, user_id: uuid.UUID) -> bool:
         raise
 
 
-def get_users(db: Session, skip: int = 0, limit: int = 100) -> list[UserResponse]:
-    stmt = (
-        select(User)
-        .offset(skip)
-        .limit(limit)
-        .options(
-            joinedload(User.tenant_links)
-            .joinedload(TenantUser.role)
-            .joinedload(Role.role_permissions)
-            .joinedload(RolePermission.permission),
-            joinedload(User.tenant_links)
-            .joinedload(TenantUser.user_permissions)
-            .joinedload(UserPermission.permission),
-        )
-    )
+def get_users(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    current_user_id: Optional[uuid.UUID] = None,
+) -> list[UserResponse]:
+    base_options = [
+        joinedload(User.tenant_links)
+        .joinedload(TenantUser.role)
+        .joinedload(Role.role_permissions)
+        .joinedload(RolePermission.permission),
+        joinedload(User.tenant_links)
+        .joinedload(TenantUser.user_permissions)
+        .joinedload(UserPermission.permission),
+    ]
+
+    if current_user_id is not None:
+        caller = db.get(User, current_user_id)
+        if caller and not caller.is_backdoor:
+            # Normal user: only users that share at least one tenant
+            caller_tenant_ids = (
+                select(TenantUser.tenant_id)
+                .where(TenantUser.user_id == current_user_id, TenantUser.tenant_id.is_not(None))
+            )
+            stmt = (
+                select(User)
+                .join(User.tenant_links)
+                .where(TenantUser.tenant_id.in_(caller_tenant_ids))
+                .offset(skip)
+                .limit(limit)
+                .options(*base_options)
+            )
+            users = db.execute(stmt).unique().scalars().all()
+            return [_build_user_response(user) for user in users]
+
+    stmt = select(User).offset(skip).limit(limit).options(*base_options)
     users = db.execute(stmt).unique().scalars().all()
     return [_build_user_response(user) for user in users]

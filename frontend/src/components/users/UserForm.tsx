@@ -8,8 +8,10 @@ import Modal from '@/components/ui/Modal';
 import { getApiErrorMessage } from '@/services/api';
 import { getPermissions } from '@/services/permissions';
 import { getRoles } from '@/services/roles';
+import { getTenants } from '@/services/tenants';
 import { createUser, updateUser } from '@/services/users';
 import type { Permission, Role, User } from '@/types/access';
+import type { Tenant } from '@/types/tenant';
 
 interface UserFormProps {
   isOpen: boolean;
@@ -23,6 +25,7 @@ interface FormState {
   email: string;
   password: string;
   roleId: string;
+  tenantId: string;
   isActive: boolean;
   isBackdoor: boolean;
 }
@@ -47,6 +50,7 @@ const initialForm: FormState = {
   email: '',
   password: '',
   roleId: '',
+  tenantId: '',
   isActive: true,
   isBackdoor: false,
 };
@@ -81,6 +85,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
   const [previousBackdoorRoleId, setPreviousBackdoorRoleId] = useState('');
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoadingMeta, setIsLoadingMeta] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,11 +99,14 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
     const initialPermissionIds = (user?.permissions ?? []).map((permission) => permission.id);
     const initialIsBackdoor = Boolean(user?.is_backdoor);
 
+    const initialTenantId = user?.tenant?.id ?? user?.tenant_id ?? '';
+
     setForm({
       name: user?.name ?? '',
       email: user?.email ?? '',
       password: '',
       roleId: initialIsBackdoor ? '' : initialRoleId,
+      tenantId: initialIsBackdoor ? '' : initialTenantId,
       isActive: user?.is_active ?? true,
       isBackdoor: initialIsBackdoor,
     });
@@ -111,9 +119,10 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
     const fetchMeta = async () => {
       try {
         setIsLoadingMeta(true);
-        const [roleList, permissionList] = await Promise.all([getRoles(), getPermissions()]);
+        const [roleList, permissionList, tenantList] = await Promise.all([getRoles(), getPermissions(), getTenants()]);
         setRoles(roleList);
         setAllPermissions(permissionList);
+        setTenants(tenantList);
       } catch (requestError) {
         setError(getApiErrorMessage(requestError, 'Unable to load role and permission data.'));
       } finally {
@@ -246,7 +255,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
     if (checked) {
       setPreviousBackdoorRoleId(form.roleId);
       setPreviousBackdoorPermissions(selectedPermissions);
-      setForm((prev) => ({ ...prev, isBackdoor: true, roleId: '' }));
+      setForm((prev) => ({ ...prev, isBackdoor: true, roleId: '', tenantId: '' }));
       setSelectedPermissions([]);
       return;
     }
@@ -269,6 +278,11 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
 
     if (!isEditing && form.password.trim().length < 6) {
       setError('Password is required and must have at least 6 characters.');
+      return;
+    }
+
+    if (!form.isBackdoor && !form.tenantId) {
+      setError('Tenant is required for non-backdoor users.');
       return;
     }
 
@@ -296,6 +310,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
           await updateUser(user.id, {
             ...basePayload,
             is_backdoor: true,
+            tenant_id: null,
           });
         } else {
           await updateUser(user.id, {
@@ -303,6 +318,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
             is_backdoor: false,
             role_id: form.roleId || null,
             permissions: permissionsToSend,
+            tenant_id: form.tenantId,
           });
         }
         onSaved('User updated successfully.');
@@ -325,6 +341,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
             is_backdoor: false,
             role_id: form.roleId || null,
             permissions: permissionsToSend,
+            tenant_id: form.tenantId,
           });
         }
         onSaved('User created successfully.');
@@ -430,23 +447,44 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
               </div>
             ) : (
               <>
-                <div className="space-y-1.5">
-                  <label htmlFor="role-select" className="block text-sm font-medium text-slate-700">
-                    Role
-                  </label>
-                  <select
-                    id="role-select"
-                    value={form.roleId}
-                    onChange={(event) => setForm((prev) => ({ ...prev, roleId: event.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                  >
-                    <option value="">No role</option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label htmlFor="role-select" className="block text-sm font-medium text-slate-700">
+                      Role
+                    </label>
+                    <select
+                      id="role-select"
+                      value={form.roleId}
+                      onChange={(event) => setForm((prev) => ({ ...prev, roleId: event.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+                    >
+                      <option value="">No role</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="tenant-select" className="block text-sm font-medium text-slate-700">
+                      Tenant <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      id="tenant-select"
+                      value={form.tenantId}
+                      onChange={(event) => setForm((prev) => ({ ...prev, tenantId: event.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
+                    >
+                      <option value="">Select tenant...</option>
+                      {tenants.map((tenant) => (
+                        <option key={tenant.id} value={tenant.id}>
+                          {tenant.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-3">

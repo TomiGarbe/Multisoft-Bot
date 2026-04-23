@@ -40,7 +40,10 @@ async def create_tenant_endpoint(
         return create_tenant(
             db=db,
             name=tenant_data.name,
+            slug=tenant_data.slug,
             description=tenant_data.description,
+            industry=tenant_data.industry,
+            timezone=tenant_data.timezone,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -66,11 +69,6 @@ async def update_tenant_endpoint(
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
-    if tenant is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found",
-        )
     return tenant
 
 

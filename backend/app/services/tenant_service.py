@@ -13,22 +13,27 @@ def _build_tenant_response(tenant: Tenant) -> TenantResponse:
     return TenantResponse(
         id=tenant.id,
         name=tenant.name,
+        slug=tenant.slug,
         description=tenant.description,
         is_active=tenant.is_active,
+        industry=tenant.industry,
+        timezone=tenant.timezone,
+        branding_jsonb=tenant.branding_jsonb,
+        features_jsonb=tenant.features_jsonb,
     )
 
 
 def get_tenants(db: Session, user: User) -> list[TenantResponse]:
+    if not user.is_active:
+        return []
+    
     if user.is_backdoor:
         stmt = select(Tenant)
     else:
         stmt = (
             select(Tenant)
             .join(TenantUser, TenantUser.tenant_id == Tenant.id)
-            .where(
-                TenantUser.user_id == user.id,
-                TenantUser.is_active.is_(True),
-            )
+            .where(TenantUser.user_id == user.id)
         )
     tenants = db.execute(stmt).scalars().all()
     return [_build_tenant_response(t) for t in tenants]
@@ -52,6 +57,8 @@ def create_tenant(
         description=description,
         industry=industry,
         timezone=timezone,
+        branding_jsonb=None,
+        features_jsonb=None,
     )
 
     db.add(tenant)
@@ -70,6 +77,10 @@ def update_tenant(
 
     if not tenant:
         raise LookupError("Tenant not found")
+
+    # Prevent updates to protected fields
+    kwargs.pop("branding_jsonb", None)
+    kwargs.pop("features_jsonb", None)
 
     if "slug" in kwargs and kwargs["slug"]:
         existing = (

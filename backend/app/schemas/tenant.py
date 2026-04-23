@@ -28,5 +28,7 @@ class TenantResponse(BaseModel):
     is_active: bool
     industry: Optional[str] = None
     timezone: Optional[str] = None
+    branding_jsonb: Optional[dict] = None
+    features_jsonb: Optional[dict] = None
 
     model_config = {"from_attributes": True}

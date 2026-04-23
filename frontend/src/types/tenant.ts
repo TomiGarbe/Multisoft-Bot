@@ -6,6 +6,8 @@ export interface Tenant {
   is_active: boolean;
   industry?: string | null;
   timezone?: string | null;
+  branding_jsonb?: Record<string, unknown> | null;
+  features_jsonb?: Record<string, unknown> | null;
 }
 
 export interface TenantCreate {

@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/users', label: 'Users' },
   { href: '/roles', label: 'Roles' },
   { href: '/tenants', label: 'Negocios/Empresas' },
+  { href: '/channels', label: 'Canales' },
 ];
 
 export default function Sidebar() {

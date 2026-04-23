@@ -30,6 +30,11 @@ export interface UserRoleSummary {
   description?: string | null;
 }
 
+export interface TenantSummary {
+  id: string;
+  name: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -38,6 +43,8 @@ export interface User {
   permissions: Permission[];
   is_active?: boolean;
   is_backdoor?: boolean;
+  tenant_id?: string | null;
+  tenant?: TenantSummary | null;
 }
 
 export interface CreateUserInput {
@@ -48,6 +55,7 @@ export interface CreateUserInput {
   permissions?: string[];
   is_active?: boolean;
   is_backdoor?: boolean;
+  tenant_id?: string;
 }
 
 export interface UpdateUserInput {
@@ -58,4 +66,5 @@ export interface UpdateUserInput {
   permissions?: string[];
   is_active?: boolean;
   is_backdoor?: boolean;
+  tenant_id?: string | null;
 }

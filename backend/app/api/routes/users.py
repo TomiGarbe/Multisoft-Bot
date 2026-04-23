@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.permissions import require_permission
+from app.api.routes.auth import get_current_user
 from app.db.session import get_db
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.services.user_service import create_user, delete_user, get_users, update_user
@@ -17,9 +18,11 @@ async def read_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
+    current_user: tuple[uuid.UUID, str] = Depends(get_current_user),
     _: None = Depends(require_permission("users.read")),
 ):
-    return get_users(db, skip=skip, limit=limit)
+    user_id, _ = current_user
+    return get_users(db, skip=skip, limit=limit, current_user_id=user_id)
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -37,8 +40,8 @@ async def create_user_endpoint(
             role_id=user_data.role_id,
             permissions=user_data.permissions,
             is_active=user_data.is_active,
-            is_superadmin=user_data.is_superadmin,
             is_backdoor=user_data.is_backdoor,
+            tenant_id=user_data.tenant_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -65,10 +68,7 @@ async def update_user_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
 
 

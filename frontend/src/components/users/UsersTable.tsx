@@ -19,7 +19,7 @@ export default function UsersTable({
 }: Props) {
   return (
     <Table
-      headers={['Name', 'Email', 'Role', 'Status', 'Actions']}
+      headers={['Name', 'Email', 'Role', 'Tenant', 'Status', 'Actions']}
       hasRows={users.length > 0}
       emptyMessage="No users found. Create your first user to get started."
     >
@@ -42,6 +42,18 @@ export default function UsersTable({
                 </span>
               )}
             </div>
+          </td>
+
+          <td className="px-4 py-3 text-sm text-slate-700">
+            {user.is_backdoor ? (
+              <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                Backdoor
+              </span>
+            ) : user.tenant?.name ? (
+              <span>{user.tenant.name}</span>
+            ) : (
+              <span className="text-slate-400">—</span>
+            )}
           </td>
 
           <td className="px-4 py-3">

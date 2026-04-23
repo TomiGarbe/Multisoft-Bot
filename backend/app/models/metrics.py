@@ -1,10 +1,8 @@
-from sqlalchemy import String, ForeignKey, Boolean, Text, Integer, BigInteger, Date, DateTime, func, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB, BYTEA
+from sqlalchemy import ForeignKey, Integer, BigInteger, Date, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 import uuid
-from datetime import datetime, date
-from typing import List, Optional
 
 
 class UsageDaily(Base, UUIDPrimaryKeyMixin, TimestampMixin):

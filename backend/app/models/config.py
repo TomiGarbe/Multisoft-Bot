@@ -1,25 +1,9 @@
-from sqlalchemy import String, ForeignKey, Boolean, Text, Integer, BigInteger, Date, DateTime, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB, BYTEA
+from sqlalchemy import String, ForeignKey, Boolean, Integer
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 import uuid
-from datetime import datetime
 from typing import List, Optional, Any
-
-
-class TenantSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    __tablename__ = "tenant_settings"
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), unique=True, nullable=False
-    )
-    usage_limits_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
-    features_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
-    branding_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
-
-    # Relationships
-    tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="settings")
-
 
 class TenantBotConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "tenant_bot_configs"
@@ -31,6 +15,7 @@ class TenantBotConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     config_jsonb: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    usage_limits_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
     created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

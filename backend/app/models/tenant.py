@@ -1,9 +1,7 @@
-from sqlalchemy import String, ForeignKey, Boolean, Text, Integer, BigInteger, Date, DateTime, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB, BYTEA
+from sqlalchemy import String, Boolean, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-import uuid
-from datetime import datetime
 from typing import List, Optional
 
 
@@ -18,6 +16,8 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     plan_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     industry: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     timezone: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    branding_jsonb: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    features_jsonb: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     tenant_users: Mapped[List["TenantUser"]] = relationship(
@@ -35,8 +35,11 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     conversations: Mapped[List["Conversation"]] = relationship(
         "Conversation", back_populates="tenant", cascade="all, delete-orphan"
     )
-    settings: Mapped["TenantSettings"] = relationship(
-        "TenantSettings", back_populates="tenant", cascade="all, delete-orphan", uselist=False
+    wallet: Mapped["TenantWallet"] = relationship(
+        "TenantWallet",
+        back_populates="tenant",
+        uselist=False,
+        cascade="all, delete-orphan"
     )
     bot_configs: Mapped[List["TenantBotConfig"]] = relationship(
         "TenantBotConfig", back_populates="tenant", cascade="all, delete-orphan"

@@ -24,6 +24,7 @@ class UserCreate(BaseModel):
     permissions: list[uuid.UUID] = Field(default_factory=list)
     is_active: bool = True
     is_backdoor: bool = False
+    tenant_id: Optional[uuid.UUID] = None
 
 
 class UserUpdate(BaseModel):
@@ -34,12 +35,14 @@ class UserUpdate(BaseModel):
     permissions: Optional[list[uuid.UUID]] = None
     is_active: Optional[bool] = None
     is_backdoor: Optional[bool] = None
+    tenant_id: Optional[uuid.UUID] = None
 
 
 class UserResponse(BaseModel):
     id: uuid.UUID
     name: str
     email: EmailStr
-    is_superadmin: bool = False
-    is_e: Optional[UserRoleSummary] = None
+    is_backdoor: bool = False
+    tenant_id: Optional[uuid.UUID] = None
+    role: Optional[UserRoleSummary] = None
     permissions: list[UserPermissionSummary] = Field(default_factory=list)

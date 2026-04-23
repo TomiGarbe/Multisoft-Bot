@@ -43,17 +43,14 @@ def require_permission(permission_code: str) -> Callable:
 
         tenant_user = db.execute(
             select(TenantUser)
-            .where(
-                TenantUser.user_id == user_id,
-                TenantUser.is_active.is_(True),
-            )
+            .where(TenantUser.user_id == user_id)
             .limit(1)
         ).scalar_one_or_none()
 
         if not tenant_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="No active tenant association for this user",
+                detail="No tenant association for this user",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 

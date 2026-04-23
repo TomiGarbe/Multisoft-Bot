@@ -1,8 +1,9 @@
 # Models package
 from .tenant import Tenant
+from .tenant_wallet import TenantWallet
 from .user import User
 from .auth import TenantUser, Role, Permission, RolePermission, UserPermission, RefreshToken
-from .config import TenantSettings, TenantBotConfig, ChannelBotConfig
+from .config import TenantBotConfig, ChannelBotConfig
 from .channel import Channel
 from .contact import Contact, ContactIdentity
 from .conversation import ChatThread, Conversation, Message, MessageAttachment
@@ -11,6 +12,7 @@ from .audit import AuditLog
 
 __all__ = [
     "Tenant",
+    "TenantWallet",
     "User",
     "TenantUser",
     "Role",
@@ -18,7 +20,6 @@ __all__ = [
     "RolePermission",
     "UserPermission",
     "RefreshToken",
-    "TenantSettings",
     "TenantBotConfig",
     "ChannelBotConfig",
     "Channel",
