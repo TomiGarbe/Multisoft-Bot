@@ -23,6 +23,7 @@ class ChatThread(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     external_chat_id: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(20), nullable=False)  # "direct" | "group"
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_group: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     metadata_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (
@@ -73,6 +74,9 @@ class Message(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
+    channel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), nullable=False
+    )
     sender_contact_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
     )
@@ -83,10 +87,23 @@ class Message(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     provider_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     metadata_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+    is_group: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    group_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_status: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sender_external_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    sender_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    provider_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    has_media: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    raw_payload: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("channel_id", "provider_message_id", name="uq_messages_channel_provider_id"),
+    )
 
     # Relationships
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
     tenant: Mapped["Tenant"] = relationship("Tenant")
+    channel: Mapped["Channel"] = relationship("Channel")
     sender_contact: Mapped[Optional["Contact"]] = relationship("Contact", back_populates="messages")
     attachments: Mapped[List["MessageAttachment"]] = relationship(
         "MessageAttachment", back_populates="message", cascade="all, delete-orphan"
