@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.routes import auth, permissions, roles, tenants, users
+from app.api.routes import auth, conversations, messages, permissions, roles, tenants, users, webhooks
 from app.core.config import settings
 from app.db.session import SessionLocal
 
@@ -26,6 +26,9 @@ app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users")
 app.include_router(roles.router, prefix=f"{settings.API_V1_STR}/roles")
 app.include_router(permissions.router, prefix=f"{settings.API_V1_STR}/permissions")
 app.include_router(tenants.router, prefix=f"{settings.API_V1_STR}/tenants")
+app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks")
+app.include_router(messages.router, prefix=f"{settings.API_V1_STR}/messages")
+app.include_router(conversations.router, prefix=f"{settings.API_V1_STR}/conversations")
 
 
 @app.get('/health')
