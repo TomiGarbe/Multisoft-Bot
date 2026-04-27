@@ -67,6 +67,20 @@ class Settings(BaseSettings):
         """Parse ALLOWED_HOSTS string to list"""
         return [host.strip() for host in self.ALLOWED_HOSTS.split(",")]
     
+    # ========== OLLAMA AI CONFIGURATION ==========
+    OLLAMA_BASE_URL: str = Field(
+        ...,
+        description="Base URL for Ollama API (e.g., http://localhost:11434)"
+    )
+    OLLAMA_MODEL: str = Field(
+        default="gpt-oss:20b",
+        description="Ollama model to use for AI generation"
+    )
+    OLLAMA_TOKEN: Optional[str] = Field(
+        default=None,
+        description="Optional authentication token for Ollama API"
+    )
+    
     # ========== MODEL CONFIGURATION ==========
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

@@ -41,6 +41,3 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         uselist=False,
         cascade="all, delete-orphan"
     )
-    bot_configs: Mapped[List["TenantBotConfig"]] = relationship(
-        "TenantBotConfig", back_populates="tenant", cascade="all, delete-orphan"
-    )

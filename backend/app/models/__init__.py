@@ -1,9 +1,10 @@
 # Models package
+from .ai.ai_logs import AILog
 from .tenant import Tenant
 from .tenant_wallet import TenantWallet
 from .user import User
 from .auth import TenantUser, Role, Permission, RolePermission, UserPermission, RefreshToken
-from .config import TenantBotConfig, ChannelBotConfig
+from .config import ChannelBotConfig
 from .channel import Channel
 from .contact import Contact, ContactIdentity
 from .conversation import ChatThread, Conversation, Message, MessageAttachment
@@ -20,7 +21,6 @@ __all__ = [
     "RolePermission",
     "UserPermission",
     "RefreshToken",
-    "TenantBotConfig",
     "ChannelBotConfig",
     "Channel",
     "Contact",
@@ -32,4 +32,5 @@ __all__ = [
     "UsageDaily",
     "ContactUsageDaily",
     "AuditLog",
+    "AILog",
 ]
