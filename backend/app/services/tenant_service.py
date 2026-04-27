@@ -23,10 +23,15 @@ def _build_tenant_response(tenant: Tenant) -> TenantResponse:
     )
 
 
-def get_tenants(db: Session, user: User) -> list[TenantResponse]:
+def get_tenants(db: Session, user: Optional[User] = None) -> list[TenantResponse]:
+    # DEV: bypass user filtering
+    if user is None:
+        tenants = db.execute(select(Tenant)).scalars().all()
+        return [_build_tenant_response(t) for t in tenants]
+
     if not user.is_active:
         return []
-    
+
     if user.is_backdoor:
         stmt = select(Tenant)
     else:

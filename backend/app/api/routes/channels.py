@@ -21,19 +21,19 @@ router = APIRouter(tags=["channels"])
 @router.get("/", response_model=list[ChannelResponse])
 async def read_channels(
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
-    _: None = Depends(require_permission("channels.read")),
+    #current_user: tuple = Depends(get_current_user),
+    #_: None = Depends(require_permission("channels.read")),
 ):
-    user_id, _ = current_user
-    user = db.get(User, user_id)
-    return get_channels(db, user=user)
+    #user_id, _ = current_user
+    #user = db.get(User, user_id)
+    return get_channels(db, user=None)
 
 
 @router.post("/", response_model=ChannelResponse, status_code=status.HTTP_201_CREATED)
 async def create_channel_endpoint(
     channel_data: ChannelCreate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("channels.create")),
+    #_: None = Depends(require_permission("channels.create")),
 ):
     try:
         return create_channel(
@@ -56,7 +56,7 @@ async def update_channel_endpoint(
     channel_id: uuid.UUID,
     channel_data: ChannelUpdate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("channels.update")),
+    #_: None = Depends(require_permission("channels.update")),
 ):
     try:
         channel = update_channel(
@@ -76,7 +76,7 @@ async def update_channel_endpoint(
 async def delete_channel_endpoint(
     channel_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("channels.delete")),
+    #_: None = Depends(require_permission("channels.delete")),
 ):
     success = delete_channel(db, channel_id)
     if not success:

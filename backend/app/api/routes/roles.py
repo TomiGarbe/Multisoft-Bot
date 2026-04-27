@@ -17,7 +17,7 @@ async def read_roles(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("roles.read")),
+    #_: None = Depends(require_permission("roles.read")),
 ):
     return get_roles(db, skip=skip, limit=limit)
 
@@ -26,7 +26,7 @@ async def read_roles(
 async def create_role_endpoint(
     role_data: RoleCreate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("roles.create")),
+    #_: None = Depends(require_permission("roles.create")),
 ):
     try:
         return create_role(
@@ -44,7 +44,7 @@ async def update_role_endpoint(
     role_id: uuid.UUID,
     role_data: RoleUpdate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("roles.update")),
+    #_: None = Depends(require_permission("roles.update")),
 ):
     try:
         role = update_role(
@@ -62,7 +62,7 @@ async def update_role_endpoint(
 async def delete_role_endpoint(
     role_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("roles.delete")),
+    #_: None = Depends(require_permission("roles.delete")),
 ):
     success = delete_role(db, role_id)
     if not success:

@@ -286,24 +286,25 @@ def get_users(
         .joinedload(UserPermission.permission),
     ]
 
-    if current_user_id is not None:
-        caller = db.get(User, current_user_id)
-        if caller and not caller.is_backdoor:
-            # Normal user: only users that share at least one tenant
-            caller_tenant_ids = (
-                select(TenantUser.tenant_id)
-                .where(TenantUser.user_id == current_user_id, TenantUser.tenant_id.is_not(None))
-            )
-            stmt = (
-                select(User)
-                .join(User.tenant_links)
-                .where(TenantUser.tenant_id.in_(caller_tenant_ids))
-                .offset(skip)
-                .limit(limit)
-                .options(*base_options)
-            )
-            users = db.execute(stmt).unique().scalars().all()
-            return [_build_user_response(user) for user in users]
+    # DEV: tenant-scoped filtering disabled
+    # if current_user_id is not None:
+    #     caller = db.get(User, current_user_id)
+    #     if caller and not caller.is_backdoor:
+    #         # Normal user: only users that share at least one tenant
+    #         caller_tenant_ids = (
+    #             select(TenantUser.tenant_id)
+    #             .where(TenantUser.user_id == current_user_id, TenantUser.tenant_id.is_not(None))
+    #         )
+    #         stmt = (
+    #             select(User)
+    #             .join(User.tenant_links)
+    #             .where(TenantUser.tenant_id.in_(caller_tenant_ids))
+    #             .offset(skip)
+    #             .limit(limit)
+    #             .options(*base_options)
+    #         )
+    #         users = db.execute(stmt).unique().scalars().all()
+    #         return [_build_user_response(user) for user in users]
 
     stmt = select(User).offset(skip).limit(limit).options(*base_options)
     users = db.execute(stmt).unique().scalars().all()

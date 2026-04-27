@@ -1,8 +1,8 @@
 """init
 
-Revision ID: a1aebc810a53
+Revision ID: 394fff4a0620
 Revises: 
-Create Date: 2026-04-22 12:06:01.382152
+Create Date: 2026-04-24 17:18:56.883454
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'a1aebc810a53'
+revision: str = '394fff4a0620'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -32,8 +32,14 @@ def upgrade() -> None:
     op.create_table('tenants',
     sa.Column('name', sa.String(length=150), nullable=False),
     sa.Column('slug', sa.String(length=150), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('status', sa.String(length=30), nullable=False),
     sa.Column('plan_code', sa.String(length=50), nullable=True),
+    sa.Column('industry', sa.String(length=100), nullable=True),
+    sa.Column('timezone', sa.String(length=100), nullable=True),
+    sa.Column('branding_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('features_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -46,6 +52,7 @@ def upgrade() -> None:
     sa.Column('password_hash', sa.String(length=255), nullable=True),
     sa.Column('google_id', sa.String(length=255), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_backdoor', sa.Boolean(), nullable=False),
     sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -72,14 +79,15 @@ def upgrade() -> None:
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('type', sa.String(length=50), nullable=False),
     sa.Column('name', sa.String(length=150), nullable=False),
-    sa.Column('identifier', sa.String(length=255), nullable=False),
+    sa.Column('external_id', sa.String(length=255), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('config_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('tenant_id', 'external_id', name='uq_tenant_external_id')
     )
     op.create_table('contacts',
     sa.Column('tenant_id', sa.UUID(), nullable=False),
@@ -123,6 +131,7 @@ def upgrade() -> None:
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('version', sa.Integer(), nullable=False),
     sa.Column('config_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('usage_limits_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('created_by_user_id', sa.UUID(), nullable=True),
     sa.Column('updated_by_user_id', sa.UUID(), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
@@ -133,11 +142,10 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['updated_by_user_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('tenant_settings',
+    op.create_table('tenant_wallets',
     sa.Column('tenant_id', sa.UUID(), nullable=False),
-    sa.Column('usage_limits_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('features_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('branding_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('balance_tokens', sa.BigInteger(), nullable=False),
+    sa.Column('consumed_tokens', sa.BigInteger(), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -187,6 +195,7 @@ def upgrade() -> None:
     sa.Column('external_chat_id', sa.String(length=255), nullable=False),
     sa.Column('type', sa.String(length=20), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=True),
+    sa.Column('is_group', sa.Boolean(), nullable=False),
     sa.Column('metadata_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -235,11 +244,9 @@ def upgrade() -> None:
     sa.UniqueConstraint('role_id', 'permission_id', name='uq_role_permissions_role_perm')
     )
     op.create_table('tenant_users',
-    sa.Column('tenant_id', sa.UUID(), nullable=False),
+    sa.Column('tenant_id', sa.UUID(), nullable=True),
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('role_id', sa.UUID(), nullable=True),
-    sa.Column('is_owner', sa.Boolean(), nullable=False),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -279,6 +286,7 @@ def upgrade() -> None:
     op.create_table('messages',
     sa.Column('conversation_id', sa.UUID(), nullable=False),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
+    sa.Column('channel_id', sa.UUID(), nullable=False),
     sa.Column('sender_contact_id', sa.UUID(), nullable=True),
     sa.Column('direction', sa.String(length=30), nullable=False),
     sa.Column('sender_type', sa.String(length=30), nullable=False),
@@ -287,13 +295,23 @@ def upgrade() -> None:
     sa.Column('provider_message_id', sa.String(length=255), nullable=True),
     sa.Column('status', sa.String(length=30), nullable=True),
     sa.Column('metadata_jsonb', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('is_group', sa.Boolean(), nullable=False),
+    sa.Column('group_id', sa.String(length=255), nullable=True),
+    sa.Column('is_status', sa.Boolean(), nullable=False),
+    sa.Column('sender_external_id', sa.String(length=255), nullable=True),
+    sa.Column('sender_name', sa.String(length=255), nullable=True),
+    sa.Column('provider_timestamp', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('has_media', sa.Boolean(), nullable=False),
+    sa.Column('raw_payload', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['channel_id'], ['channels.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['conversation_id'], ['conversations.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['sender_contact_id'], ['contacts.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('channel_id', 'provider_message_id', name='uq_messages_channel_provider_id')
     )
     op.create_table('message_attachments',
     sa.Column('message_id', sa.UUID(), nullable=False),
@@ -332,7 +350,7 @@ def downgrade() -> None:
     op.drop_table('chat_threads')
     op.drop_table('channel_bot_configs')
     op.drop_table('usage_daily')
-    op.drop_table('tenant_settings')
+    op.drop_table('tenant_wallets')
     op.drop_table('tenant_bot_configs')
     op.drop_table('roles')
     op.drop_table('refresh_tokens')

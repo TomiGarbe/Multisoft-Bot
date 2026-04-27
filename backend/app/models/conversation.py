@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, Text, Integer, BigInteger, DateTime, UniqueConstraint, Index
+from sqlalchemy import String, ForeignKey, Boolean, Text, Integer, BigInteger, DateTime, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB, BYTEA
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin

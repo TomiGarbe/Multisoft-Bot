@@ -18,18 +18,18 @@ async def read_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: tuple[uuid.UUID, str] = Depends(get_current_user),
-    _: None = Depends(require_permission("users.read")),
+    #current_user: tuple[uuid.UUID, str] = Depends(get_current_user),
+    #_: None = Depends(require_permission("users.read")),
 ):
-    user_id, _ = current_user
-    return get_users(db, skip=skip, limit=limit, current_user_id=user_id)
+    #user_id, _ = current_user
+    return get_users(db, skip=skip, limit=limit, current_user_id=None)
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_endpoint(
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("users.create")),
+    #_: None = Depends(require_permission("users.create")),
 ):
     try:
         return create_user(
@@ -54,7 +54,7 @@ async def update_user_endpoint(
     user_id: uuid.UUID,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("users.update")),
+    #_: None = Depends(require_permission("users.update")),
 ):
     try:
         user = update_user(
@@ -76,7 +76,7 @@ async def update_user_endpoint(
 async def delete_user_endpoint(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _: None = Depends(require_permission("users.delete")),
+    #_: None = Depends(require_permission("users.delete")),
 ):
     success = delete_user(db, user_id)
     if not success:

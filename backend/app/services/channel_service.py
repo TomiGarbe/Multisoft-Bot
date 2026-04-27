@@ -29,11 +29,15 @@ def _build_channel_response(channel: Channel) -> ChannelResponse:
     )
 
 
-def get_channels(db: Session, user: User) -> list[ChannelResponse]:
-    """Get channels accessible to the user."""
+def get_channels(db: Session, user: Optional[User] = None) -> list[ChannelResponse]:
+    # DEV: bypass user filtering
+    if user is None:
+        channels = db.execute(select(Channel)).scalars().all()
+        return [_build_channel_response(c) for c in channels]
+
     if not user.is_active:
         return []
-    
+
     if user.is_backdoor:
         stmt = select(Channel)
     else:
@@ -43,7 +47,7 @@ def get_channels(db: Session, user: User) -> list[ChannelResponse]:
             .join(TenantUser, TenantUser.tenant_id == Tenant.id)
             .where(TenantUser.user_id == user.id)
         )
-    
+
     channels = db.execute(stmt).scalars().all()
     return [_build_channel_response(c) for c in channels]
 
