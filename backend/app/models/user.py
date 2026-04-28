@@ -15,7 +15,6 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_backdoor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    current_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Relationships
     tenant_links: Mapped[List["TenantUser"]] = relationship(

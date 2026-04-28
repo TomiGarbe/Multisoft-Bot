@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.channel import Channel
 from app.models.contact import Contact, ContactIdentity
 from app.models.conversation import ChatThread, Conversation, Message
+from app.models.metrics import ContactUsage
 from app.providers.provider_factory import get_message_provider
 from app.schemas.internal.normalized_message import NormalizedMessage
 
@@ -83,11 +84,19 @@ def create_inbound_message(db: Session, normalized: NormalizedMessage) -> Messag
             tenant_id=channel.tenant_id,
             chat_thread_id=thread.id,
             status="open",
+            mode="ai",
             started_at=now,
             last_message_at=now,
         )
         db.add(conversation)
         db.flush()
+        if contact_id:
+            db.add(ContactUsage(
+                contact_id=contact_id,
+                conversation_id=conversation.id,
+                bot_message_count=0,
+            ))
+            db.flush()
 
     message = Message(
         conversation_id=conversation.id,

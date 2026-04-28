@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, BigInteger, Date, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, BigInteger, Date, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -47,3 +47,25 @@ class ContactUsageDaily(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Relationships
     tenant: Mapped["Tenant"] = relationship("Tenant")
     contact: Mapped["Contact"] = relationship("Contact", back_populates="contact_usage_daily")
+
+
+class ContactUsage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Usage tracking per conversation (1 record per active conversation)."""
+    __tablename__ = "contact_usage"
+
+    contact_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    bot_message_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("conversation_id", name="uq_contact_usage_conversation"),
+        Index("ix_contact_usage_contact_id", "contact_id"),
+    )
+
+    # Relationships
+    contact: Mapped["Contact"] = relationship("Contact", back_populates="contact_usage")
+    conversation: Mapped["Conversation"] = relationship("Conversation")

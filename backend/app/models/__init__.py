@@ -8,7 +8,7 @@ from .config import ChannelBotConfig
 from .channel import Channel
 from .contact import Contact, ContactIdentity
 from .conversation import ChatThread, Conversation, Message, MessageAttachment
-from .metrics import UsageDaily, ContactUsageDaily
+from .metrics import UsageDaily, ContactUsageDaily, ContactUsage
 from .audit import AuditLog
 
 __all__ = [
@@ -31,6 +31,7 @@ __all__ = [
     "MessageAttachment",
     "UsageDaily",
     "ContactUsageDaily",
+    "ContactUsage",
     "AuditLog",
     "AILog",
 ]

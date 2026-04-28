@@ -1,5 +1,5 @@
-from app.services.ai.config_resolver import get_sections_by_type
-
+import logging
+logger = logging.getLogger(__name__)
 
 class PromptBuilder:
 
@@ -11,61 +11,93 @@ class PromptBuilder:
         current_message: str | None,
         user_type: str,
     ) -> str:
-        config = get_sections_by_type(config, user_type)
-
-        prompt = "\n\n".join([
+        prompt = "\n\n".join(filter(None, [
             self.build_identity(config),
             self.build_tone(config),
             self.build_rules(config),
-            self.build_objective(config),
-            self.build_data_collection(config),
-            self.build_actions(config),
+            self.build_objective(config, user_type),
+            self.build_data_collection(config, user_type),
+            self.build_actions(config, user_type),
             self.build_memory(user_memory),
             self.build_conversation(messages),
             self.build_current_message(current_message),
-        ])
-
+        ]))
+        logger.warning("Built prompt for user_type=%s: %s", user_type, prompt)
         return prompt
 
     def build_identity(self, config: dict) -> str:
-        identity = config.get("identity", "")
-        if not identity:
-            return ""
-        return f"[IDENTIDAD]\n{identity}"
+        identity = config.get("identity", {})
+        return f"""[IDENTIDAD]
+Sos {identity.get("role", "un asistente")}.
+
+{identity.get("description", "")}
+Industria: {identity.get("industry", "")}
+Idioma: {identity.get("language", "")}
+"""
 
     def build_tone(self, config: dict) -> str:
-        tone = config.get("tone", "")
-        if not tone:
-            return ""
-        return f"[TONO]\n{tone}"
+        tone = config.get("tone", {})
+        rules = "\n".join(f"- {r}" for r in tone.get("style_rules", []))
+        return f"""[TONO]
+{tone.get("tone", "")}
+
+Reglas de estilo:
+{rules}
+"""
 
     def build_rules(self, config: dict) -> str:
-        rules = config.get("rules", [])
-        if not rules or not isinstance(rules, list):
-            return ""
-        lines = "\n".join(f"* {rule}" for rule in rules)
-        return f"[REGLAS]\n{lines}"
+        rules_section = config.get("rules", {})
+        rules = "\n".join(f"- {r}" for r in rules_section.get("rules", []))
+        return f"""[REGLAS]
+{rules}
+"""
 
-    def build_objective(self, config: dict) -> str:
-        objectives = config.get("objectives", [])
-        if not objectives or not isinstance(objectives, list):
-            return ""
-        lines = "\n".join(f"* {obj}" for obj in objectives)
-        return f"[OBJETIVO]\n{lines}"
+    def _filter_by_user_type(self, blocks: list, user_type: str) -> list:
+        if not blocks:
+            return []
+        return [b for b in blocks if user_type in b.get("applies_to", [])]
 
-    def build_data_collection(self, config: dict) -> str:
-        data_collection = config.get("data_collection", [])
-        if not data_collection or not isinstance(data_collection, list):
+    def build_objective(self, config: dict, user_type: str) -> str:
+        valid = self._filter_by_user_type(config.get("objectives", []), user_type)
+        if not valid:
             return ""
-        lines = "\n".join(f"* {item}" for item in data_collection)
-        return f"[RECOLECCIÓN DE DATOS]\n{lines}"
+        lines = []
+        for obj in valid:
+            lines.append(f"Objetivo: {obj.get('description', '')}")
+            if obj.get("objective_type"):
+                lines.append(f"Tipo: {obj.get('objective_type')}")
+            if obj.get("conversation_flow"):
+                lines.append("Flujo:")
+                for step in obj.get("conversation_flow", []):
+                    lines.append(f"- {step}")
+        return f"""[OBJETIVO]
+{chr(10).join(lines)}
+"""
 
-    def build_actions(self, config: dict) -> str:
-        actions = config.get("actions", [])
-        if not actions or not isinstance(actions, list):
+    def build_data_collection(self, config: dict, user_type: str) -> str:
+        valid = self._filter_by_user_type(config.get("data_collection", []), user_type)
+        if not valid:
             return ""
-        lines = "\n".join(f"* {action}" for action in actions)
-        return f"[ACCIONES]\n{lines}"
+        lines = []
+        for dc in valid:
+            for field in dc.get("fields", []):
+                required = "obligatorio" if field.get("required") else "opcional"
+                lines.append(f"- {field.get('name')} ({required})")
+        return f"""[DATOS A RECOLECTAR]
+{chr(10).join(lines)}
+"""
+
+    def build_actions(self, config: dict, user_type: str) -> str:
+        valid = self._filter_by_user_type(config.get("actions", []), user_type)
+        if not valid:
+            return ""
+        lines = []
+        for block in valid:
+            for action in block.get("actions", []):
+                lines.append(f"- {action.get('name')}")
+        return f"""[ACCIONES]
+{chr(10).join(lines)}
+"""
 
     def build_memory(self, user_memory: dict | None) -> str:
         if not user_memory or not isinstance(user_memory, dict):
@@ -88,7 +120,7 @@ class PromptBuilder:
                 lines.append(f"{label}: {content}")
         if not lines:
             return ""
-        return f"[CONVERSACIÓN]\n" + "\n".join(lines)
+        return "[CONVERSACIÓN]\n" + "\n".join(lines)
 
     def build_current_message(self, current_message: str | None) -> str:
         if not current_message or not isinstance(current_message, str):

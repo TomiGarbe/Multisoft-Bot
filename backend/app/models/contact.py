@@ -17,6 +17,7 @@ class Contact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     document_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     metadata_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+    current_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     __table_args__ = (Index("ix_contacts_tenant_phone", "tenant_id", "phone"),)
 
@@ -27,6 +28,9 @@ class Contact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     contact_usage_daily: Mapped[List["ContactUsageDaily"]] = relationship(
         "ContactUsageDaily", back_populates="contact", cascade="all, delete-orphan"
+    )
+    contact_usage: Mapped[List["ContactUsage"]] = relationship(
+        "ContactUsage", back_populates="contact", cascade="all, delete-orphan"
     )
     messages: Mapped[List["Message"]] = relationship(
         "Message", back_populates="sender_contact", cascade="all, delete-orphan"

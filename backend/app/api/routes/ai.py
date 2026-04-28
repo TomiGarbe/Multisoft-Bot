@@ -31,13 +31,13 @@ class AITestResponse(BaseModel):
     prompt: str
 
 
-def _get_user_memory(db: Session, contact_id: Optional[uuid.UUID]) -> Optional[dict]:
-    if not contact_id:
-        return None
-    contact = db.get(Contact, contact_id)
-    if not contact or not contact.metadata_jsonb:
-        return None
-    return contact.metadata_jsonb.get("memory")
+def _resolve_default_type(user_types_config: dict) -> str:
+    default_type = user_types_config.get("default_type")
+    if default_type:
+        return default_type
+    types = user_types_config.get("types", [])
+    default = next((t for t in types if t.get("is_default")), None)
+    return default["key"] if default else "default"
 
 
 @router.post("/test", response_model=AITestResponse)
@@ -54,7 +54,16 @@ async def test_ai(
 
     fallback_message = config.get("behavior", {}).get("fallback_message") or _DEFAULT_FALLBACK
 
-    user_memory = _get_user_memory(db, body.contact_id)
+    user_types_config = config.get("user_types_jsonb", {}) or {}
+    default_type = _resolve_default_type(user_types_config)
+
+    user_type = default_type
+    user_memory = None
+    if body.contact_id:
+        contact = db.get(Contact, body.contact_id)
+        if contact:
+            user_type = contact.current_type or default_type
+            user_memory = contact.metadata_jsonb
 
     prompt_builder = PromptBuilder()
     prompt = prompt_builder.build(
@@ -62,6 +71,7 @@ async def test_ai(
         messages=[],
         user_memory=user_memory,
         current_message=body.message,
+        user_type=user_type,
     )
 
     ai_service = AIService()
