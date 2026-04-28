@@ -9,7 +9,7 @@ import { getApiErrorMessage } from '@/services/api';
 import { createRole, updateRole } from '@/services/roles';
 import type { Role } from '@/types/access';
 
-interface RoleFormProps {
+interface RolesFormProps {
   open: boolean;
   onClose: () => void;
   role?: Role | null;
@@ -32,7 +32,7 @@ function normalizeIds(ids: string[]): string[] {
   return Array.from(new Set(ids));
 }
 
-export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormProps) {
+export default function RolesForm({ open, onClose, role, onSuccess }: RolesFormProps) {
   const isEditing = Boolean(role);
 
   const [form, setForm] = useState<FormState>(initialForm);
@@ -62,13 +62,13 @@ export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormPro
 
     const trimmedName = form.name.trim();
     if (!trimmedName) {
-      setError('Name is required.');
+      setError('El nombre es obligatorio.');
       return;
     }
 
     const uniquePermissions = normalizeIds(form.permissions);
     if (uniquePermissions.length === 0) {
-      setError('Select at least one permission.');
+      setError('Selecciona al menos un permiso.');
       return;
     }
 
@@ -84,15 +84,15 @@ export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormPro
 
       if (isEditing && role) {
         await updateRole(role.id, payload);
-        onSuccess('Role updated successfully.');
+        onSuccess('Rol actualizado correctamente.');
       } else {
         await createRole(payload);
-        onSuccess('Role created successfully.');
+        onSuccess('Rol creado correctamente.');
       }
 
       onClose();
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to save role.'));
+      setError(getApiErrorMessage(requestError, 'No se pudo guardar el rol.'));
     } finally {
       setIsSaving(false);
     }
@@ -101,7 +101,7 @@ export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormPro
   return (
     <Modal
       isOpen={open}
-      title={isEditing ? 'Edit Role' : 'Create Role'}
+      title={isEditing ? 'Editar rol' : 'Crear rol'}
       onClose={() => {
         if (!isSaving) {
           onClose();
@@ -110,10 +110,10 @@ export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormPro
       footer={
         <div className="flex items-center justify-end gap-3">
           <Button variant="secondary" type="button" onClick={onClose} disabled={isSaving}>
-            Cancel
+            Cancelar
           </Button>
           <Button type="submit" form="role-form" disabled={!canSubmit}>
-            {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Role'}
+            {isSaving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear rol'}
           </Button>
         </div>
       }
@@ -124,7 +124,7 @@ export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormPro
         ) : null}
 
         <Input
-          label="Name"
+          label="Nombre"
           value={form.name}
           onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
           placeholder="Manager"
@@ -134,13 +134,13 @@ export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormPro
 
         <div className="space-y-1.5">
           <label htmlFor="role-description" className="block text-sm font-medium text-slate-700">
-            Description
+            Descripción
           </label>
           <textarea
             id="role-description"
             value={form.description}
             onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-            placeholder="Describe what this role can do"
+            placeholder="Describe lo que este rol puede hacer"
             rows={3}
             disabled={isSaving}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
@@ -149,13 +149,13 @@ export default function RoleForm({ open, onClose, role, onSuccess }: RoleFormPro
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-800">Permissions</h3>
+            <h3 className="text-sm font-semibold text-slate-800">Permisos</h3>
             <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
-              {form.permissions.length} selected
+              {form.permissions.length} seleccionados
             </span>
           </div>
 
-          <p className="text-xs text-slate-500">Select permissions by group or individually.</p>
+          <p className="text-xs text-slate-500">Selecciona permisos por grupo o individualmente.</p>
 
           <PermissionSelector
             value={form.permissions}

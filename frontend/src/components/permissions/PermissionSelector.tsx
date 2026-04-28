@@ -17,15 +17,15 @@ const PERMISSION_GROUPS = ['users', 'roles', 'conversations', 'contacts', 'bot_c
 type PermissionGroup = (typeof PERMISSION_GROUPS)[number] | 'other';
 
 const PERMISSION_GROUP_LABELS: Record<PermissionGroup, string> = {
-  users: 'Users',
+  users: 'Usuarios',
   roles: 'Roles',
-  conversations: 'Conversations',
-  contacts: 'Contacts',
-  bot_config: 'Bot Config',
-  channels: 'Channels',
-  metrics: 'Metrics',
-  audit: 'Audit',
-  other: 'Other',
+  conversations: 'Conversaciones',
+  contacts: 'Contactos',
+  bot_config: 'Configuración del bot',
+  channels: 'Canales',
+  metrics: 'Métricas',
+  audit: 'Auditoría',
+  other: 'Otros',
 };
 
 function normalizePermissionCode(code: string): string {
@@ -75,7 +75,7 @@ export default function PermissionSelector({ value, onChange, disabled = false }
       const permissionList = await getPermissions();
       setAllPermissions(permissionList);
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to load permissions.'));
+      setError(getApiErrorMessage(requestError, 'No se pudieron cargar los permisos.'));
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +202,7 @@ export default function PermissionSelector({ value, onChange, disabled = false }
   if (isLoading) {
     return (
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-8 text-center text-sm text-slate-500">
-        Loading permissions...
+        Cargando permisos...
       </div>
     );
   }
@@ -212,7 +212,7 @@ export default function PermissionSelector({ value, onChange, disabled = false }
       <div className="space-y-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-3">
         <p className="text-sm text-rose-700">{error}</p>
         <Button type="button" variant="secondary" onClick={() => void loadPermissions()} disabled={disabled}>
-          Retry
+          Reintentar
         </Button>
       </div>
     );
@@ -249,7 +249,7 @@ export default function PermissionSelector({ value, onChange, disabled = false }
                 <div className="mb-3">
                   <Checkbox
                     label={group.label}
-                    description={`Select all ${group.permissions.length} permission(s)`}
+                    description={`Seleccionar los ${group.permissions.length} permisos`}
                     checked={isGroupChecked}
                     onChange={(event) => togglePermissionGroup(groupPermissionIds, event.target.checked)}
                     disabled={disabled}
@@ -274,7 +274,7 @@ export default function PermissionSelector({ value, onChange, disabled = false }
 
           {groupedPermissions.length === 0 ? (
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              No grouped permissions available.
+              No hay permisos agrupados disponibles.
             </div>
           ) : null}
         </div>
@@ -282,3 +282,4 @@ export default function PermissionSelector({ value, onChange, disabled = false }
     </div>
   );
 }
+

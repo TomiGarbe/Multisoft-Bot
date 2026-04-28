@@ -11,26 +11,37 @@ interface TableProps {
 
 export default function Table({ headers, children, emptyMessage = 'No data available.', hasRows }: TableProps) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200">
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl">
+        <table className="w-full min-w-max border-collapse divide-y divide-slate-200 text-left">
           <thead className="bg-slate-50">
             <tr>
               {headers.map((header) => (
                 <th
                   key={header}
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                  className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
                 >
                   {header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">{children}</tbody>
+          {hasRows ? (
+            <tbody className="divide-y divide-slate-100 bg-white">{children}</tbody>
+          ) : (
+            <tbody>
+              <tr>
+                <td
+                  colSpan={headers.length}
+                  className="px-4 py-8 text-center text-sm text-slate-500"
+                >
+                  {emptyMessage}
+                </td>
+              </tr>
+            </tbody>
+          )}
         </table>
       </div>
-
-      {!hasRows ? <p className="px-4 py-8 text-center text-sm text-slate-500">{emptyMessage}</p> : null}
     </div>
   );
 }

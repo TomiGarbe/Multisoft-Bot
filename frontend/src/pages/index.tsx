@@ -1,10 +1,8 @@
-'use client';
-
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { getToken } from '@/services/auth';
 
-export default function Home() {
+export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
@@ -18,8 +16,8 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50">
       <div className="text-center">
-        <h1 className="mb-4 text-3xl font-bold text-slate-900">Multisoft Bot</h1>
-        <p className="text-slate-600">Redirecting...</p>
+        <h1 className="mb-4 text-3xl font-bold text-slate-900">Inicio</h1>
+        <p className="text-slate-600">Redirigiendo a la sección correspondiente.</p>
       </div>
     </div>
   );

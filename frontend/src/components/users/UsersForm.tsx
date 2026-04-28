@@ -13,7 +13,7 @@ import { createUser, updateUser } from '@/services/users';
 import type { Permission, Role, User } from '@/types/access';
 import type { Tenant } from '@/types/tenant';
 
-interface UserFormProps {
+interface UsersFormProps {
   isOpen: boolean;
   user: User | null;
   onClose: () => void;
@@ -34,15 +34,15 @@ const PERMISSION_GROUPS = ['users', 'roles', 'conversations', 'contacts', 'bot_c
 type PermissionGroup = (typeof PERMISSION_GROUPS)[number] | 'other';
 
 const PERMISSION_GROUP_LABELS: Record<PermissionGroup, string> = {
-  users: 'Users',
+  users: 'Usuarios',
   roles: 'Roles',
-  conversations: 'Conversations',
-  contacts: 'Contacts',
-  bot_config: 'Bot Config',
-  channels: 'Channels',
-  metrics: 'Metrics',
-  audit: 'Audit',
-  other: 'Other',
+  conversations: 'Conversaciones',
+  contacts: 'Contactos',
+  bot_config: 'Configuración del bot',
+  channels: 'Canales',
+  metrics: 'Métricas',
+  audit: 'Auditoría',
+  other: 'Otros',
 };
 
 const initialForm: FormState = {
@@ -76,7 +76,7 @@ function getPermissionGroup(permissionCode: string): PermissionGroup {
   return 'other';
 }
 
-export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormProps) {
+export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormProps) {
   const isEditing = Boolean(user);
   const [form, setForm] = useState<FormState>(initialForm);
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
@@ -124,7 +124,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
         setAllPermissions(permissionList);
         setTenants(tenantList);
       } catch (requestError) {
-        setError(getApiErrorMessage(requestError, 'Unable to load role and permission data.'));
+        setError(getApiErrorMessage(requestError, 'No se pudieron cargar roles y permisos.'));
       } finally {
         setIsLoadingMeta(false);
       }
@@ -272,17 +272,17 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
     event.preventDefault();
 
     if (!form.name.trim() || !form.email.trim()) {
-      setError('Name and email are required.');
+      setError('Nombre y email son obligatorios.');
       return;
     }
 
     if (!isEditing && form.password.trim().length < 6) {
-      setError('Password is required and must have at least 6 characters.');
+      setError('La contraseña es obligatoria y debe tener al menos 6 caracteres.');
       return;
     }
 
     if (!form.isBackdoor && !form.tenantId) {
-      setError('Tenant is required for non-backdoor users.');
+      setError('El negocio es obligatorio para usuarios sin backdoor.');
       return;
     }
 
@@ -321,7 +321,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
             tenant_id: form.tenantId,
           });
         }
-        onSaved('User updated successfully.');
+        onSaved('Usuario actualizado correctamente.');
       } else {
         const basePayload = {
           name: form.name.trim(),
@@ -344,12 +344,12 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
             tenant_id: form.tenantId,
           });
         }
-        onSaved('User created successfully.');
+        onSaved('Usuario creado correctamente.');
       }
 
       onClose();
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to save user.'));
+      setError(getApiErrorMessage(requestError, 'No se pudo guardar el usuario.'));
     } finally {
       setIsSaving(false);
     }
@@ -358,7 +358,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
   return (
     <Modal
       isOpen={isOpen}
-      title={isEditing ? 'Edit User' : 'Create User'}
+      title={isEditing ? 'Editar usuario' : 'Crear usuario'}
       onClose={() => {
         if (!isSaving) {
           onClose();
@@ -367,10 +367,10 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
       footer={
         <div className="flex items-center justify-end gap-3">
           <Button variant="secondary" type="button" onClick={onClose} disabled={isSaving}>
-            Cancel
+            Cancelar
           </Button>
           <Button type="submit" form="user-form" disabled={isLoadingMeta || isSaving}>
-            {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create User'}
+            {isSaving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear usuario'}
           </Button>
         </div>
       }
@@ -382,13 +382,13 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
 
         {isLoadingMeta ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-8 text-center text-sm text-slate-500">
-            Loading roles and permissions...
+            Cargando roles y permisos...
           </div>
         ) : (
           <>
             <div className="space-y-3">
               <Checkbox
-                label="Backdoor (superadmin global)"
+                label="Backdoor (superadministrador global)"
                 description="Acceso global total. Anula roles y permisos del tenant."
                 checked={form.isBackdoor}
                 onChange={(event) => toggleBackdoor(event.target.checked)}
@@ -406,7 +406,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
-                label="Name"
+                label="Nombre"
                 value={form.name}
                 onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                 placeholder="Jane Doe"
@@ -424,20 +424,20 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
 
             {!isEditing ? (
               <Input
-                label="Password"
+                label="Contraseña"
                 type="password"
                 value={form.password}
                 onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                placeholder="At least 6 characters"
+                placeholder="Al menos 6 caracteres"
                 required
               />
             ) : (
               <Input
-                label="Password (optional)"
+                label="Contraseña (opcional)"
                 type="password"
                 value={form.password}
                 onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                placeholder="Leave empty to keep current password"
+                placeholder="Deja vacío para mantener la contraseña actual"
               />
             )}
 
@@ -450,7 +450,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-1.5">
                     <label htmlFor="role-select" className="block text-sm font-medium text-slate-700">
-                      Role
+                      Rol
                     </label>
                     <select
                       id="role-select"
@@ -458,7 +458,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
                       onChange={(event) => setForm((prev) => ({ ...prev, roleId: event.target.value }))}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
                     >
-                      <option value="">No role</option>
+                      <option value="">Sin rol</option>
                       {roles.map((role) => (
                         <option key={role.id} value={role.id}>
                           {role.name}
@@ -469,7 +469,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
 
                   <div className="space-y-1.5">
                     <label htmlFor="tenant-select" className="block text-sm font-medium text-slate-700">
-                      Tenant <span className="text-rose-500">*</span>
+                      Negocio <span className="text-rose-500">*</span>
                     </label>
                     <select
                       id="tenant-select"
@@ -477,7 +477,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
                       onChange={(event) => setForm((prev) => ({ ...prev, tenantId: event.target.value }))}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
                     >
-                      <option value="">Select tenant...</option>
+                      <option value="">Selecciona un negocio...</option>
                       {tenants.map((tenant) => (
                         <option key={tenant.id} value={tenant.id}>
                           {tenant.name}
@@ -489,21 +489,21 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-slate-800">Permissions</h3>
+                    <h3 className="text-sm font-semibold text-slate-800">Permisos</h3>
                     {selectedRole ? (
                       <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
-                        Role selected: {selectedRole.name}
+                        Rol seleccionado: {selectedRole.name}
                       </span>
                     ) : null}
                   </div>
 
                   {selectedRole ? (
                     <p className="text-xs text-slate-500">
-                      Role permissions are inherited by default. You can add or remove user overrides below.
+                      Los permisos del rol se heredan por defecto. Puedes agregar o quitar permisos específicos abajo.
                     </p>
                   ) : (
                     <p className="text-xs text-slate-500">
-                      Select permissions by group or individually.
+                      Selecciona permisos por grupo o individualmente.
                     </p>
                   )}
 
@@ -535,7 +535,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
                             <div className="mb-3">
                               <Checkbox
                                 label={group.label}
-                                description={`Select all ${group.permissions.length} permission(s)`}
+                                description={`Seleccionar los ${group.permissions.length} permisos`}
                                 checked={isGroupChecked}
                                 onChange={(event) => togglePermissionGroup(groupPermissionIds, event.target.checked)}
                               />
@@ -558,7 +558,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
 
                       {groupedPermissions.length === 0 ? (
                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                          No grouped permissions available.
+                          No hay permisos agrupados disponibles.
                         </div>
                       ) : null}
                     </div>
@@ -568,7 +568,7 @@ export default function UserForm({ isOpen, user, onClose, onSaved }: UserFormPro
             )}
 
             <Checkbox
-              label="User is active"
+              label="Usuario activo"
               checked={form.isActive}
               onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))}
             />

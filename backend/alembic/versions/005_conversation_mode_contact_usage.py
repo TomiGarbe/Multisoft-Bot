@@ -1,6 +1,6 @@
 """Add conversation.mode and contact_usage table
 
-Revision ID: 005_conversation_mode_contact_usage
+Revision ID: 005_conversation
 Revises: 004_contact_current_type
 Create Date: 2026-04-27 00:00:00.000000
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from alembic import op
 
-revision: str = '005_conversation_mode_contact_usage'
+revision: str = '005_conversation'
 down_revision: Union[str, None] = '004_contact_current_type'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

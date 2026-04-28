@@ -1,7 +1,5 @@
-'use client';
-
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { getToken, login } from '@/services/auth';
 
 export default function LoginPage() {
@@ -27,7 +25,7 @@ export default function LoginPage() {
       router.replace('/dashboard');
     } catch (err: unknown) {
       const errorWithResponse = err as { response?: { data?: { detail?: string } } };
-      const message = errorWithResponse.response?.data?.detail || 'No se pudo iniciar sesion';
+      const message = errorWithResponse.response?.data?.detail || 'No se pudo iniciar sesión';
       setError(message);
     } finally {
       setLoading(false);
@@ -42,8 +40,8 @@ export default function LoginPage() {
             <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-600 text-xl font-bold text-white">
               M
             </span>
-            <h1 className="mt-4 text-2xl font-bold text-slate-900">Multisoft Bot</h1>
-            <p className="mt-1 text-sm text-slate-500">Inicia sesion para continuar</p>
+            <h1 className="mt-4 text-2xl font-bold text-slate-900">Acceso</h1>
+            <p className="mt-1 text-sm text-slate-500">Ingresa a la plataforma de gestión.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -64,7 +62,7 @@ export default function LoginPage() {
 
             <div className="space-y-1">
               <label htmlFor="password" className="text-sm font-medium text-slate-700">
-                Password
+                Contraseña
               </label>
               <input
                 id="password"
@@ -77,11 +75,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {!!error && (
-              <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {error}
-              </p>
-            )}
+            {!!error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
             <button
               type="submit"

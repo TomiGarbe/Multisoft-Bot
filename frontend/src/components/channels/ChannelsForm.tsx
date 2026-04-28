@@ -11,7 +11,7 @@ import { createChannel, updateChannel } from '@/services/channels';
 import type { Channel, ChannelCreate, ChannelUpdate } from '@/types/channel';
 import type { Tenant } from '@/types/tenant';
 
-interface ChannelFormProps {
+interface ChannelsFormProps {
   isOpen: boolean;
   channel: Channel | null;
   onClose: () => void;
@@ -24,11 +24,9 @@ interface FormState {
   name: string;
   external_id: string;
   is_active: boolean;
-  // Whatsapp config
   provider?: string;
   instance_id?: string;
   webhook_url?: string;
-  // Web config
   widget_id?: string;
 }
 
@@ -46,12 +44,12 @@ const initialForm: FormState = {
   widget_id: '',
 };
 
-export default function ChannelForm({
+export default function ChannelsForm({
   isOpen,
   channel,
   onClose,
   onSaved,
-}: ChannelFormProps) {
+}: ChannelsFormProps) {
   const isEditing = Boolean(channel);
   const [form, setForm] = useState<FormState>(initialForm);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,19 +62,17 @@ export default function ChannelForm({
       return;
     }
 
-    // Load tenants
     const loadTenants = async () => {
       try {
         setIsLoadingTenants(true);
         const tenantList = await getTenants();
         setTenants(tenantList);
-        
-        // Auto-select first tenant if available and creating new
+
         if (!channel && tenantList.length > 0) {
           setForm((prev) => ({ ...prev, tenant_id: tenantList[0].id }));
         }
       } catch (err) {
-        setError(getApiErrorMessage(err, 'Unable to load tenants.'));
+        setError(getApiErrorMessage(err, 'No se pudieron cargar los negocios.'));
       } finally {
         setIsLoadingTenants(false);
       }
@@ -98,7 +94,7 @@ export default function ChannelForm({
     } else {
       setForm(initialForm);
     }
-    
+
     void loadTenants();
     setError(null);
   }, [isOpen, channel]);
@@ -137,30 +133,30 @@ export default function ChannelForm({
     event.preventDefault();
 
     if (!form.tenant_id.trim()) {
-      setError('Please select a tenant.');
+      setError('Selecciona un negocio.');
       return;
     }
 
     if (!form.name.trim()) {
-      setError('Name is required.');
+      setError('El nombre es obligatorio.');
       return;
     }
 
     if (!form.external_id.trim()) {
-      setError('External ID is required.');
+      setError('El ID externo es obligatorio.');
       return;
     }
 
     if (form.type === 'whatsapp') {
       if (!form.provider || !form.instance_id || !form.webhook_url) {
-        setError('Provider, Instance ID and Webhook URL are required for WhatsApp channels.');
+        setError('Proveedor, ID de instancia y URL de webhook son obligatorios para canales de WhatsApp.');
         return;
       }
     }
 
     if (form.type === 'web') {
       if (!form.widget_id) {
-        setError('Widget ID is required for Web channels.');
+        setError('El ID de widget es obligatorio para canales web.');
         return;
       }
     }
@@ -180,7 +176,7 @@ export default function ChannelForm({
           is_active: form.is_active,
         };
         await updateChannel(channel.id, payload);
-        onSaved('Channel updated successfully.');
+        onSaved('Canal actualizado correctamente.');
       } else {
         const payload: ChannelCreate = {
           tenant_id: form.tenant_id,
@@ -191,12 +187,12 @@ export default function ChannelForm({
           is_active: form.is_active,
         };
         await createChannel(payload);
-        onSaved('Channel created successfully.');
+        onSaved('Canal creado correctamente.');
       }
 
       onClose();
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'Unable to save channel.'));
+      setError(getApiErrorMessage(requestError, 'No se pudo guardar el canal.'));
     } finally {
       setIsSaving(false);
     }
@@ -205,7 +201,7 @@ export default function ChannelForm({
   return (
     <Modal
       isOpen={isOpen}
-      title={isEditing ? 'Edit Channel' : 'Create Channel'}
+      title={isEditing ? 'Editar canal' : 'Crear canal'}
       onClose={() => {
         if (!isSaving) {
           onClose();
@@ -214,10 +210,10 @@ export default function ChannelForm({
       footer={
         <div className="flex items-center justify-end gap-3">
           <Button variant="secondary" type="button" onClick={onClose} disabled={isSaving}>
-            Cancel
+            Cancelar
           </Button>
           <Button type="submit" form="channel-form" disabled={!canSubmit}>
-            {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Channel'}
+            {isSaving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear canal'}
           </Button>
         </div>
       }
@@ -229,10 +225,9 @@ export default function ChannelForm({
           </div>
         ) : null}
 
-        {/* TENANT */}
         <div className="space-y-1.5">
           <label htmlFor="channel-tenant" className="block text-sm font-medium text-slate-700">
-            Tenant
+            Negocio
           </label>
           <select
             id="channel-tenant"
@@ -243,7 +238,7 @@ export default function ChannelForm({
             required
           >
             <option value="">
-              {isLoadingTenants ? 'Loading tenants...' : 'Select a tenant'}
+              {isLoadingTenants ? 'Cargando negocios...' : 'Selecciona un negocio'}
             </option>
             {tenants.map((tenant) => (
               <option key={tenant.id} value={tenant.id}>
@@ -253,9 +248,8 @@ export default function ChannelForm({
           </select>
         </div>
 
-        {/* NAME */}
         <Input
-          label="Channel Name"
+          label="Nombre del canal"
           value={form.name}
           onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
           placeholder="WhatsApp Business"
@@ -263,10 +257,9 @@ export default function ChannelForm({
           disabled={isSaving}
         />
 
-        {/* TYPE */}
         <div className="space-y-1.5">
           <label htmlFor="channel-type" className="block text-sm font-medium text-slate-700">
-            Channel Type
+            Tipo de canal
           </label>
           <select
             id="channel-type"
@@ -283,9 +276,8 @@ export default function ChannelForm({
           </select>
         </div>
 
-        {/* EXTERNAL ID */}
         <Input
-          label="External ID"
+          label="ID externo"
           value={form.external_id}
           onChange={(event) => setForm((prev) => ({ ...prev, external_id: event.target.value }))}
           placeholder="wh_123456789"
@@ -293,11 +285,10 @@ export default function ChannelForm({
           disabled={isSaving}
         />
 
-        {/* WHATSAPP CONFIG */}
         {form.type === 'whatsapp' && (
           <>
             <Input
-              label="Provider"
+              label="Proveedor"
               value={form.provider || ''}
               onChange={(event) => setForm((prev) => ({ ...prev, provider: event.target.value }))}
               placeholder="twilio, waba, etc."
@@ -306,7 +297,7 @@ export default function ChannelForm({
             />
 
             <Input
-              label="Instance ID"
+              label="ID de instancia"
               value={form.instance_id || ''}
               onChange={(event) => setForm((prev) => ({ ...prev, instance_id: event.target.value }))}
               placeholder="123456789"
@@ -315,7 +306,7 @@ export default function ChannelForm({
             />
 
             <Input
-              label="Webhook URL"
+              label="URL de webhook"
               value={form.webhook_url || ''}
               onChange={(event) => setForm((prev) => ({ ...prev, webhook_url: event.target.value }))}
               placeholder="https://example.com/webhook"
@@ -325,10 +316,9 @@ export default function ChannelForm({
           </>
         )}
 
-        {/* WEB CONFIG */}
         {form.type === 'web' && (
           <Input
-            label="Widget ID"
+            label="ID de widget"
             value={form.widget_id || ''}
             onChange={(event) => setForm((prev) => ({ ...prev, widget_id: event.target.value }))}
             placeholder="widget_12345"
@@ -337,21 +327,17 @@ export default function ChannelForm({
           />
         )}
 
-        {/* STATUS */}
-        <div className="flex items-center gap-2">
-          <Checkbox
-            label="Activo"
-            checked={form.is_active}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                is_active: e.target.checked,
-              }))
-            }
-            disabled={isSaving}
-          />
-          <label className="text-sm text-slate-700">Active</label>
-        </div>
+        <Checkbox
+          label="Activo"
+          checked={form.is_active}
+          onChange={(e) =>
+            setForm((prev) => ({
+              ...prev,
+              is_active: e.target.checked,
+            }))
+          }
+          disabled={isSaving}
+        />
       </form>
     </Modal>
   );

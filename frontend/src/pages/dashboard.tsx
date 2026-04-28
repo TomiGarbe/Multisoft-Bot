@@ -1,8 +1,7 @@
-'use client';
-
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import AppLayout from '@/components/layout/AppLayout';
+import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
 import { getToken } from '@/services/auth';
 
@@ -38,14 +37,12 @@ export default function DashboardPage() {
   return (
     <AppLayout>
       <div className="space-y-8 p-6 md:p-8">
-        <section>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Vista general del rendimiento y actividad reciente del sistema.
-          </p>
-        </section>
+        <PageHeader
+          title="Panel principal"
+          description="Visualiza métricas clave y actividad reciente de la plataforma."
+        />
 
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
             <StatCard key={stat.title} title={stat.title} value={stat.value} subtitle={stat.subtitle} />
           ))}
@@ -53,9 +50,7 @@ export default function DashboardPage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Actividad reciente</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Eventos principales registrados recientemente en la plataforma.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Eventos principales registrados recientemente en la plataforma.</p>
 
           <ul className="mt-5 space-y-3">
             {recentActivity.map((item) => (

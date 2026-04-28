@@ -18,7 +18,7 @@ interface Props {
   onSaved: (msg: string) => void;
 }
 
-export default function TenantForm({
+export default function TenantsForm({
   isOpen,
   tenant,
   onClose,
@@ -29,7 +29,7 @@ export default function TenantForm({
   const [description, setDescription] = useState('');
   const [industry, setIndustry] = useState('');
   const [timezone, setTimezone] = useState('');
-  const [isActive, setIsActive] = useState(true);
+  const [isActivo, setIsActivo] = useState(true);
 
   const [isSaving, setIsSaving] = useState(false);
   const [slugTouched, setSlugTouched] = useState(false);
@@ -41,7 +41,7 @@ export default function TenantForm({
       setDescription(tenant.description ?? '');
       setIndustry(tenant.industry ?? '');
       setTimezone(tenant.timezone ?? '');
-      setIsActive(tenant.is_active);
+      setIsActivo(tenant.is_active);
       setSlugTouched(true);
     } else {
       setName('');
@@ -49,7 +49,7 @@ export default function TenantForm({
       setDescription('');
       setIndustry('');
       setTimezone('');
-      setIsActive(true);
+      setIsActivo(true);
       setSlugTouched(false);
     }
   }, [tenant]);
@@ -71,33 +71,33 @@ export default function TenantForm({
         description,
         industry,
         timezone,
-        ...(tenant && { is_active: isActive }),
+        ...(tenant && { is_active: isActivo }),
       };
 
       if (tenant) {
         await updateTenant(tenant.id, payload);
-        onSaved('Tenant updated successfully.');
+        onSaved('Negocio actualizado correctamente.');
       } else {
         await createTenant(payload);
-        onSaved('Tenant created successfully.');
+        onSaved('Negocio creado correctamente.');
       }
 
       onClose();
     } catch (err) {
-      alert(getApiErrorMessage(err, 'Error saving tenant'));
+      alert(getApiErrorMessage(err, 'Error al guardar el negocio'));
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Tenant">
+    <Modal isOpen={isOpen} onClose={onClose} title="Negocio">
       <div className="space-y-4">
 
         {/* NAME */}
         <input
           className="w-full border p-2 rounded"
-          placeholder="Name"
+          placeholder="Nombre"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -116,7 +116,7 @@ export default function TenantForm({
         {/* DESCRIPTION */}
         <textarea
           className="w-full border p-2 rounded"
-          placeholder="Description"
+          placeholder="Descripción"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
@@ -124,7 +124,7 @@ export default function TenantForm({
         {/* INDUSTRY */}
         <input
           className="w-full border p-2 rounded"
-          placeholder="Industry"
+          placeholder="Industria"
           value={industry}
           onChange={(e) => setIndustry(e.target.value)}
         />
@@ -132,7 +132,7 @@ export default function TenantForm({
         {/* TIMEZONE */}
         <input
           className="w-full border p-2 rounded"
-          placeholder="Timezone (e.g. America/Argentina/Buenos_Aires)"
+          placeholder="Zona horaria (ej. America/Argentina/Buenos_Aires)"
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
         />
@@ -142,23 +142,24 @@ export default function TenantForm({
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
+              checked={isActivo}
+              onChange={(e) => setIsActivo(e.target.checked)}
             />
-            Active
+            Activo
           </label>
         )}
 
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="secondary">
-            Cancel
+            Cancelar
           </Button>
 
           <Button onClick={handleSubmit} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save'}
+            {isSaving ? 'Guardando...' : 'Guardar'}
           </Button>
         </div>
       </div>
     </Modal>
   );
 }
+
