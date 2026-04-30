@@ -1,4 +1,4 @@
-import type { Conversation } from '@/hooks/useConversations';
+import type { Conversation } from '@/types/chat';
 
 interface ConversationListProps {
   conversations: Conversation[];

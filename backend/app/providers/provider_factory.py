@@ -1,10 +1,17 @@
 from app.providers.messaging.mock_provider import MockMessageProvider
+from app.providers.messaging.web_provider import WebProvider
 from app.providers.ai.ollama_provider import OllamaProvider
 from app.interfaces.ai.ai_interface import AIInterface
 
+def get_message_provider(channel_type: str):
 
-def get_message_provider(type: str = "mock") -> MockMessageProvider:
-    return MockMessageProvider()
+    if channel_type == "web":
+        return WebProvider()
+    
+    if channel_type == "mock":
+        return MockMessageProvider()
+
+    # otros providers (whatsapp, etc)
 
 
 def get_ai_provider() -> AIInterface:

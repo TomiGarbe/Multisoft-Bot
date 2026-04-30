@@ -5,3 +5,7 @@
 :root {
   --layout-header-height: 64px;
 }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}

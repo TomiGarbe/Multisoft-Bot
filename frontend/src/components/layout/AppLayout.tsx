@@ -1,5 +1,3 @@
-'use client';
-
 import type { ReactNode } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -14,7 +12,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <Sidebar />
       <div className="flex flex-1 flex-col lg:pl-64">
         <Header />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 flex flex-col overflow-auto">{children}</main>
       </div>
     </div>
   );

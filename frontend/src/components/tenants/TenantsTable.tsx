@@ -25,9 +25,9 @@ export default function TenantsTable({
       {tenants.map((tenant) => (
         <tr key={tenant.id}>
           <td className="px-4 py-3 font-medium">{tenant.name}</td>
-          <td>{tenant.slug}</td>
-          <td>{tenant.industry ?? '�'}</td>
-          <td>{tenant.timezone ?? '�'}</td>
+          <td className="px-4 py-3 text-sm text-slate-600">{tenant.slug}</td>
+          <td className="px-4 py-3 text-sm text-slate-600">{tenant.industry ?? '�'}</td>
+          <td className="px-4 py-3 text-sm text-slate-600">{tenant.timezone ?? '�'}</td>
           <td className="px-4 py-3 text-sm text-slate-600">{tenant.description ?? '�'}</td>
 
           <td className="px-4 py-3">

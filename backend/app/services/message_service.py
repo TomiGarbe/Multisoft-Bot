@@ -174,12 +174,14 @@ def send_message(db: Session, data: dict) -> dict:
 
 
 def get_messages(db: Session, conversation_id: uuid.UUID) -> list:
+    logger.warning("Fetching messages for conversation: %s", conversation_id)
     messages = (
         db.query(Message)
         .filter(Message.conversation_id == conversation_id)
         .order_by(Message.created_at.asc())
         .all()
     )
+    logger.warning("Found %d messages for conversation: %s", len(messages), conversation_id)
     return [
         {
             "id": str(m.id),

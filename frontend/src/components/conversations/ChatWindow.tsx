@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import Button from '@/components/ui/Button';
-import type { ChatMessage } from '@/hooks/useConversations';
+import type { Message } from '@/types/chat';
 
 interface ChatWindowProps {
-  messages: ChatMessage[];
+  messages: Message[];
   loading: boolean;
   onSend: (message: string) => void;
 }
@@ -26,7 +26,7 @@ export default function ChatWindow({ messages, loading, onSend }: ChatWindowProp
     <section className="flex min-h-[450px] flex-1 flex-col border border-slate-200 bg-white md:min-h-0">
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((message) => {
-          const isUser = message.sender === 'user';
+          const isUser = message.direction === 'outbound';
 
           return (
             <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
