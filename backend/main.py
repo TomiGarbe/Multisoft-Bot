@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.routes import ai, auth, channels, conversations, messages, permissions, roles, tenants, users, webhooks
+from app.api.routes import ai, auth, channel_config, channels, conversations, messages, permissions, roles, tenants, users, webhooks
 from app.core.config import settings
 from app.db.session import SessionLocal
 
@@ -27,6 +27,7 @@ app.include_router(roles.router, prefix=f"{settings.API_V1_STR}/roles")
 app.include_router(permissions.router, prefix=f"{settings.API_V1_STR}/permissions")
 app.include_router(tenants.router, prefix=f"{settings.API_V1_STR}/tenants")
 app.include_router(channels.router, prefix=f"{settings.API_V1_STR}/channels")
+app.include_router(channel_config.router, prefix=f"{settings.API_V1_STR}/channel-config")
 app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks")
 app.include_router(messages.router, prefix=f"{settings.API_V1_STR}/messages")
 app.include_router(conversations.router, prefix=f"{settings.API_V1_STR}/conversations")

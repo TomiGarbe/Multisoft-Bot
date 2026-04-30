@@ -5,20 +5,118 @@ Handles retrieval of active bot configuration per channel.
 Configuration flow: channel_id → ChannelBotConfig (active) → config_jsonb
 """
 
-from typing import Optional, Any
+from typing import Any
 import uuid
 from sqlalchemy.orm import Session
 from app.models.config import ChannelBotConfig
+from app.models.channel import Channel
 
 
 class BotConfigService:
     """Service for retrieving active bot configurations by channel."""
 
     @staticmethod
+    def _default_config_jsonb() -> dict[str, Any]:
+        return {
+            "identity": {
+                "role": "assistant",
+                "description": "",
+                "industry": "",
+                "language": "",
+            },
+            "tone": {
+                "tone": "neutral",
+                "style_rules": [],
+            },
+            "rules": {"rules": []},
+            "behavior": {},
+            "objectives": [],
+            "data_collection": [],
+            "actions": [],
+            "user_type_config": {},
+        }
+
+    @staticmethod
+    def _default_user_types_jsonb() -> dict[str, Any]:
+        return {
+            "default_type": "new",
+            "types": [
+                {
+                "key": "new",
+                "color": "#d30d0d",
+                "label": "Nuevo",
+                "is_default": True
+                },
+                {
+                "key": "interested",
+                "color": "#26cfbb",
+                "label": "Interesado",
+                "is_default": False
+                },
+                {
+                "key": "client",
+                "color": "#e164f2",
+                "label": "Cliente",
+                "is_default": False
+                }
+            ]
+        }
+
+    @staticmethod
+    def _default_settings_jsonb() -> dict[str, Any]:
+        return {
+            "max_bot_messages": 20,
+            "max_bot_messages_message": "Te paso con un asesor para ayudarte mejor 🙌",
+            "human_handoff_reset_hours": 24,
+            "unsupported_content_message": "Por el momento no puedo escuchar audios, ver fotos o archivos, queres que te pase con un asesor? 😊"
+        }
+
+    @staticmethod
+    def create_default_channel_config(
+        db: Session,
+        channel_id: uuid.UUID,
+        *,
+        commit: bool = False,
+    ) -> ChannelBotConfig:
+        """
+        Ensure there is an active configuration for the given channel.
+
+        Returns the existing active config if present; otherwise creates a default one.
+        """
+        existing = db.query(ChannelBotConfig).filter(
+            ChannelBotConfig.channel_id == channel_id,
+            ChannelBotConfig.is_active == True,
+        ).order_by(
+            ChannelBotConfig.version.desc()
+        ).first()
+        if existing:
+            return existing
+
+        channel = db.get(Channel, channel_id)
+        if not channel:
+            raise LookupError(f"Channel not found: {channel_id}")
+
+        channel_config = ChannelBotConfig(
+            tenant_id=channel.tenant_id,
+            channel_id=channel.id,
+            is_active=True,
+            version=1,
+            config_jsonb=BotConfigService._default_config_jsonb(),
+            user_types_jsonb=BotConfigService._default_user_types_jsonb(),
+            settings_jsonb=BotConfigService._default_settings_jsonb(),
+        )
+        db.add(channel_config)
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(channel_config)
+        return channel_config
+
+    @staticmethod
     def get_active_channel_config(
         db: Session,
         channel_id: uuid.UUID,
-    ) -> Optional[dict]:
+    ) -> ChannelBotConfig:
         """
         Get the active bot configuration for a channel.
         
@@ -27,10 +125,7 @@ class BotConfigService:
             channel_id: Channel ID to get config for
             
         Returns:
-            The config_jsonb dict if active config exists, None otherwise
-            
-        Raises:
-            ValueError: If channel_id is invalid or no active config found
+            The active ChannelBotConfig entity.
         """
         config = db.query(ChannelBotConfig).filter(
             ChannelBotConfig.channel_id == channel_id,
@@ -38,35 +133,17 @@ class BotConfigService:
         ).order_by(
             ChannelBotConfig.version.desc()
         ).first()
-        
-        if not config:
-            return None
-            
-        return config.config_jsonb
+        if config:
+            return config
+        return BotConfigService.create_default_channel_config(db, channel_id, commit=True)
 
     @staticmethod
-    def get_active_channel_config_with_entity(
+    def get_channel_config(
         db: Session,
         channel_id: uuid.UUID,
-    ) -> Optional[ChannelBotConfig]:
-        """
-        Get the active ChannelBotConfig entity for a channel.
-        
-        Useful when you need access to metadata (version, created_by, etc.)
-        
-        Args:
-            db: Database session
-            channel_id: Channel ID to get config for
-            
-        Returns:
-            The ChannelBotConfig entity if active config exists, None otherwise
-        """
-        return db.query(ChannelBotConfig).filter(
-            ChannelBotConfig.channel_id == channel_id,
-            ChannelBotConfig.is_active == True,
-        ).order_by(
-            ChannelBotConfig.version.desc()
-        ).first()
+    ) -> ChannelBotConfig:
+        """Alias with fail-safe semantics: never returns null."""
+        return BotConfigService.get_active_channel_config(db, channel_id)
 
     @staticmethod
     def validate_config_structure(config: dict) -> bool:
@@ -124,25 +201,4 @@ class BotConfigService:
             return False
         if not isinstance(config.get("user_type_config"), dict):
             return False
-            
         return True
-
-    @staticmethod
-    def get_config_or_none(
-        db: Session,
-        channel_id: uuid.UUID,
-    ) -> Optional[dict]:
-        """
-        Get active channel config or None if not found.
-        
-        Does NOT apply defaults - returns raw config_jsonb or None.
-        This is the primary method for config retrieval.
-        
-        Args:
-            db: Database session
-            channel_id: Channel ID
-            
-        Returns:
-            config_jsonb dict or None
-        """
-        return BotConfigService.get_active_channel_config(db, channel_id)

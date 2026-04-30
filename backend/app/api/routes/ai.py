@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.db.session import get_db
 from app.models.contact import Contact
 from app.services.ai.ai_service import AIService
 from app.services.ai.prompt_builder import PromptBuilder
 from app.services.bot_config_service import BotConfigService
+from app.services.config_validation import get_config_validation_status
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +45,25 @@ async def test_ai(
     body: AITestRequest,
     db: Session = Depends(get_db),
 ):
-    config = BotConfigService.get_active_channel_config(db, body.channel_id)
-    if not config:
+    channel_config = BotConfigService.get_active_channel_config(db, body.channel_id)
+    if not channel_config:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"No active bot config found for channel {body.channel_id}",
         )
+    config = channel_config.config_jsonb or {}
+
+    validation_status = get_config_validation_status(config)
+    if not validation_status["is_valid"]:
+        missing_fields = ", ".join(validation_status["missing_fields"]) or "unknown"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Bot config is invalid for channel {body.channel_id} (missing: {missing_fields})",
+        )
 
     fallback_message = config.get("behavior", {}).get("fallback_message") or _DEFAULT_FALLBACK
 
-    user_types_config = config.get("user_types_jsonb", {}) or {}
+    user_types_config = channel_config.user_types_jsonb or {}
     default_type = _resolve_default_type(user_types_config)
 
     user_type = default_type

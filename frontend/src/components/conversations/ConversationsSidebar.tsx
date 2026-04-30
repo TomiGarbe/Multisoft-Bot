@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import { Conversation } from '@/types/chat';
 
 interface Props {
@@ -74,12 +76,22 @@ export default function ConversationsSidebar({
   onSelect,
   loading = false,
 }: Props) {
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
   const openCount = conversations.filter((c) => c.status === 'open').length;
+  const filteredConversations = useMemo(() => {
+    if (!query) return conversations;
+    return conversations.filter((conv) => {
+      const name = conv.contactName.toLowerCase();
+      const phone = (conv.contactPhone ?? '').toLowerCase();
+      return name.includes(query) || phone.includes(query);
+    });
+  }, [conversations, query]);
 
   return (
-    <div className="w-80 flex-shrink-0 flex flex-col border-r border-gray-200 bg-white">
+    <div className="sidebar flex h-full w-full flex-shrink-0 flex-col border-r border-gray-200 bg-white md:w-80">
       {/* Header */}
-      <div className="flex-shrink-0 px-5 py-4 border-b border-gray-100">
+      <div className="flex-shrink-0 border-b border-gray-100 px-5 py-4">
         <h1 className="text-base font-semibold text-gray-900">
           Conversaciones
         </h1>
@@ -90,12 +102,24 @@ export default function ConversationsSidebar({
         </p>
       </div>
 
+      <div className="search-bar flex-shrink-0 border-b border-gray-100 p-3">
+        <label className="relative block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o teléfono"
+            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          />
+        </label>
+      </div>
+
       {/* List */}
       {loading ? (
         <SidebarSkeleton />
       ) : (
-      <div className="flex-1 overflow-y-auto">
-        {conversations.map((conv) => {
+      <div className="conversation-list flex-1 overflow-y-auto">
+        {filteredConversations.map((conv) => {
           const isSelected = conv.id === selectedId;
           const initials = getInitials(conv.contactName);
           const color = avatarColor(conv.id);
@@ -167,6 +191,11 @@ export default function ConversationsSidebar({
             </button>
           );
         })}
+        {!filteredConversations.length && (
+          <div className="px-4 py-8 text-center text-sm text-gray-500">
+            No hay conversaciones que coincidan con la búsqueda.
+          </div>
+        )}
       </div>
       )}
     </div>

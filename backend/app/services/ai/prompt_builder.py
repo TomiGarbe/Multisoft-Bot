@@ -1,5 +1,7 @@
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 class PromptBuilder:
 
@@ -11,46 +13,85 @@ class PromptBuilder:
         current_message: str | None,
         user_type: str,
     ) -> str:
-        prompt = "\n\n".join(filter(None, [
+        context = {
+            "messages": messages,
+            "user_memory": user_memory,
+            "current_message": current_message,
+            "user_type": user_type,
+        }
+        prompt = self.build_prompt(config=config, context=context)
+        logger.warning("Built prompt for user_type=%s: %s", user_type, prompt)
+        return prompt
+
+    def build_prompt(self, config: dict, context: dict) -> str:
+        user_type = context.get("user_type", "default")
+        sections = [
             self.build_identity(config),
             self.build_tone(config),
             self.build_rules(config),
             self.build_objective(config, user_type),
-            self.build_data_collection(config, user_type),
-            self.build_actions(config, user_type),
-            self.build_memory(user_memory),
-            self.build_conversation(messages),
-            self.build_current_message(current_message),
-        ]))
-        logger.warning("Built prompt for user_type=%s: %s", user_type, prompt)
-        return prompt
+            self.build_conversation_context(context),
+        ]
+        return "\n\n".join(section for section in sections if section).strip()
 
     def build_identity(self, config: dict) -> str:
         identity = config.get("identity", {})
-        return f"""[IDENTIDAD]
-Sos {identity.get("role", "un asistente")}.
+        lines = []
 
-{identity.get("description", "")}
-Industria: {identity.get("industry", "")}
-Idioma: {identity.get("language", "")}
-"""
+        role = identity.get("role")
+        bot_name = identity.get("bot_name")
+        industry = identity.get("industry")
+        language = identity.get("language")
+        description = identity.get("description")
+
+        if role:
+            lines.append(f"Rol: {role}")
+        if bot_name:
+            lines.append(f"Nombre del bot: {bot_name}")
+        if industry:
+            lines.append(f"Industria: {industry}")
+        if language:
+            lines.append(f"Idioma: {language}")
+        if description:
+            lines.append(f"Descripcion: {description}")
+
+        if not lines:
+            return ""
+        return "[IDENTIDAD]\n" + "\n".join(lines)
 
     def build_tone(self, config: dict) -> str:
         tone = config.get("tone", {})
-        rules = "\n".join(f"- {r}" for r in tone.get("style_rules", []))
-        return f"""[TONO]
-{tone.get("tone", "")}
+        lines = []
 
-Reglas de estilo:
-{rules}
-"""
+        tone_value = tone.get("tone")
+        if tone_value:
+            lines.append(f"Tono: {tone_value}")
+
+        style_rules = [rule for rule in tone.get("style_rules", []) if rule]
+        if style_rules:
+            lines.append("Reglas de estilo:")
+            lines.extend(f"- {rule}" for rule in style_rules)
+
+        if not lines:
+            return ""
+        return "[TONO]\n" + "\n".join(lines)
 
     def build_rules(self, config: dict) -> str:
         rules_section = config.get("rules", {})
-        rules = "\n".join(f"- {r}" for r in rules_section.get("rules", []))
-        return f"""[REGLAS]
-{rules}
-"""
+        lines = []
+
+        rules = [rule for rule in rules_section.get("rules", []) if rule]
+        if rules:
+            lines.append("Reglas:")
+            lines.extend(f"- {rule}" for rule in rules)
+
+        fallback = rules_section.get("fallback_message") or config.get("behavior", {}).get("fallback_message")
+        if fallback:
+            lines.append(f"Fallback: {fallback}")
+
+        if not lines:
+            return ""
+        return "[REGLAS]\n" + "\n".join(lines)
 
     def _filter_by_user_type(self, blocks: list, user_type: str) -> list:
         if not blocks:
@@ -61,68 +102,71 @@ Reglas de estilo:
         valid = self._filter_by_user_type(config.get("objectives", []), user_type)
         if not valid:
             return ""
+
         lines = []
         for obj in valid:
-            lines.append(f"Objetivo: {obj.get('description', '')}")
-            if obj.get("objective_type"):
-                lines.append(f"Tipo: {obj.get('objective_type')}")
-            if obj.get("conversation_flow"):
+            description = obj.get("description")
+            objective_type = obj.get("objective_type")
+            if description:
+                lines.append(f"Objetivo: {description}")
+            if objective_type:
+                lines.append(f"Tipo: {objective_type}")
+            flow = [step for step in obj.get("conversation_flow", []) if step]
+            if flow:
                 lines.append("Flujo:")
-                for step in obj.get("conversation_flow", []):
-                    lines.append(f"- {step}")
-        return f"""[OBJETIVO]
-{chr(10).join(lines)}
-"""
+                lines.extend(f"- {step}" for step in flow)
 
-    def build_data_collection(self, config: dict, user_type: str) -> str:
-        valid = self._filter_by_user_type(config.get("data_collection", []), user_type)
-        if not valid:
-            return ""
-        lines = []
-        for dc in valid:
-            for field in dc.get("fields", []):
-                required = "obligatorio" if field.get("required") else "opcional"
-                lines.append(f"- {field.get('name')} ({required})")
-        return f"""[DATOS A RECOLECTAR]
-{chr(10).join(lines)}
-"""
-
-    def build_actions(self, config: dict, user_type: str) -> str:
-        valid = self._filter_by_user_type(config.get("actions", []), user_type)
-        if not valid:
-            return ""
-        lines = []
-        for block in valid:
-            for action in block.get("actions", []):
-                lines.append(f"- {action.get('name')}")
-        return f"""[ACCIONES]
-{chr(10).join(lines)}
-"""
-
-    def build_memory(self, user_memory: dict | None) -> str:
-        if not user_memory or not isinstance(user_memory, dict):
-            return ""
-        lines = "\n".join(f"{key}: {value}" for key, value in user_memory.items())
         if not lines:
             return ""
-        return f"[MEMORIA USUARIO]\n{lines}"
+        return "[OBJETIVOS]\n" + "\n".join(lines)
 
     def build_conversation(self, messages: list[dict]) -> str:
         if not messages or not isinstance(messages, list):
             return ""
+
         role_labels = {"user": "Usuario", "assistant": "Asistente"}
         lines = []
         for msg in messages:
-            role = msg.get("role", "").lower()
-            content = msg.get("content", "")
+            role = (msg.get("role") or "").lower()
+            content = msg.get("content")
             label = role_labels.get(role)
             if label and content:
                 lines.append(f"{label}: {content}")
+
         if not lines:
             return ""
-        return "[CONVERSACIÓN]\n" + "\n".join(lines)
+        return "[CONVERSACION]\n" + "\n".join(lines)
 
     def build_current_message(self, current_message: str | None) -> str:
         if not current_message or not isinstance(current_message, str):
             return ""
         return f"[MENSAJE ACTUAL]\nUsuario: {current_message}"
+
+    def build_conversation_context(self, context: dict) -> str:
+        chunks = []
+
+        user_memory = context.get("user_memory")
+        if isinstance(user_memory, dict) and user_memory:
+            memory_lines = [
+                f"- {key}: {value}"
+                for key, value in user_memory.items()
+                if value is not None and str(value).strip()
+            ]
+            if memory_lines:
+                chunks.append("Memoria de usuario:\n" + "\n".join(memory_lines))
+
+        conversation = self.build_conversation(context.get("messages", []))
+        current_message = self.build_current_message(context.get("current_message"))
+
+        if conversation:
+            chunks.append(conversation)
+        if current_message:
+            chunks.append(current_message)
+
+        if not chunks:
+            return ""
+        return "[CONTEXTO]\n" + "\n\n".join(chunks)
+
+
+def build_prompt(config: dict, context: dict) -> str:
+    return PromptBuilder().build_prompt(config=config, context=context)

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Paperclip, Send, X, FileText } from 'lucide-react';
+import { Paperclip, Send, Mic, X, FileText } from 'lucide-react';
 import { SendPayload } from '@/types/chat';
 
 interface Props {
@@ -69,7 +69,8 @@ export default function MessageComposer({ onSend }: Props) {
     }
   };
 
-  const canSend = text.trim().length > 0 || previews.length > 0;
+  const hasText = text.trim().length > 0;
+  const canSend = hasText || previews.length > 0;
 
   return (
     <div className="flex-shrink-0 border-t border-gray-200 bg-white">
@@ -148,11 +149,10 @@ export default function MessageComposer({ onSend }: Props) {
         {/* Send */}
         <button
           onClick={handleSend}
-          disabled={!canSend}
-          className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          aria-label="Enviar"
+          className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 active:bg-blue-700 transition-colors"
+          aria-label={canSend ? 'Enviar' : 'Grabar audio'}
         >
-          <Send className="w-4 h-4" />
+          {hasText ? <Send className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
         </button>
       </div>
     </div>

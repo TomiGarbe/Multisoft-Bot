@@ -7,15 +7,8 @@ import {
   setConversationMode,
 } from '@/services/conversations';
 import { getApiErrorMessage } from '@/services/api';
-
-const POLL_INTERVAL_MS = 8_000;
-
-// Merge fresh server messages with any in-flight (pending/error) local messages.
-// Prevents pending messages from disappearing during a background poll.
-function mergeWithInFlight(fresh: Message[], prev: Message[]): Message[] {
-  const inFlight = prev.filter((m) => m.status === 'pending' || m.status === 'error');
-  return [...fresh, ...inFlight];
-}
+import { getChannelConfigStatus } from '@/services/channelConfig';
+import type { ChannelConfigValidationStatus } from '@/types/channelConfig';
 
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -24,43 +17,29 @@ export function useConversations() {
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [togglingModes, setTogglingModes] = useState<Record<string, boolean>>({});
+  const [configStatusByConversation, setConfigStatusByConversation] = useState<
+    Record<string, ChannelConfigValidationStatus>
+  >({});
 
-  // ─── Reusable fetch helpers ───────────────────────────────────────────────────
+  const hydrateConfigStatus = useCallback(async (nextConversations: Conversation[]) => {
+    const statusEntries = await Promise.all(
+      nextConversations.map(async (conversation) => {
+        if (!conversation.channelConfigId) {
+          return [conversation.id, { is_valid: false, missing_fields: [] }] as const;
+        }
 
-  const refreshConversations = useCallback(async (silent = false) => {
-    if (!silent) setLoadingConversations(true);
-    try {
-      const data = await getConversations();
-      setConversations(data);
-      return data;
-    } catch (err: unknown) {
-      if (!silent) setError(getApiErrorMessage(err, 'Error al cargar conversaciones'));
-      return null;
-    } finally {
-      if (!silent) setLoadingConversations(false);
-    }
+        try {
+          const status = await getChannelConfigStatus(conversation.channelConfigId);
+          return [conversation.id, status] as const;
+        } catch {
+          return [conversation.id, { is_valid: false, missing_fields: [] }] as const;
+        }
+      }),
+    );
+
+    setConfigStatusByConversation(Object.fromEntries(statusEntries));
   }, []);
-
-  const refreshMessages = useCallback(async (conversationId: string, silent = false) => {
-    if (!silent) setLoadingMessages(true);
-    try {
-      const data = await getMessages(conversationId);
-      setMessages((prev) => ({
-        ...prev,
-        [conversationId]: silent
-          ? mergeWithInFlight(data, prev[conversationId] ?? [])
-          : data,
-      }));
-      return data;
-    } catch (err: unknown) {
-      if (!silent) setError(getApiErrorMessage(err, 'Error al cargar mensajes'));
-      return null;
-    } finally {
-      if (!silent) setLoadingMessages(false);
-    }
-  }, []);
-
-  // ─── Initial load ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +49,7 @@ export function useConversations() {
       .then((data) => {
         if (cancelled) return;
         setConversations(data);
+        hydrateConfigStatus(data).catch(() => {});
         if (data.length > 0) setSelectedId(data[0].id);
       })
       .catch((err: unknown) => {
@@ -84,12 +64,11 @@ export function useConversations() {
     };
   }, []);
 
-  // ─── Fetch messages whenever selected conversation changes (always fresh) ─────
-
   useEffect(() => {
     if (!selectedId) return;
     let cancelled = false;
     setLoadingMessages(true);
+    console.log('Fetching messages...', selectedId);
 
     getMessages(selectedId)
       .then((data) => {
@@ -107,32 +86,6 @@ export function useConversations() {
       cancelled = true;
     };
   }, [selectedId]);
-
-  // ─── Background polling: keep messages + sidebar in sync ─────────────────────
-
-  useEffect(() => {
-    if (!selectedId) return;
-
-    const tick = () => {
-      getMessages(selectedId)
-        .then((data) =>
-          setMessages((prev) => ({
-            ...prev,
-            [selectedId]: mergeWithInFlight(data, prev[selectedId] ?? []),
-          })),
-        )
-        .catch(() => {});
-
-      getConversations()
-        .then((data) => setConversations(data))
-        .catch(() => {});
-    };
-
-    const id = setInterval(tick, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [selectedId]);
-
-  // ─── Actions ─────────────────────────────────────────────────────────────────
 
   const selectConversation = useCallback((id: string) => {
     setSelectedId(id);
@@ -169,18 +122,13 @@ export function useConversations() {
           : {}),
       };
 
-      // 1. Optimistic: add message + update sidebar immediately
       setMessages((prev) => ({
         ...prev,
         [selectedId]: [...(prev[selectedId] ?? []), optimistic],
       }));
       setConversations((prev) =>
         [...prev]
-          .map((c) =>
-            c.id === selectedId
-              ? { ...c, lastMessage: trimmed, lastMessageAt: now }
-              : c,
-          )
+          .map((c) => (c.id === selectedId ? { ...c, lastMessage: trimmed, lastMessageAt: now } : c))
           .sort((a, b) => {
             const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
             const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
@@ -189,30 +137,18 @@ export function useConversations() {
       );
 
       try {
-        const saved = await sendMessage({
+        await sendMessage({
           conversation_id: selectedId,
           content: trimmed,
         });
 
-        // 2. Replace temp entry with server-confirmed message
         setMessages((prev) => ({
           ...prev,
           [selectedId]: (prev[selectedId] ?? []).map((m) =>
-            m.id === tempId ? { ...saved, status: 'sent' as const } : m,
+            m.id === tempId ? { ...m, status: 'sent' as const } : m,
           ),
         }));
-
-        // 3. Refetch to catch bot replies and get authoritative ordering
-        const [freshMessages] = await Promise.allSettled([
-          refreshMessages(selectedId, true),
-          refreshConversations(true),
-        ]);
-
-        if (freshMessages.status === 'fulfilled' && freshMessages.value) {
-          setMessages((prev) => ({ ...prev, [selectedId]: freshMessages.value! }));
-        }
       } catch (err: unknown) {
-        // Mark as error so user sees what failed (and can retry)
         setMessages((prev) => ({
           ...prev,
           [selectedId]: (prev[selectedId] ?? []).map((m) =>
@@ -222,7 +158,7 @@ export function useConversations() {
         setError(getApiErrorMessage(err, 'Error al enviar mensaje'));
       }
     },
-    [selectedId, refreshMessages, refreshConversations],
+    [selectedId],
   );
 
   const retryMessage = useCallback(
@@ -231,7 +167,6 @@ export function useConversations() {
       const msg = messages[selectedId]?.find((m) => m.id === messageId);
       if (!msg || msg.status !== 'error') return;
 
-      // Reset to pending and retry
       setMessages((prev) => ({
         ...prev,
         [selectedId]: (prev[selectedId] ?? []).map((m) =>
@@ -240,20 +175,16 @@ export function useConversations() {
       }));
 
       try {
-        const saved = await sendMessage({
+        await sendMessage({
           conversation_id: selectedId,
           content: msg.content,
         });
         setMessages((prev) => ({
           ...prev,
           [selectedId]: (prev[selectedId] ?? []).map((m) =>
-            m.id === messageId ? { ...saved, status: 'sent' as const } : m,
+            m.id === messageId ? { ...m, status: 'sent' as const } : m,
           ),
         }));
-        await Promise.allSettled([
-          refreshMessages(selectedId, true),
-          refreshConversations(true),
-        ]);
       } catch (err: unknown) {
         setMessages((prev) => ({
           ...prev,
@@ -264,28 +195,37 @@ export function useConversations() {
         setError(getApiErrorMessage(err, 'Error al reenviar mensaje'));
       }
     },
-    [selectedId, messages, refreshMessages, refreshConversations],
+    [selectedId, messages],
   );
 
   const toggleMode = useCallback(
     async (conversationId: string, mode: 'ai' | 'human') => {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, mode } : c)),
-      );
+      setTogglingModes((prev) => ({ ...prev, [conversationId]: true }));
+
+      const status = configStatusByConversation[conversationId];
+      if (mode === 'ai' && status && !status.is_valid) {
+        setError('Completa la configuracion del bot para activar la IA');
+        setTogglingModes((prev) => ({ ...prev, [conversationId]: false }));
+        return;
+      }
+
       try {
         await setConversationMode(conversationId, mode);
+        setConversations((prev) => prev.map((conv) => (conv.id === conversationId ? { ...conv, mode } : conv)));
       } catch (err: unknown) {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === conversationId
-              ? { ...c, mode: mode === 'ai' ? 'human' : 'ai' }
-              : c,
-          ),
-        );
-        setError(getApiErrorMessage(err, 'Error al cambiar modo'));
+        const apiMsg = getApiErrorMessage(err, 'Error al cambiar modo');
+
+        if (typeof apiMsg === 'string' && /config|bot|bot_config|configuracion/i.test(apiMsg)) {
+          setError('Completa la configuracion del bot para activar la IA');
+        } else {
+          setError(apiMsg);
+        }
+
+      } finally {
+        setTogglingModes((prev) => ({ ...prev, [conversationId]: false }));
       }
     },
-    [],
+    [configStatusByConversation],
   );
 
   const dismissError = useCallback(() => setError(null), []);
@@ -298,6 +238,8 @@ export function useConversations() {
     loadingConversations,
     loadingMessages,
     error,
+    togglingModes,
+    configStatusByConversation,
     selectConversation,
     handleSend,
     retryMessage,

@@ -9,3 +9,23 @@
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
+
+html,
+body,
+#__next {
+  height: 100%;
+}
+
+.main {
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 80%;
+  }
+
+  .chat-layout {
+    flex-direction: column;
+  }
+}

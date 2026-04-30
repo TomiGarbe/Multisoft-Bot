@@ -1,9 +1,15 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { NAV_ITEMS } from '@/lib/navigation';
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { pathname } = useRouter();
   const { user, logout } = useAuth();
 
@@ -15,54 +21,78 @@ export default function Sidebar() {
     .join('');
 
   return (
-    <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white lg:flex lg:flex-col">
-      <div className="flex h-[var(--layout-header-height)] items-center border-b border-slate-200 px-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Multisoft Bot</h1>
-          <p className="text-sm text-slate-500">Panel de administración</p>
-        </div>
-      </div>
-
-      <nav className="flex-1 space-y-1.5 p-4">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.path || (item.path === '/dashboard' && pathname === '/');
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <Icon className="h-5 w-5 shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-slate-200 p-4">
-        <div className="mb-4 flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">
-            {initials || 'U'}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">{user?.name ?? 'Usuario'}</p>
-            <p className="truncate text-xs text-slate-500">{user?.email ?? 'Sin email'}</p>
-          </div>
-        </div>
-
+    <>
+      {isOpen && (
         <button
-          onClick={logout}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-rose-600"
-        >
-          Cerrar sesión
-        </button>
-      </div>
-    </aside>
+          type="button"
+          aria-label="Cerrar menú"
+          className="fixed inset-0 z-40 bg-slate-900/40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      <aside
+        className={`sidebar fixed inset-y-0 left-0 z-50 flex w-4/5 max-w-64 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:w-64 lg:max-w-none lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : ''
+        }`}
+      >
+        <div className="flex h-[var(--layout-header-height)] items-center justify-between border-b border-slate-200 px-6">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Multisoft Bot</h1>
+            <p className="text-sm text-slate-500">Panel de administración</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 lg:hidden"
+            aria-label="Cerrar menú"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <nav className="flex-1 space-y-1.5 p-4">
+          {NAV_ITEMS.map((item) => {
+            const isActive =
+              pathname === item.path || (item.path === '/dashboard' && pathname === '/');
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.path}
+                href={item.path}
+                onClick={onClose}
+                className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-slate-200 p-4">
+          <div className="mb-4 flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">
+              {initials || 'U'}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-slate-900">{user?.name ?? 'Usuario'}</p>
+              <p className="truncate text-xs text-slate-500">{user?.email ?? 'Sin email'}</p>
+            </div>
+          </div>
+
+          <button
+            onClick={logout}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-rose-600"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

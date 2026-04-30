@@ -4,6 +4,10 @@ import { Conversation } from '@/types/chat';
 interface Props {
   conversation: Conversation;
   onModeToggle?: (conversationId: string, mode: 'ai' | 'human') => void;
+  isToggling?: boolean;
+  aiUnavailable?: boolean;
+  aiUnavailableReason?: string;
+  onOpenConfig?: () => void;
 }
 
 const AVATAR_COLORS = [
@@ -33,25 +37,30 @@ function avatarColor(id: string): string {
   return AVATAR_COLORS[index];
 }
 
-export default function ConversationHeader({ conversation, onModeToggle }: Props) {
+export default function ConversationHeader({
+  conversation,
+  onModeToggle,
+  isToggling,
+  aiUnavailable,
+  aiUnavailableReason,
+  onOpenConfig,
+}: Props) {
   const initials = getInitials(conversation.contactName);
   const color = avatarColor(conversation.id);
 
+  const canClickToggle = !!onModeToggle && !isToggling && !(aiUnavailable && conversation.mode === 'human');
+
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b border-gray-200 bg-white shadow-sm">
-      {/* Avatar */}
       <div
         className={`w-10 h-10 rounded-full ${color} flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 select-none`}
       >
         {initials}
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="font-semibold text-gray-900 text-sm">
-            {conversation.contactName}
-          </h2>
+          <h2 className="font-semibold text-gray-900 text-sm">{conversation.contactName}</h2>
           <span
             className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${
               conversation.status === 'open'
@@ -61,9 +70,7 @@ export default function ConversationHeader({ conversation, onModeToggle }: Props
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
-                conversation.status === 'open'
-                  ? 'bg-emerald-500'
-                  : 'bg-gray-400'
+                conversation.status === 'open' ? 'bg-emerald-500' : 'bg-gray-400'
               }`}
             />
             {conversation.status === 'open' ? 'Abierta' : 'Cerrada'}
@@ -73,34 +80,48 @@ export default function ConversationHeader({ conversation, onModeToggle }: Props
         {conversation.contactPhone && (
           <div className="flex items-center gap-1 mt-0.5">
             <Phone className="w-3 h-3 text-gray-400" />
-            <span className="text-xs text-gray-400">
-              {conversation.contactPhone}
-            </span>
+            <span className="text-xs text-gray-400">{conversation.contactPhone}</span>
           </div>
         )}
       </div>
 
-      {/* Mode badge — clickable when onModeToggle is provided */}
       <button
         onClick={
-          onModeToggle
-            ? () =>
-                onModeToggle(
-                  conversation.id,
-                  conversation.mode === 'ai' ? 'human' : 'ai',
-                )
+          canClickToggle
+            ? () => onModeToggle?.(conversation.id, conversation.mode === 'ai' ? 'human' : 'ai')
             : undefined
         }
-        disabled={!onModeToggle}
+        disabled={!canClickToggle}
         title={onModeToggle ? 'Cambiar modo' : undefined}
-        className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-opacity ${
-          conversation.mode === 'ai'
+        aria-busy={isToggling ? true : undefined}
+        className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-opacity flex items-center gap-2 ${
+          aiUnavailable
+            ? 'bg-red-100 text-red-700'
+            : conversation.mode === 'ai'
             ? 'bg-emerald-100 text-emerald-700'
             : 'bg-blue-100 text-blue-700'
-        } ${onModeToggle ? 'cursor-pointer hover:opacity-75' : 'cursor-default'}`}
+        } ${canClickToggle ? 'cursor-pointer hover:opacity-75' : isToggling ? 'cursor-wait' : 'cursor-not-allowed opacity-90'}`}
       >
-        {conversation.mode === 'ai' ? 'AI' : 'Humano'}
+        <span
+          className={`h-2 w-2 rounded-full ${
+            aiUnavailable ? 'bg-red-600' : conversation.mode === 'ai' ? 'bg-emerald-600' : 'bg-gray-500'
+          }`}
+        />
+        <span className="whitespace-nowrap">
+          {aiUnavailable ? 'IA no disponible' : conversation.mode === 'ai' ? 'IA activa' : 'Humano'}
+        </span>
       </button>
+
+      {aiUnavailable && (
+        <button
+          type="button"
+          onClick={onOpenConfig}
+          className="text-xs text-red-700 underline underline-offset-2 hover:text-red-800"
+          title="Ir a configuracion"
+        >
+          {aiUnavailableReason ?? 'Completa la configuracion del bot para activar la IA'}
+        </button>
+      )}
     </div>
   );
 }

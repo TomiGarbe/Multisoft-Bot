@@ -17,7 +17,7 @@ export default function ConversationMessages({ messages, loading = false, onRetr
   }, [messages]);
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+    <div className="h-full px-4 py-4">
       {loading ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
           <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />

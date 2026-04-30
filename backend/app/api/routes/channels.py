@@ -1,13 +1,16 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.permissions import require_permission
 from app.api.routes.auth import get_current_user
 from app.db.session import get_db
+from app.models.channel import Channel
 from app.models import User
 from app.schemas.channel import ChannelCreate, ChannelResponse, ChannelUpdate
+from app.services.bot_config_service import BotConfigService
 from app.services.channel_service import (
     create_channel,
     delete_channel,
@@ -16,6 +19,12 @@ from app.services.channel_service import (
 )
 
 router = APIRouter(tags=["channels"])
+
+
+class ChannelConfigBundleResponse(BaseModel):
+    config: dict
+    settings: dict
+    user_types: dict
 
 
 @router.get("/", response_model=list[ChannelResponse])
@@ -70,6 +79,37 @@ async def update_channel_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
     return channel
+
+
+@router.get("/{channel_id}/config", response_model=ChannelConfigBundleResponse)
+async def get_channel_config_bundle(
+    channel_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    channel = db.get(Channel, channel_id)
+    if channel is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Channel not found: {channel_id}",
+        )
+
+    channel_config = BotConfigService.get_channel_config(db, channel_id)
+    config = channel_config.config_jsonb
+    settings = channel_config.settings_jsonb
+    user_types = channel_config.user_types_jsonb
+
+    if not isinstance(config, dict):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Config invalida")
+    if not isinstance(settings, dict):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Settings invalida")
+    if not isinstance(user_types, dict):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User types invalido")
+
+    return ChannelConfigBundleResponse(
+        config=config,
+        settings=settings,
+        user_types=user_types,
+    )
 
 
 @router.delete("/{channel_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -34,6 +34,8 @@ class ChannelBotConfigCreate(BaseModel):
 class ChannelBotConfigUpdate(BaseModel):
     """Update existing channel bot configuration"""
     config_jsonb: Optional[Dict[str, Any]] = Field(None, description="Complete bot configuration")
+    settings_jsonb: Optional[Dict[str, Any]] = Field(None, description="Channel settings configuration")
+    user_types_jsonb: Optional[Dict[str, Any]] = Field(None, description="User types configuration")
     is_active: Optional[bool] = None
 
 
@@ -45,6 +47,8 @@ class ChannelBotConfigResponse(BaseModel):
     is_active: bool
     version: int
     config_jsonb: Dict[str, Any]
+    settings_jsonb: Optional[Dict[str, Any]] = None
+    user_types_jsonb: Optional[Dict[str, Any]] = None
     created_by_user_id: Optional[uuid.UUID] = None
     updated_by_user_id: Optional[uuid.UUID] = None
     created_at: datetime

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models import Channel, Tenant, User
 from app.models.auth import TenantUser
 from app.schemas.channel import ChannelResponse
+from app.services.bot_config_service import BotConfigService
 
 
 VALID_CHANNEL_TYPES = ["whatsapp", "web", "instagram"]
@@ -92,6 +93,8 @@ def create_channel(
     )
     
     db.add(channel)
+    db.flush()
+    BotConfigService.create_default_channel_config(db, channel.id)
     db.commit()
     db.refresh(channel)
     

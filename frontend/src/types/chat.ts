@@ -8,6 +8,8 @@ export interface MediaItem {
 
 export interface Conversation {
   id: string;
+  channelId?: string;
+  channelConfigId?: string;
   contactName: string;
   contactPhone?: string;
   status: 'open' | 'closed';

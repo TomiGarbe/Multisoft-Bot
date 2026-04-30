@@ -85,7 +85,7 @@ class Message(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     sender_type: Mapped[str] = mapped_column(String(30), nullable=False)
     message_type: Mapped[str] = mapped_column(String(30), nullable=False)
     content_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    provider_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    provider_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     metadata_jsonb: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
     is_group: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

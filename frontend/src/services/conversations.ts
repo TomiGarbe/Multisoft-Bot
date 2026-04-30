@@ -7,6 +7,8 @@ interface ApiConversation {
   id: string;
   status: 'open' | 'closed';
   mode?: 'ai' | 'human';
+  channel_id?: string | null;
+  channel_config_id?: string | null;
   started_at: string;
   last_message_at: string | null;
   chat_thread_id?: string | null;
@@ -32,6 +34,8 @@ export interface SendMessagePayload {
 function mapConversation(raw: ApiConversation): Conversation {
   return {
     id: raw.id,
+    channelId: raw.channel_id ?? undefined,
+    channelConfigId: raw.channel_config_id ?? undefined,
     // contactName and contactPhone are not yet returned by GET /conversations.
     // Fallback until the backend includes contact info in the response.
     contactName: `Contacto ${raw.id.slice(0, 8)}`,

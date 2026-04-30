@@ -21,6 +21,7 @@ class NormalizedMessage(BaseModel):
     group_id: Optional[str] = None
 
     is_status: bool
+    is_bot: bool = False
 
     has_media: bool
     media_url: Optional[str] = None
