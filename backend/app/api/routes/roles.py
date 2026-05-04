@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies.permissions import require_permission
 from app.db.session import get_db
 from app.schemas.role import RoleCreate, RoleResponse, RoleUpdate
-from app.services.role_service import create_role, delete_role, get_roles, update_role
+from app.services.role_service import RoleService
 
 
 router = APIRouter(tags=["roles"])
@@ -19,7 +19,7 @@ async def read_roles(
     db: Session = Depends(get_db),
     #_: None = Depends(require_permission("roles.read")),
 ):
-    return get_roles(db, skip=skip, limit=limit)
+    return RoleService(db).get_roles(skip=skip, limit=limit)
 
 
 @router.post("/", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
@@ -29,8 +29,7 @@ async def create_role_endpoint(
     #_: None = Depends(require_permission("roles.create")),
 ):
     try:
-        return create_role(
-            db=db,
+        return RoleService(db).create_role(
             name=role_data.name,
             description=role_data.description,
             permissions=role_data.permissions,
@@ -47,8 +46,7 @@ async def update_role_endpoint(
     #_: None = Depends(require_permission("roles.update")),
 ):
     try:
-        role = update_role(
-            db=db,
+        role = RoleService(db).update_role(
             role_id=role_id,
             **role_data.model_dump(exclude_unset=True),
         )
@@ -64,7 +62,7 @@ async def delete_role_endpoint(
     db: Session = Depends(get_db),
     #_: None = Depends(require_permission("roles.delete")),
 ):
-    success = delete_role(db, role_id)
+    success = RoleService(db).delete_role(role_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

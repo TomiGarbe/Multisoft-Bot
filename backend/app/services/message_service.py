@@ -11,6 +11,7 @@ from app.models.conversation import ChatThread, Conversation, Message
 from app.models.metrics import ContactUsage
 from app.providers.provider_factory import get_message_provider
 from app.schemas.internal.normalized_message import NormalizedMessage
+from app.services.realtime_service import event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ def save_inbound_message(
     conversation.last_message_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(message)
+    _publish_new_message_event(message)
     return message
 
 
@@ -148,6 +150,7 @@ def save_outbound_message(
     db.add(message)
     db.commit()
     db.refresh(message)
+    _publish_new_message_event(message)
     return message
 
 
@@ -218,20 +221,7 @@ def get_messages(db: Session, conversation_id: uuid.UUID) -> list:
         .all()
     )
     logger.warning("Found %d messages for conversation: %s", len(messages), conversation_id)
-    return [
-        {
-            "id": str(m.id),
-            "conversation_id": str(m.conversation_id),
-            "direction": m.direction,
-            "sender_type": m.sender_type,
-            "message_type": m.message_type,
-            "content": m.content_text,
-            "status": m.status,
-            "provider_message_id": m.provider_message_id,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
-        }
-        for m in messages
-    ]
+    return [serialize_message(m) for m in messages]
 
 
 # ---------- Internals ----------
@@ -305,3 +295,28 @@ def _lookup_contact_id(
         ContactIdentity.external_id == external_id,
     ).first()
     return identity.contact_id if identity else None
+
+
+def serialize_message(message: Message) -> dict:
+    return {
+        "id": str(message.id),
+        "conversation_id": str(message.conversation_id),
+        "direction": message.direction,
+        "sender_type": message.sender_type,
+        "message_type": message.message_type,
+        "content": message.content_text,
+        "status": message.status,
+        "provider_message_id": message.provider_message_id,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+    }
+
+
+def _publish_new_message_event(message: Message) -> None:
+    event_bus.publish(
+        "new_message",
+        {
+            "type": "new_message",
+            "conversation_id": str(message.conversation_id),
+            "message": serialize_message(message),
+        },
+    )

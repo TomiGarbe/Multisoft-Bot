@@ -1,11 +1,10 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Tenant, User
-from app.models.auth import TenantUser
+from app.repositories import tenant_repository
 from app.schemas.tenant import TenantResponse
 
 
@@ -24,24 +23,19 @@ def _build_tenant_response(tenant: Tenant) -> TenantResponse:
 
 
 def get_tenants(db: Session, user: Optional[User] = None) -> list[TenantResponse]:
-    # DEV: bypass user filtering
-    if user is None:
-        tenants = db.execute(select(Tenant)).scalars().all()
-        return [_build_tenant_response(t) for t in tenants]
+    tenants = _resolve_tenants_for_user_scope(db, user)
+    return [_build_tenant_response(t) for t in tenants]
 
+
+def _resolve_tenants_for_user_scope(db: Session, user: Optional[User]) -> list[Tenant]:
+    # DEV: bypass user filtering must remain for current compatibility.
+    if user is None:
+        return tenant_repository.get_all(db)
     if not user.is_active:
         return []
-
     if user.is_backdoor:
-        stmt = select(Tenant)
-    else:
-        stmt = (
-            select(Tenant)
-            .join(TenantUser, TenantUser.tenant_id == Tenant.id)
-            .where(TenantUser.user_id == user.id)
-        )
-    tenants = db.execute(stmt).scalars().all()
-    return [_build_tenant_response(t) for t in tenants]
+        return tenant_repository.get_all_active_for_backdoor(db)
+    return tenant_repository.get_all_by_user(db, user)
 
 
 def create_tenant(
@@ -52,25 +46,25 @@ def create_tenant(
     industry: Optional[str] = None,
     timezone: Optional[str] = None,
 ):
-    existing = db.query(Tenant).filter(Tenant.slug == slug).first()
-    if existing:
+    existing = tenant_repository.get_by_slug(db, slug)
+    if existing is not None:
         raise ValueError("Slug already exists")
 
-    tenant = Tenant(
-        name=name,
-        slug=slug,
-        description=description,
-        industry=industry,
-        timezone=timezone,
-        branding_jsonb=None,
-        features_jsonb=None,
-    )
-
-    db.add(tenant)
-    db.commit()
-    db.refresh(tenant)
-
-    return tenant
+    try:
+        tenant = tenant_repository.create(
+            db,
+            name=name,
+            slug=slug,
+            description=description,
+            industry=industry,
+            timezone=timezone,
+        )
+        tenant_repository.commit(db)
+        tenant_repository.refresh(db, tenant)
+        return tenant
+    except Exception:
+        tenant_repository.rollback(db)
+        raise
 
 
 def update_tenant(
@@ -78,42 +72,43 @@ def update_tenant(
     tenant_id: uuid.UUID,
     **kwargs,
 ):
-    tenant = db.get(Tenant, tenant_id)
+    tenant = tenant_repository.get_by_id(db, tenant_id)
 
-    if not tenant:
+    if tenant is None:
         raise LookupError("Tenant not found")
 
-    # Prevent updates to protected fields
+    # Keep protected fields behavior unchanged.
     kwargs.pop("branding_jsonb", None)
     kwargs.pop("features_jsonb", None)
 
     if "slug" in kwargs and kwargs["slug"]:
-        existing = (
-            db.query(Tenant)
-            .filter(Tenant.slug == kwargs["slug"], Tenant.id != tenant_id)
-            .first()
+        existing = tenant_repository.get_by_slug_excluding_id(
+            db,
+            slug=kwargs["slug"],
+            tenant_id=tenant_id,
         )
-        if existing:
+        if existing is not None:
             raise ValueError("Slug already exists")
 
-    for key, value in kwargs.items():
-        setattr(tenant, key, value)
-
-    db.commit()
-    db.refresh(tenant)
-
-    return tenant
+    try:
+        tenant_repository.update(db, tenant, **kwargs)
+        tenant_repository.commit(db)
+        tenant_repository.refresh(db, tenant)
+        return tenant
+    except Exception:
+        tenant_repository.rollback(db)
+        raise
 
 
 def delete_tenant(db: Session, tenant_id: uuid.UUID) -> bool:
     try:
-        tenant = db.get(Tenant, tenant_id)
+        tenant = tenant_repository.get_by_id(db, tenant_id)
         if tenant is None:
             return False
 
-        tenant.is_active = False
-        db.commit()
+        tenant_repository.delete(db, tenant)
+        tenant_repository.commit(db)
         return True
     except Exception:
-        db.rollback()
+        tenant_repository.rollback(db)
         raise

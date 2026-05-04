@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.routes import ai, auth, channel_config, channels, conversations, messages, permissions, roles, tenants, users, webhooks
+from app.api.routes import ai, auth, channel_config, channels, conversations, messages, permissions, realtime, roles, tenants, users, webhooks
 from app.core.config import settings
 from app.db.session import SessionLocal
 
@@ -32,6 +32,7 @@ app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks")
 app.include_router(messages.router, prefix=f"{settings.API_V1_STR}/messages")
 app.include_router(conversations.router, prefix=f"{settings.API_V1_STR}/conversations")
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai")
+app.include_router(realtime.router, prefix=f"{settings.API_V1_STR}/realtime")
 
 
 @app.get('/health')

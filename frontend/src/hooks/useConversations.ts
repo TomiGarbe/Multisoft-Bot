@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Conversation, Message, SendPayload } from '@/types/chat';
 import {
+  getRealtimeEventsUrl,
   getConversations,
+  mapApiMessage,
   getMessages,
   sendMessage,
   setConversationMode,
@@ -21,6 +23,28 @@ export function useConversations() {
   const [configStatusByConversation, setConfigStatusByConversation] = useState<
     Record<string, ChannelConfigValidationStatus>
   >({});
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const selectedIdRef = useRef<string>('');
+
+  const appendMessage = useCallback((conversationId: string, next: Message) => {
+    setMessages((prev) => {
+      const current = prev[conversationId] ?? [];
+      if (current.some((msg) => msg.id === next.id)) {
+        return prev;
+      }
+
+      const withoutMatchingPending =
+        next.direction === 'outbound'
+          ? current.filter((msg) => !(msg.status === 'pending' && msg.content === next.content))
+          : current;
+
+      const merged = [...withoutMatchingPending, next].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+
+      return { ...prev, [conversationId]: merged };
+    });
+  }, []);
 
   const hydrateConfigStatus = useCallback(async (nextConversations: Conversation[]) => {
     const statusEntries = await Promise.all(
@@ -87,7 +111,75 @@ export function useConversations() {
     };
   }, [selectedId]);
 
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let eventSource: EventSource | null = null;
+
+    try {
+      eventSource = new EventSource(getRealtimeEventsUrl());
+      eventSource.onopen = () => {
+        setIsRealtimeConnected(true);
+      };
+
+      eventSource.addEventListener('new_message', (event: MessageEvent<string>) => {
+        if (!event.data) return;
+        let payload: {
+          type: 'new_message';
+          conversation_id: string;
+          message: {
+            id: string;
+            conversation_id: string;
+            direction: 'inbound' | 'outbound';
+            sender_type: 'contact' | 'bot';
+            message_type?: string;
+            content: string | null;
+            created_at: string;
+          };
+        };
+
+        try {
+          payload = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        if (payload.conversation_id !== selectedIdRef.current) return;
+        appendMessage(payload.conversation_id, mapApiMessage(payload.message));
+      });
+
+      eventSource.onerror = () => {
+        setIsRealtimeConnected(false);
+        eventSource?.close();
+      };
+    } catch {
+      setIsRealtimeConnected(false);
+    }
+
+    return () => {
+      eventSource?.close();
+    };
+  }, [appendMessage]);
+
+  useEffect(() => {
+    if (isRealtimeConnected || !selectedId) return;
+
+    const interval = setInterval(() => {
+      getMessages(selectedId)
+        .then((data) => {
+          data.forEach((msg) => appendMessage(selectedId, msg));
+        })
+        .catch(() => {});
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [selectedId, isRealtimeConnected, appendMessage]);
+
   const selectConversation = useCallback((id: string) => {
+    setMessages((prev) => ({ ...prev, [id]: [] }));
     setSelectedId(id);
   }, []);
 
@@ -240,6 +332,7 @@ export function useConversations() {
     error,
     togglingModes,
     configStatusByConversation,
+    isRealtimeConnected,
     selectConversation,
     handleSend,
     retryMessage,

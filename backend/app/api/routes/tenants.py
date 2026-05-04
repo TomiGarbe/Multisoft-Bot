@@ -3,10 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies.permissions import require_permission
-from app.api.routes.auth import get_current_user
 from app.db.session import get_db
-from app.models import User
 from app.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
 from app.services.tenant_service import (
     create_tenant,

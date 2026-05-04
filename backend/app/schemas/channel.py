@@ -30,3 +30,9 @@ class ChannelResponse(BaseModel):
     is_active: bool
 
     model_config = {"from_attributes": True}
+
+
+class ChannelConfigBundleResponse(BaseModel):
+    config: dict
+    settings: dict
+    user_types: dict

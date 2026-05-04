@@ -57,6 +57,10 @@ function mapMessage(raw: ApiMessage): Message {
   };
 }
 
+export function mapApiMessage(raw: ApiMessage): Message {
+  return mapMessage(raw);
+}
+
 // ─── Service functions ─────────────────────────────────────────────────────────
 
 export async function getConversations(): Promise<Conversation[]> {
@@ -80,4 +84,9 @@ export async function setConversationMode(
   mode: 'ai' | 'human',
 ): Promise<void> {
   await api.patch(`/conversations/${conversationId}/mode`, { mode });
+}
+
+export function getRealtimeEventsUrl(): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+  return `${apiUrl}/realtime/events`;
 }

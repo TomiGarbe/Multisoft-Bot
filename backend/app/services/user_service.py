@@ -1,27 +1,26 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
-from app.models import Permission, Role, RolePermission, Tenant, TenantUser, User, UserPermission
+from app.models import Permission, Role, Tenant, User
+from app.repositories import user_repository
 from app.schemas.user import UserPermissionSummary, UserResponse, UserRoleSummary
 from app.services.auth_service import hash_password
 
 
 def get_user_by_id(db: Session, user_id: uuid.UUID) -> Optional[User]:
-    return db.get(User, user_id)
+    return user_repository.get_user_by_id(db, user_id)
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
-    stmt = select(User).where(func.lower(User.email) == email.lower())
-    return db.execute(stmt).scalar_one_or_none()
+    return user_repository.get_user_by_email(db, email)
 
 
 def _validate_role(db: Session, role_id: Optional[uuid.UUID]) -> Optional[Role]:
     if role_id is None:
         return None
-    role = db.get(Role, role_id)
+    role = user_repository.get_role_by_id(db, role_id)
     if role is None:
         raise LookupError("Role not found")
     return role
@@ -32,8 +31,7 @@ def _validate_permissions(db: Session, permission_ids: list[uuid.UUID]) -> list[
         return []
 
     unique_ids = list(dict.fromkeys(permission_ids))
-    stmt = select(Permission).where(Permission.id.in_(unique_ids))
-    permissions = db.execute(stmt).scalars().all()
+    permissions = user_repository.get_permissions_by_ids(db, unique_ids)
     if len(permissions) != len(unique_ids):
         found_ids = {permission.id for permission in permissions}
         missing = [str(pid) for pid in unique_ids if pid not in found_ids]
@@ -42,7 +40,7 @@ def _validate_permissions(db: Session, permission_ids: list[uuid.UUID]) -> list[
 
 
 def _validate_tenant(db: Session, tenant_id: uuid.UUID) -> Tenant:
-    tenant = db.get(Tenant, tenant_id)
+    tenant = user_repository.get_tenant_by_id(db, tenant_id)
     if tenant is None:
         raise LookupError("Tenant not found")
     return tenant
@@ -86,20 +84,7 @@ def _build_user_response(user: User) -> UserResponse:
 
 
 def _load_user_with_relations(db: Session, user_id: uuid.UUID) -> Optional[User]:
-    stmt = (
-        select(User)
-        .where(User.id == user_id)
-        .options(
-            joinedload(User.tenant_links)
-            .joinedload(TenantUser.role)
-            .joinedload(Role.role_permissions)
-            .joinedload(RolePermission.permission),
-            joinedload(User.tenant_links)
-            .joinedload(TenantUser.user_permissions)
-            .joinedload(UserPermission.permission),
-        )
-    )
-    return db.execute(stmt).unique().scalars().first()
+    return user_repository.load_user_with_relations(db, user_id)
 
 
 def create_user(
@@ -130,47 +115,46 @@ def create_user(
         role = _validate_role(db, role_id)
         permission_records = _validate_permissions(db, permissions or [])
 
-        user = User(
+        user = user_repository.add_user(
+            db,
             name=name,
             email=email,
             password_hash=hash_password(password),
             is_active=is_active,
             is_backdoor=is_backdoor,
         )
-        db.add(user)
-        db.flush()
+        user_repository.flush(db)
 
         if tenant_id is not None:
-            tenant_user = TenantUser(
+            tenant_user = user_repository.add_tenant_user(
+                db,
                 tenant_id=tenant_id,
                 user_id=user.id,
                 role_id=role.id if role else None,
             )
-            db.add(tenant_user)
-            db.flush()
+            user_repository.flush(db)
 
             for permission in permission_records:
-                db.add(
-                    UserPermission(
-                        tenant_user_id=tenant_user.id,
-                        permission_id=permission.id,
-                        allowed=True,
-                    )
+                user_repository.add_user_permission(
+                    db,
+                    tenant_user_id=tenant_user.id,
+                    permission_id=permission.id,
+                    allowed=True,
                 )
 
-        db.commit()
+        user_repository.commit(db)
         loaded_user = _load_user_with_relations(db, user.id)
         if loaded_user is None:
             raise LookupError("User not found after creation")
         return _build_user_response(loaded_user)
     except Exception:
-        db.rollback()
+        user_repository.rollback(db)
         raise
 
 
 def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResponse]:
     try:
-        user = db.get(User, user_id)
+        user = user_repository.get_user_by_id(db, user_id)
         if user is None:
             return None
 
@@ -202,7 +186,7 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
 
         if final_is_backdoor:
             user.is_backdoor = True
-            db.execute(delete(TenantUser).where(TenantUser.user_id == user.id))
+            user_repository.delete_tenant_users_by_user_id(db, user.id)
         else:
             user.is_backdoor = False
 
@@ -215,17 +199,16 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
             if incoming_tenant_id is not None:
                 _validate_tenant(db, incoming_tenant_id)
 
-            tenant_user_stmt = select(TenantUser).where(TenantUser.user_id == user.id).limit(1)
-            tenant_user = db.execute(tenant_user_stmt).scalar_one_or_none()
+            tenant_user = user_repository.get_tenant_user_by_user_id(db, user.id)
 
             if tenant_user is None and incoming_tenant_id is not None:
-                tenant_user = TenantUser(
+                tenant_user = user_repository.add_tenant_user(
+                    db,
                     tenant_id=incoming_tenant_id,
                     user_id=user.id,
                     role_id=role.id if role else None,
                 )
-                db.add(tenant_user)
-                db.flush()
+                user_repository.flush(db)
             elif tenant_user is not None:
                 if incoming_tenant_id is not None and tenant_user.tenant_id != incoming_tenant_id:
                     tenant_user.tenant_id = incoming_tenant_id
@@ -236,37 +219,36 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
             if tenant_user is not None and "permissions" in updates:
                 permissions = updates["permissions"]
                 permission_records = _validate_permissions(db, permissions or [])
-                db.execute(delete(UserPermission).where(UserPermission.tenant_user_id == tenant_user.id))
+                user_repository.delete_user_permissions_by_tenant_user_id(db, tenant_user.id)
                 for permission in permission_records:
-                    db.add(
-                        UserPermission(
-                            tenant_user_id=tenant_user.id,
-                            permission_id=permission.id,
-                            allowed=True,
-                        )
+                    user_repository.add_user_permission(
+                        db,
+                        tenant_user_id=tenant_user.id,
+                        permission_id=permission.id,
+                        allowed=True,
                     )
 
-        db.commit()
+        user_repository.commit(db)
         loaded_user = _load_user_with_relations(db, user.id)
         if loaded_user is None:
             return None
         return _build_user_response(loaded_user)
     except Exception:
-        db.rollback()
+        user_repository.rollback(db)
         raise
 
 
 def delete_user(db: Session, user_id: uuid.UUID) -> bool:
     try:
-        user = db.get(User, user_id)
+        user = user_repository.get_user_by_id(db, user_id)
         if user is None:
             return False
 
-        db.delete(user)
-        db.commit()
+        user_repository.delete_user(db, user)
+        user_repository.commit(db)
         return True
     except Exception:
-        db.rollback()
+        user_repository.rollback(db)
         raise
 
 
@@ -276,16 +258,6 @@ def get_users(
     limit: int = 100,
     current_user_id: Optional[uuid.UUID] = None,
 ) -> list[UserResponse]:
-    base_options = [
-        joinedload(User.tenant_links)
-        .joinedload(TenantUser.role)
-        .joinedload(Role.role_permissions)
-        .joinedload(RolePermission.permission),
-        joinedload(User.tenant_links)
-        .joinedload(TenantUser.user_permissions)
-        .joinedload(UserPermission.permission),
-    ]
-
     # DEV: tenant-scoped filtering disabled
     # if current_user_id is not None:
     #     caller = db.get(User, current_user_id)
@@ -306,6 +278,5 @@ def get_users(
     #         users = db.execute(stmt).unique().scalars().all()
     #         return [_build_user_response(user) for user in users]
 
-    stmt = select(User).offset(skip).limit(limit).options(*base_options)
-    users = db.execute(stmt).unique().scalars().all()
+    users = user_repository.list_users(db, skip=skip, limit=limit)
     return [_build_user_response(user) for user in users]
