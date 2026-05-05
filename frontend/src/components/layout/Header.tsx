@@ -1,5 +1,3 @@
-'use client';
-
 import { Menu } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { getPageTitle } from '@/lib/navigation';
@@ -18,7 +16,7 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
         type="button"
         onClick={onOpenSidebar}
         className="mr-3 inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 lg:hidden"
-        aria-label="Abrir menú"
+        aria-label="Abrir menu"
       >
         <Menu className="h-5 w-5" />
       </button>

@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, BigInteger, Date, UniqueConstraint, Index
+from sqlalchemy import ForeignKey, Integer, BigInteger, Date, String, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -69,3 +69,18 @@ class ContactUsage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Relationships
     contact: Mapped["Contact"] = relationship("Contact", back_populates="contact_usage")
     conversation: Mapped["Conversation"] = relationship("Conversation")
+
+
+class TokenUsage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Token consumption per AI request, associated to a tenant."""
+    __tablename__ = "token_usage"
+
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    prompt_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    completion_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    total_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    tenant: Mapped["Tenant"] = relationship("Tenant")

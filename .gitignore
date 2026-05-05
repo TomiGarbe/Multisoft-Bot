@@ -8,6 +8,7 @@ env/
 venv/
 .venv/
 ENV/
+next-env.d.ts
 build/
 develop-eggs/
 dist/

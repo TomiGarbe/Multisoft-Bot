@@ -10,6 +10,7 @@ from app.api.routes.auth import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import User
+from app.models.user import UserType
 from app.models.auth import TenantUser
 from app.services.auth.permission_service import get_user_permissions
 
@@ -38,7 +39,7 @@ def require_permission(permission_code: str) -> Callable:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        if user.is_backdoor:
+        if user.user_type == UserType.BACKDOOR:
             return
 
         tenant_user = db.execute(

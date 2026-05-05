@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class AIInterface(ABC):
@@ -19,3 +20,16 @@ class AIInterface(ABC):
             Exception: If the AI provider fails to generate a response
         """
         pass
+
+    async def generate_with_metadata(self, prompt: str) -> dict[str, Any]:
+        """
+        Optional richer response for providers that expose usage counters.
+        Default implementation preserves backward compatibility.
+        """
+        response = await self.generate(prompt)
+        return {
+            "response": response,
+            "prompt_eval_count": None,
+            "eval_count": None,
+            "model": None,
+        }

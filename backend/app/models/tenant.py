@@ -41,3 +41,6 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         uselist=False,
         cascade="all, delete-orphan"
     )
+    user_business_links: Mapped[List["UserBusiness"]] = relationship(
+        "UserBusiness", cascade="all, delete-orphan"
+    )

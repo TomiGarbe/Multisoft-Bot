@@ -37,3 +37,6 @@ class AIService:
 
     async def generate(self, prompt: str) -> str:
         return await self.provider.generate(prompt)
+
+    async def generate_with_metadata(self, prompt: str) -> dict[str, Any]:
+        return await self.provider.generate_with_metadata(prompt)

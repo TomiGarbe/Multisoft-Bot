@@ -32,7 +32,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       )}
 
       <aside
-        className={`sidebar fixed inset-y-0 left-0 z-50 flex w-4/5 max-w-64 -translate-x-full flex-col border-r border-slate-200 bg-white transition-transform duration-300 lg:w-64 lg:max-w-none lg:translate-x-0 ${
+        className={`sidebar fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-4/5 max-w-64 -translate-x-full flex-col overflow-hidden border-r border-slate-200 bg-white transition-transform duration-300 lg:w-64 lg:max-w-none lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : ''
         }`}
       >
@@ -51,7 +51,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1.5 p-4">
+        <nav className="flex-1 overflow-y-auto space-y-1.5 p-4">
           {NAV_ITEMS.map((item) => {
             const isActive =
               pathname === item.path || (item.path === '/dashboard' && pathname === '/');

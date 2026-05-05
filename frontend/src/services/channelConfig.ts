@@ -12,6 +12,7 @@ export async function updateChannelConfig(
     config_jsonb?: Record<string, unknown>;
     settings_jsonb?: Record<string, unknown>;
     user_types_jsonb?: Record<string, unknown>;
+    channel_ids?: string[];
   },
 ): Promise<ChannelBotConfig> {
   const { data } = await api.put<ChannelBotConfig>(`/channel-config/${configId}`, payload);

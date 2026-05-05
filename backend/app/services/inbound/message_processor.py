@@ -14,7 +14,7 @@ lives in `incoming_message_handler.handle_incoming_message`.
 
 import logging
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.models.conversation import Conversation
 from app.models.metrics import ContactUsage
 from app.repositories.ai.ai_log_repository import AILogRepository
+from app.repositories.token_usage_repository import TokenUsageRepository
 from app.services.ai.ai_service import AIService
 from app.services.ai.out_of_scope_detector import is_out_of_scope
 from app.services.ai.prompt_builder import PromptBuilder
@@ -62,9 +63,9 @@ class MessageProcessor:
             return None
         return prompt
 
-    async def call_ai(self, prompt: str) -> Optional[str]:
-        """Send prompt to provider and return only response text."""
-        return await self.ai_service.generate(prompt)
+    async def call_ai(self, prompt: str) -> dict[str, Any]:
+        """Send prompt to provider and return response payload including optional usage."""
+        return await self.ai_service.generate_with_metadata(prompt)
 
     async def generate_response(
         self,
@@ -87,9 +88,11 @@ class MessageProcessor:
         )
 
         response = None
+        ai_payload: dict[str, Any] | None = None
         if should_use_ai(conversation, channel_config):
             try:
-                response = await self.call_ai(prompt)
+                ai_payload = await self.call_ai(prompt)
+                response = str((ai_payload or {}).get("response") or "")
             except Exception:
                 logger.exception("AI generation failed for conversation: %s", conversation.id)
         else:
@@ -103,6 +106,13 @@ class MessageProcessor:
             conversation_id=conversation.id,
             prompt=prompt,
             response=response,
+        )
+        self._record_token_usage(
+            db,
+            tenant_id=tenant_id,
+            ai_payload=ai_payload,
+            fallback_model=settings.OLLAMA_MODEL,
+            conversation_id=conversation.id,
         )
 
         if not response or not response.strip():
@@ -148,6 +158,60 @@ class MessageProcessor:
 
         logger.info("Response ready for conversation: %s", conversation.id)
         return response
+
+    def _record_token_usage(
+        self,
+        db: Session,
+        *,
+        tenant_id: uuid.UUID,
+        ai_payload: Optional[dict[str, Any]],
+        fallback_model: Optional[str],
+        conversation_id: uuid.UUID,
+    ) -> None:
+        if not ai_payload:
+            logger.debug("No AI payload available to record token usage (conversation_id=%s)", conversation_id)
+            return
+
+        def _to_int(value: Any) -> int:
+            try:
+                return int(value) if value is not None else 0
+            except (TypeError, ValueError):
+                return 0
+
+        prompt_tokens = _to_int(ai_payload.get("prompt_eval_count"))
+        completion_tokens = _to_int(ai_payload.get("eval_count"))
+        total_tokens = prompt_tokens + completion_tokens
+
+        if total_tokens <= 0:
+            logger.warning(
+                "AI response without token counters; skipping token usage record (conversation_id=%s)",
+                conversation_id,
+            )
+            return
+
+        model_name = ai_payload.get("model") or fallback_model
+
+        try:
+            token_usage_repository = TokenUsageRepository(db)
+            token_usage_repository.create_usage(
+                tenant_id=tenant_id,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                model=model_name,
+            )
+            logger.info(
+                "Token usage recorded (conversation_id=%s, tenant_id=%s, total_tokens=%d)",
+                conversation_id,
+                tenant_id,
+                total_tokens,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to record token usage (conversation_id=%s, tenant_id=%s)",
+                conversation_id,
+                tenant_id,
+            )
 
     async def _log_interaction(
         self,

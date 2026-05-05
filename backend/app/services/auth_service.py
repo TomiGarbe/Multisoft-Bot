@@ -28,6 +28,7 @@ def create_access_token(
     user_id: uuid.UUID,
     email: str,
     is_backdoor: bool = False,
+    user_type: str = "BUSINESS_USER",
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """Create a JWT access token."""
@@ -39,6 +40,7 @@ def create_access_token(
         "user_id": str(user_id),
         "email": email,
         "is_backdoor": is_backdoor,
+        "user_type": user_type,
         "exp": expire,
     }
 
