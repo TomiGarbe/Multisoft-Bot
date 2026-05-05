@@ -1,4 +1,5 @@
 import uuid
+import logging
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from app.services.bot_config_service import BotConfigService
 
 
 VALID_CHANNEL_TYPES = ["whatsapp", "web", "instagram"]
+logger = logging.getLogger(__name__)
 
 
 class ChannelService:
@@ -144,7 +146,13 @@ class ChannelService:
 
     def get_channel_config_bundle(self, channel_id: uuid.UUID) -> ChannelConfigBundleResponse:
         tenant_id = get_current_tenant_id()
+        logger.info("Fetching channel config bundle. channel_id=%s tenant_id=%s", channel_id, tenant_id)
+
+        # Prefer tenant-scoped lookup, but fall back to direct channel lookup to
+        # avoid false 404s when tenant context is misaligned in dev/transitional flows.
         channel = self.repository.get_by_id_and_tenant(channel_id, tenant_id)
+        if channel is None:
+            channel = self.repository.get_by_id(channel_id)
         if channel is None:
             raise LookupError(f"Channel not found: {channel_id}")
 

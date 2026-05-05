@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Permission, Role, RolePermission, Tenant, TenantUser, User, UserPermission
+from app.models import Permission, Role, RolePermission, Tenant, TenantUser, User, UserBusiness, UserPermission
 
 
 def get_user_by_id(db: Session, user_id: uuid.UUID) -> Optional[User]:
@@ -37,6 +37,7 @@ def add_user(
     password_hash: str,
     is_active: bool,
     is_backdoor: bool,
+    user_type,
 ) -> User:
     user = User(
         name=name,
@@ -44,6 +45,7 @@ def add_user(
         password_hash=password_hash,
         is_active=is_active,
         is_backdoor=is_backdoor,
+        user_type=user_type,
     )
     db.add(user)
     return user
@@ -68,6 +70,16 @@ def add_tenant_user(
     )
     db.add(tenant_user)
     return tenant_user
+
+
+def add_user_business(db: Session, *, user_id: uuid.UUID, business_id: uuid.UUID) -> UserBusiness:
+    link = UserBusiness(user_id=user_id, business_id=business_id)
+    db.add(link)
+    return link
+
+
+def delete_user_businesses_by_user_id(db: Session, user_id: uuid.UUID) -> None:
+    db.execute(delete(UserBusiness).where(UserBusiness.user_id == user_id))
 
 
 def add_user_permission(
@@ -103,6 +115,7 @@ def load_user_with_relations(db: Session, user_id: uuid.UUID) -> Optional[User]:
         select(User)
         .where(User.id == user_id)
         .options(
+            joinedload(User.business_links).joinedload(UserBusiness.business),
             joinedload(User.tenant_links)
             .joinedload(TenantUser.role)
             .joinedload(Role.role_permissions)
@@ -121,6 +134,48 @@ def list_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
         .offset(skip)
         .limit(limit)
         .options(
+            joinedload(User.business_links).joinedload(UserBusiness.business),
+            joinedload(User.tenant_links)
+            .joinedload(TenantUser.role)
+            .joinedload(Role.role_permissions)
+            .joinedload(RolePermission.permission),
+            joinedload(User.tenant_links)
+            .joinedload(TenantUser.user_permissions)
+            .joinedload(UserPermission.permission),
+        )
+    )
+    return db.execute(stmt).unique().scalars().all()
+
+
+def list_users_by_type(db: Session, user_type, skip: int = 0, limit: int = 100) -> list[User]:
+    stmt = (
+        select(User)
+        .where(User.user_type == user_type)
+        .offset(skip)
+        .limit(limit)
+        .options(
+            joinedload(User.business_links).joinedload(UserBusiness.business),
+            joinedload(User.tenant_links)
+            .joinedload(TenantUser.role)
+            .joinedload(Role.role_permissions)
+            .joinedload(RolePermission.permission),
+            joinedload(User.tenant_links)
+            .joinedload(TenantUser.user_permissions)
+            .joinedload(UserPermission.permission),
+        )
+    )
+    return db.execute(stmt).unique().scalars().all()
+
+
+def list_business_users(db: Session, business_id: uuid.UUID, skip: int = 0, limit: int = 100) -> list[User]:
+    stmt = (
+        select(User)
+        .join(TenantUser, TenantUser.user_id == User.id)
+        .where(TenantUser.tenant_id == business_id)
+        .offset(skip)
+        .limit(limit)
+        .options(
+            joinedload(User.business_links).joinedload(UserBusiness.business),
             joinedload(User.tenant_links)
             .joinedload(TenantUser.role)
             .joinedload(Role.role_permissions)

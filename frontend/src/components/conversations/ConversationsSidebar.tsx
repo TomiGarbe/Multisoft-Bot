@@ -89,7 +89,7 @@ export default function ConversationsSidebar({
   }, [conversations, query]);
 
   return (
-    <div className="sidebar flex h-full w-full flex-shrink-0 flex-col border-r border-gray-200 bg-white md:w-80">
+    <div className="conversations-sidebar flex h-full w-full flex-shrink-0 flex-col border-r border-gray-200 bg-white md:w-80">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-100 px-5 py-4">
         <h1 className="text-base font-semibold text-gray-900">

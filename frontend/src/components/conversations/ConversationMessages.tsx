@@ -11,9 +11,14 @@ interface Props {
 
 export default function ConversationMessages({ messages, loading = false, onRetry }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const previousCountRef = useRef(0);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const previousCount = previousCountRef.current;
+    const currentCount = messages.length;
+    const behavior: ScrollBehavior = previousCount === 0 ? 'auto' : 'smooth';
+    bottomRef.current?.scrollIntoView({ behavior });
+    previousCountRef.current = currentCount;
   }, [messages]);
 
   return (

@@ -146,6 +146,16 @@ class BotConfigService:
         return BotConfigService.get_active_channel_config(db, channel_id)
 
     @staticmethod
+    def get_or_create_configs_for_channels(
+        db: Session,
+        channel_ids: list[uuid.UUID],
+    ) -> list[ChannelBotConfig]:
+        configs: list[ChannelBotConfig] = []
+        for channel_id in channel_ids:
+            configs.append(BotConfigService.get_channel_config(db, channel_id))
+        return configs
+
+    @staticmethod
     def validate_config_structure(config: dict) -> bool:
         """
         Validate that config has the expected structure for PromptBuilder.

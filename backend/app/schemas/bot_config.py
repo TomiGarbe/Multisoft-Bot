@@ -36,6 +36,10 @@ class ChannelBotConfigUpdate(BaseModel):
     config_jsonb: Optional[Dict[str, Any]] = Field(None, description="Complete bot configuration")
     settings_jsonb: Optional[Dict[str, Any]] = Field(None, description="Channel settings configuration")
     user_types_jsonb: Optional[Dict[str, Any]] = Field(None, description="User types configuration")
+    channel_ids: Optional[list[uuid.UUID]] = Field(
+        None,
+        description="Optional list of channels to apply the same config payload in bulk",
+    )
     is_active: Optional[bool] = None
 
 

@@ -1,4 +1,6 @@
 import logging
+from typing import Any
+
 import httpx
 from app.interfaces.ai.ai_interface import AIInterface
 from app.core.config import settings
@@ -15,6 +17,10 @@ class OllamaProvider(AIInterface):
         self.token = settings.OLLAMA_TOKEN
 
     async def generate(self, prompt: str) -> str:
+        data = await self.generate_with_metadata(prompt)
+        return str(data.get("response", ""))
+
+    async def generate_with_metadata(self, prompt: str) -> dict[str, Any]:
         """
         Generate a response using Ollama AI.
         
@@ -57,7 +63,7 @@ class OllamaProvider(AIInterface):
                 response.raise_for_status()
                 
                 data = response.json()
-                
+
                 # Extract the generated text from response
                 generated_text = data.get("response", "").strip()
                 
@@ -65,7 +71,12 @@ class OllamaProvider(AIInterface):
                     raise ValueError("Empty response received from Ollama")
                 
                 logger.info("[OLLAMA] Generated response for prompt: %.50s...", prompt)
-                return generated_text
+                return {
+                    "response": generated_text,
+                    "prompt_eval_count": data.get("prompt_eval_count"),
+                    "eval_count": data.get("eval_count"),
+                    "model": data.get("model") or self.model,
+                }
 
         except httpx.HTTPError as e:
             logger.error("[OLLAMA] HTTP error: %s", e)

@@ -5,9 +5,10 @@ import type { InputHTMLAttributes } from 'react';
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
+  warning?: string;
 }
 
-export default function Input({ label, id, error, className = '', ...props }: InputProps) {
+export default function Input({ label, id, error, warning, className = '', ...props }: InputProps) {
   const inputId = id || label.toLowerCase().replace(/\s+/g, '-');
 
   return (
@@ -18,11 +19,16 @@ export default function Input({ label, id, error, className = '', ...props }: In
       <input
         id={inputId}
         className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-sky-200 ${
-          error ? 'border-rose-400 focus:border-rose-400' : 'border-slate-300 focus:border-sky-400'
+          error
+            ? 'border-rose-400 focus:border-rose-400'
+            : warning
+              ? 'border-amber-300 bg-amber-50/40 focus:border-amber-400'
+              : 'border-slate-300 focus:border-sky-400'
         } ${className}`.trim()}
         {...props}
       />
       {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {!error && warning ? <p className="text-xs text-amber-700">{warning}</p> : null}
     </div>
   );
 }

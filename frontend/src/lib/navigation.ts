@@ -19,7 +19,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
   { path: '/negocios',       label: 'Negocios',       icon: Building2       },
-  { path: '/usuarios',       label: 'Usuarios',       icon: Users           },
+  { path: '/admin/users',    label: 'Usuarios Globales', icon: Users        },
   { path: '/roles',          label: 'Roles',          icon: ShieldCheck     },
   { path: '/advisors',       label: 'Advisors',       icon: UserCog         },
   { path: '/conversaciones', label: 'Conversaciones', icon: MessageSquare   },
