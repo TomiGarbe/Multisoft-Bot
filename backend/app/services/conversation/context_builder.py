@@ -70,7 +70,7 @@ def _map_messages(messages: list[dict]) -> list[dict]:
 def _get_contact(db: Session, contact_id: Optional[uuid.UUID]) -> Optional[Contact]:
     if not contact_id:
         return None
-    return db.query(Contact).filter(Contact.id == contact_id).first()
+    return message_service.get_contact(db, contact_id)
 
 
 def _resolve_default_type(config: dict) -> str:
@@ -89,8 +89,7 @@ def _ensure_contact_type(db: Session, contact: Optional[Contact], default_type: 
     if not contact or contact.current_type is not None:
         return
     try:
-        contact.current_type = default_type
-        db.commit()
+        message_service.ensure_contact_current_type(db, contact.id, default_type)
         logger.info("Assigned initial current_type '%s' to contact: %s", default_type, contact.id)
     except Exception:
         logger.exception("Failed to set initial current_type for contact: %s", contact.id)
@@ -128,7 +127,7 @@ def apply_user_type_on_completion(
     """Bump contact.current_type if the active objective declares an on_completion target."""
     if not contact_id:
         return
-    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    contact = message_service.get_contact(db, contact_id)
     if not contact:
         return
     objective = config.get("objective", {})
@@ -138,8 +137,7 @@ def apply_user_type_on_completion(
     if not on_completion:
         return
     try:
-        contact.current_type = on_completion
-        db.commit()
+        message_service.apply_contact_current_type(db, contact.id, on_completion)
         logger.info("Updated current_type to '%s' for contact: %s", on_completion, contact.id)
     except Exception:
         logger.exception("Failed to update current_type for contact: %s", contact.id)

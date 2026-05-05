@@ -1,0 +1,28 @@
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class MessageSendRequest(BaseModel):
+    conversation_id: uuid.UUID
+    content: str = ""
+    attachments: list[dict] = Field(default_factory=list)
+    reply_to_id: Optional[str] = None
+
+
+class MessageResponse(BaseModel):
+    id: str
+    conversation_id: str
+    direction: str
+    sender_type: str
+    message_type: str
+    content: Optional[str] = None
+    status: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class MessageSendResponse(BaseModel):
+    status: str

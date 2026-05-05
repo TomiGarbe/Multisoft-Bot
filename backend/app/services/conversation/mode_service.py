@@ -10,11 +10,11 @@ mensaje en paralelo. Nunca mutamos el modo solo en memoria.
 import logging
 from typing import Any
 
-from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation
 from app.services.conversation.guards import is_config_valid
+import app.services.message_service as message_service
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +36,5 @@ def disable_ai(db: Session, conversation: Conversation) -> None:
 
 
 def _set_mode(db: Session, conversation: Conversation, mode: str) -> None:
-    db.execute(
-        update(Conversation)
-        .where(Conversation.id == conversation.id)
-        .values(mode=mode)
-    )
-    db.commit()
-    conversation.mode = mode
+    message_service.set_conversation_mode(db, conversation, mode)
     logger.info("Set mode='%s' for conversation: %s", mode, conversation.id)

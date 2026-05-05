@@ -3,54 +3,68 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.auth import TenantUser
-from app.models.config import ChannelBotConfig
+from app.core.tenant import get_current_tenant_id
 from app.models.conversation import Conversation
+from app.repositories.conversation_repository import ConversationRepository
+from app.schemas.conversation import ConversationResponse
+from app.services.bot_config_service import BotConfigService
+from app.services.conversation.mode_service import InvalidBotConfigError, disable_ai, enable_ai
 
 
-def get_conversations(db: Session, user_id: Optional[uuid.UUID] = None) -> list:
-    def serialize_conversation(c: Conversation) -> dict:
-        active_channel_config = (
-            db.query(ChannelBotConfig.id)
-            .filter(
-                ChannelBotConfig.channel_id == c.chat_thread.channel_id,
-                ChannelBotConfig.is_active == True,
+class ConversationService:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.repository = ConversationRepository(db)
+
+    def _build_response(self, conversation: Conversation) -> ConversationResponse:
+        channel_config_id = self.repository.get_active_channel_config_id_by_channel_id(
+            conversation.chat_thread.channel_id
+        )
+        return ConversationResponse(
+            id=conversation.id,
+            tenant_id=conversation.tenant_id,
+            status=conversation.status,
+            mode=conversation.mode,
+            channel_config_id=channel_config_id,
+            started_at=conversation.started_at,
+            last_message_at=conversation.last_message_at,
+        )
+
+    def get_conversations(self, user_id: Optional[uuid.UUID] = None) -> list[ConversationResponse]:
+        # DEV: keep bypass behavior exactly as before.
+        if user_id is None:
+            conversations = self.repository.get_all()
+            return [self._build_response(c) for c in conversations]
+
+        tenant_ids = self.repository.get_tenant_ids_by_user_id(user_id)
+        if not tenant_ids:
+            return []
+
+        conversations = self.repository.get_all_by_tenants(tenant_ids)
+        return [self._build_response(c) for c in conversations]
+
+    def set_mode(self, conversation_id: uuid.UUID, mode: str) -> Conversation:
+        tenant_id = get_current_tenant_id()
+        conversation = self.repository.get_by_id_and_tenant(conversation_id, tenant_id)
+        if conversation is None:
+            conversation = self.repository.get_by_id(conversation_id)
+        if conversation is None:
+            raise LookupError(f"Conversation not found: {conversation_id}")
+
+        if mode == "ai":
+            channel_config = BotConfigService.get_channel_config(
+                self.db,
+                conversation.chat_thread.channel_id,
             )
-            .order_by(ChannelBotConfig.created_at.desc())
-            .first()
-        )
-        return {
-            "id": str(c.id),
-            "tenant_id": str(c.tenant_id),
-            "status": c.status,
-            "mode": c.mode,
-            "channel_config_id": str(active_channel_config.id) if active_channel_config else None,
-            "started_at": c.started_at.isoformat() if c.started_at else None,
-            "last_message_at": c.last_message_at.isoformat() if c.last_message_at else None,
-        }
+            try:
+                enable_ai(self.db, conversation, channel_config)
+            except InvalidBotConfigError as exc:
+                raise ValueError("Config incompleta") from exc
+        else:
+            disable_ai(self.db, conversation)
 
-    # DEV: bypass user filtering
-    if user_id is None:
-        conversations = (
-            db.query(Conversation)
-            .order_by(Conversation.last_message_at.desc())
-            .all()
-        )
-        return [serialize_conversation(c) for c in conversations]
+        return conversation
 
-    tenant_users = (
-        db.query(TenantUser)
-        .filter(TenantUser.user_id == user_id, TenantUser.is_active == True)
-        .all()
-    )
-    tenant_ids = [tu.tenant_id for tu in tenant_users if tu.tenant_id]
-    if not tenant_ids:
-        return []
 
-    conversations = (
-        db.query(Conversation)
-        .filter(Conversation.tenant_id.in_(tenant_ids))
-        .order_by(Conversation.last_message_at.desc())
-        .all()
-    )
-    return [serialize_conversation(c) for c in conversations]
+def get_conversations(db: Session, user_id: Optional[uuid.UUID] = None) -> list[ConversationResponse]:
+    return ConversationService(db).get_conversations(user_id=user_id)
