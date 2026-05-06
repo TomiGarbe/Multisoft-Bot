@@ -76,7 +76,7 @@ services:
       dockerfile: Dockerfile
     container_name: multisoft_bot_frontend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       # NEXT_PUBLIC_* is exposed to the browser (which runs on the host),
       # so this must be a URL the host can reach — not the docker service name.
