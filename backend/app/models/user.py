@@ -39,3 +39,9 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )
+    created_bot_actions: Mapped[List["BotAction"]] = relationship(
+        "BotAction", foreign_keys="BotAction.created_by_user_id", back_populates="created_by_user"
+    )
+    updated_bot_actions: Mapped[List["BotAction"]] = relationship(
+        "BotAction", foreign_keys="BotAction.updated_by_user_id", back_populates="updated_by_user"
+    )

@@ -33,3 +33,16 @@ class AIInterface(ABC):
             "eval_count": None,
             "model": None,
         }
+
+    async def generate_chat_with_metadata(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Optional chat+tools interface.
+        Default fallback keeps backwards compatibility by flattening to prompt.
+        """
+        prompt = "\n".join(str(message.get("content") or "") for message in messages if message.get("content"))
+        return await self.generate_with_metadata(prompt)

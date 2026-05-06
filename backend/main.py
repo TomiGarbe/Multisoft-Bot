@@ -3,7 +3,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 import logging
 
-from app.api.routes import ai, api_keys, auth, channel_config, channels, conversations, messages, permissions, realtime, roles, tenants, users, webhooks
+from app.api.routes import (
+    ai,
+    api_keys,
+    auth,
+    bot_actions,
+    channel_bot_config_actions,
+    channel_config,
+    channels,
+    conversations,
+    messages,
+    permissions,
+    realtime,
+    roles,
+    tenants,
+    users,
+    webhooks,
+)
 from app.bootstrap.security import SecurityBootstrapService
 from app.core.config import settings
 from app.db.session import SessionLocal
@@ -32,12 +48,14 @@ app.include_router(permissions.router, prefix=f"{settings.API_V1_STR}/permission
 app.include_router(tenants.router, prefix=f"{settings.API_V1_STR}/tenants")
 app.include_router(channels.router, prefix=f"{settings.API_V1_STR}/channels")
 app.include_router(channel_config.router, prefix=f"{settings.API_V1_STR}/channel-config")
+app.include_router(channel_bot_config_actions.router, prefix=f"{settings.API_V1_STR}/channel-bot-configs")
 app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks")
 app.include_router(messages.router, prefix=f"{settings.API_V1_STR}/messages")
 app.include_router(conversations.router, prefix=f"{settings.API_V1_STR}/conversations")
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai")
 app.include_router(realtime.router, prefix=f"{settings.API_V1_STR}/realtime")
 app.include_router(api_keys.router, prefix=f"{settings.API_V1_STR}/api-keys")
+app.include_router(bot_actions.router, prefix=f"{settings.API_V1_STR}/bot-actions")
 
 
 @app.on_event("startup")

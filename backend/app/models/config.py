@@ -44,3 +44,6 @@ class ChannelBotConfig(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     channel: Mapped["Channel"] = relationship("Channel", back_populates="channel_bot_configs")
     created_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by_user_id])
     updated_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[updated_by_user_id])
+    bot_action_links: Mapped[list["ChannelBotActionLink"]] = relationship(
+        "ChannelBotActionLink", back_populates="channel_bot_config", cascade="all, delete-orphan"
+    )

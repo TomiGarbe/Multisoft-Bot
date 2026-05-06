@@ -84,7 +84,7 @@ class Settings(BaseSettings):
         default=None,
         description="Optional authentication token for Ollama API"
     )
-    
+
     # ========== MODEL CONFIGURATION ==========
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

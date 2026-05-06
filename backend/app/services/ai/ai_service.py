@@ -45,3 +45,11 @@ class AIService:
 
     async def generate_with_metadata(self, prompt: str) -> dict[str, Any]:
         return await self.provider.generate_with_metadata(prompt)
+
+    async def generate_chat_with_metadata(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        return await self.provider.generate_chat_with_metadata(messages, tools=tools)

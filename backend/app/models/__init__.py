@@ -12,6 +12,7 @@ from .conversation import ChatThread, Conversation, Message, MessageAttachment
 from .metrics import ContactUsage, AIUsageEvent
 from .audit import AuditLog
 from .api_key import ApiKey
+from .bot_action import BotAction, BotActionExecution, ChannelBotActionLink, HttpMethod
 
 __all__ = [
     "Tenant",
@@ -37,4 +38,8 @@ __all__ = [
     "AuditLog",
     "AILog",
     "ApiKey",
+    "BotAction",
+    "ChannelBotActionLink",
+    "BotActionExecution",
+    "HttpMethod",
 ]

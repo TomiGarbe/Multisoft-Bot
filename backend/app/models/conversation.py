@@ -64,6 +64,9 @@ class Conversation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     messages: Mapped[List["Message"]] = relationship(
         "Message", back_populates="conversation", cascade="all, delete-orphan"
     )
+    bot_action_executions: Mapped[List["BotActionExecution"]] = relationship(
+        "BotActionExecution", back_populates="conversation"
+    )
 
 
 class Message(Base, UUIDPrimaryKeyMixin, TimestampMixin):

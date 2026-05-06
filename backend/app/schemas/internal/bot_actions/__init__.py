@@ -1,21 +1,22 @@
-from .normalized_message import NormalizedMessage
-from .bot_actions import (
+from app.schemas.internal.bot_actions.contracts import (
     ActionAuthConfig,
-    ActionAuthType,
     ActionResponseConfig,
-    ActionResponseType,
     ActionVariableSchema,
-    ActionVariableType,
     ApiKeyAuthConfig,
-    ApiKeyLocation,
     BasicAuthConfig,
     BearerAuthConfig,
     CustomAuthConfig,
     NoAuthConfig,
 )
+from app.schemas.internal.bot_actions.enums import (
+    ActionAuthType,
+    ActionResponseType,
+    ActionVariableType,
+    ApiKeyLocation,
+)
+from app.schemas.internal.bot_actions.execution import ActionExecutionResult
 
 __all__ = [
-    "NormalizedMessage",
     "ActionAuthConfig",
     "ActionAuthType",
     "ActionResponseConfig",
@@ -28,4 +29,5 @@ __all__ = [
     "BearerAuthConfig",
     "CustomAuthConfig",
     "NoAuthConfig",
+    "ActionExecutionResult",
 ]

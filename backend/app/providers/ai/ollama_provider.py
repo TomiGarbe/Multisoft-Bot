@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+import json
 
 import httpx
 from app.interfaces.ai.ai_interface import AIInterface
@@ -87,3 +88,68 @@ class OllamaProvider(AIInterface):
         except Exception as e:
             logger.error("[OLLAMA] Unexpected error: %s", e)
             raise
+
+    async def generate_chat_with_metadata(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        if not messages:
+            raise ValueError("messages cannot be empty")
+
+        endpoint = f"{self.base_url}/api/chat"
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+        }
+        if tools:
+            payload["tools"] = tools
+
+        headers = {"Content-Type": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(endpoint, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+
+        message = data.get("message") or {}
+        tool_calls_raw = message.get("tool_calls") or []
+        tool_calls: list[dict[str, Any]] = []
+        for idx, call in enumerate(tool_calls_raw):
+            function_payload = call.get("function") or {}
+            arguments = function_payload.get("arguments")
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except Exception:
+                    arguments = {}
+            if not isinstance(arguments, dict):
+                arguments = {}
+            tool_calls.append(
+                {
+                    "id": f"ollama_tool_{idx}",
+                    "type": "function",
+                    "function": {
+                        "name": function_payload.get("name"),
+                        "arguments": arguments,
+                        "arguments_raw": function_payload.get("arguments"),
+                    },
+                }
+            )
+
+        return {
+            "response": str(message.get("content") or ""),
+            "tool_calls": tool_calls,
+            "assistant_message": {
+                "role": "assistant",
+                "content": message.get("content"),
+                "tool_calls": tool_calls_raw,
+            },
+            "prompt_eval_count": data.get("prompt_eval_count"),
+            "eval_count": data.get("eval_count"),
+            "model": data.get("model") or self.model,
+        }

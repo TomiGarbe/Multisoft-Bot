@@ -47,3 +47,6 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     api_keys: Mapped[List["ApiKey"]] = relationship(
         "ApiKey", back_populates="tenant", cascade="all, delete-orphan"
     )
+    bot_actions: Mapped[List["BotAction"]] = relationship(
+        "BotAction", back_populates="tenant", cascade="all, delete-orphan"
+    )

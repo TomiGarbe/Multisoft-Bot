@@ -9,6 +9,7 @@ Responsibilities:
 """
 
 import logging
+import json
 import uuid
 from typing import Any, Optional
 
@@ -18,10 +19,13 @@ from app.core.config import settings
 from app.models.conversation import Conversation
 from app.repositories.ai.ai_log_repository import AILogRepository
 from app.services.ai.ai_service import AIService
+from app.services.ai.ai_tool_execution_service import AIToolExecutionService
+from app.services.ai.ai_tool_registry_service import AIToolRegistryService
 from app.services.ai.out_of_scope_detector import is_out_of_scope
 from app.services.ai.prompt_builder import PromptBuilder
 from app.services.quota_service import QuotaService
 from app.services.usage_service import UsageService
+from app.utils.ai_tool_constants import MAX_TOOL_CALLS_PER_MESSAGE
 import app.services.message_service as message_service
 from app.services.conversation.context_builder import build_conversation_context
 from app.services.conversation.guards import should_use_ai
@@ -30,6 +34,11 @@ from app.services.conversation.mode_service import disable_ai
 logger = logging.getLogger(__name__)
 
 _DEFAULT_FALLBACK = "No pude procesar tu mensaje en este momento, podes intentar nuevamente?"
+_MAX_TOOL_LOOP_ITERATIONS = 1
+_SYSTEM_TOOLS_INSTRUCTION = (
+    "Si necesitas datos externos o de sistema, usa tools disponibles. "
+    "No inventes resultados de tools."
+)
 
 
 class AIResponseOrchestrator:
@@ -62,6 +71,22 @@ class AIResponseOrchestrator:
     async def call_ai(self, prompt: str, provider_name: str | None = None) -> dict[str, Any]:
         ai_service = AIService(provider_name=provider_name)
         return await ai_service.generate_with_metadata(prompt)
+
+    async def call_ai_chat(
+        self,
+        *,
+        prompt: str,
+        current_user_message: str,
+        provider_name: str | None,
+        tools: list[dict[str, Any]] | None,
+    ) -> dict[str, Any]:
+        ai_service = AIService(provider_name=provider_name)
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "system", "content": _SYSTEM_TOOLS_INSTRUCTION},
+            {"role": "user", "content": current_user_message},
+        ]
+        return await ai_service.generate_chat_with_metadata(messages, tools=tools)
 
     async def generate_response(
         self,
@@ -115,8 +140,95 @@ class AIResponseOrchestrator:
                     )
                     response = quota_message
                 else:
-                    ai_payload = await self.call_ai(prompt, provider_name=provider_name)
-                    response = str((ai_payload or {}).get("response") or "")
+                    tool_registry = AIToolRegistryService(db)
+                    tool_execution = AIToolExecutionService(db)
+                    available_tools, action_map = tool_registry.get_tools(
+                        tenant_id=tenant_id,
+                        channel_id=channel_id,
+                    )
+                    logger.info(
+                        "AI tools available (conversation_id=%s tenant_id=%s channel_id=%s count=%d)",
+                        conversation.id,
+                        tenant_id,
+                        channel_id,
+                        len(available_tools),
+                    )
+
+                    if available_tools:
+                        ai_payload = await self.call_ai_chat(
+                            prompt=prompt,
+                            current_user_message=self._extract_current_user_message(prompt),
+                            provider_name=provider_name,
+                            tools=available_tools,
+                        )
+                        response = str((ai_payload or {}).get("response") or "")
+                        tool_calls = (ai_payload or {}).get("tool_calls") or []
+                        if tool_calls:
+                            assistant_message = (ai_payload or {}).get("assistant_message") or {}
+                            tool_messages: list[dict[str, Any]] = []
+                            total_tool_calls = min(len(tool_calls), MAX_TOOL_CALLS_PER_MESSAGE)
+                            for tool_call in tool_calls[:total_tool_calls]:
+                                function_payload = tool_call.get("function") or {}
+                                action_name = str(function_payload.get("name") or "").strip()
+                                action = action_map.get(action_name)
+                                arguments = function_payload.get("arguments")
+                                if not isinstance(arguments, dict):
+                                    arguments = {}
+
+                                logger.info(
+                                    "Executing tool call (conversation_id=%s action=%s args_keys=%s)",
+                                    conversation.id,
+                                    action_name,
+                                    list(arguments.keys()),
+                                )
+
+                                if action is None:
+                                    result_payload = {
+                                        "success": False,
+                                        "status_code": None,
+                                        "error": "tool_not_available_for_channel",
+                                    }
+                                else:
+                                    result_payload = await tool_execution.execute_tool_call(
+                                        tenant_id=tenant_id,
+                                        action=action,
+                                        arguments=arguments,
+                                    )
+                                tool_messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": tool_call.get("id"),
+                                        "name": action_name,
+                                        "content": json.dumps(result_payload, ensure_ascii=False),
+                                    }
+                                )
+                                logger.info(
+                                    "Tool result ready (conversation_id=%s action=%s success=%s)",
+                                    conversation.id,
+                                    action_name,
+                                    result_payload.get("success"),
+                                )
+
+                            if _MAX_TOOL_LOOP_ITERATIONS > 0:
+                                follow_up_messages = [
+                                    {"role": "system", "content": prompt},
+                                    {"role": "system", "content": _SYSTEM_TOOLS_INSTRUCTION},
+                                    {"role": "user", "content": self._extract_current_user_message(prompt)},
+                                    {
+                                        "role": "assistant",
+                                        "content": assistant_message.get("content"),
+                                        "tool_calls": assistant_message.get("tool_calls"),
+                                    },
+                                    *tool_messages,
+                                ]
+                                ai_payload = await AIService(provider_name=provider_name).generate_chat_with_metadata(
+                                    follow_up_messages,
+                                    tools=available_tools,
+                                )
+                                response = str((ai_payload or {}).get("response") or "")
+                    else:
+                        ai_payload = await self.call_ai(prompt, provider_name=provider_name)
+                        response = str((ai_payload or {}).get("response") or "")
             except Exception:
                 logger.exception("AI generation failed for conversation: %s", conversation.id)
         else:
@@ -191,6 +303,19 @@ class AIResponseOrchestrator:
 
         logger.info("Response ready for conversation: %s", conversation.id)
         return response
+
+    @staticmethod
+    def _extract_current_user_message(prompt: str) -> str:
+        marker = "[MENSAJE ACTUAL]"
+        idx = prompt.rfind(marker)
+        if idx < 0:
+            return prompt
+        segment = prompt[idx:]
+        user_marker = "Usuario:"
+        user_idx = segment.find(user_marker)
+        if user_idx < 0:
+            return segment.replace(marker, "").strip()
+        return segment[user_idx + len(user_marker):].strip()
 
     def _record_token_usage(
         self,
