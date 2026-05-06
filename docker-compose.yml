@@ -1,25 +1,32 @@
+# ============================================================================
+# Multisoft Bot — Docker Compose
+# ----------------------------------------------------------------------------
+# All ${VAR} below are resolved from the root `.env` file (single source of
+# truth). Copy `.env.example` to `.env` before running `docker compose up`.
+# ============================================================================
+
 services:
   # ========== POSTGRESQL DATABASE ==========
   postgres:
     image: postgres:15-alpine
     container_name: multisoft_bot_db
     environment:
-      # These MUST match the DB_* variables in .env.docker
-      POSTGRES_DB: ${DB_NAME:-multisoft_bot}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-multisoft_bot}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - multisoft_network
-  
+    restart: unless-stopped
+
   # ========== FASTAPI BACKEND ==========
   backend:
     build:
@@ -28,13 +35,31 @@ services:
     container_name: multisoft_bot_backend
     ports:
       - "8000:8000"
-    env_file:
-      - ./backend/.env.docker  # Load Docker-specific environment
     environment:
-      # Explicitly ensure these are set correctly for Docker
-      DB_HOST: postgres  # Service name in Docker network (NOT localhost)
-      ENV: production
-      DEBUG: "false"
+      # --- DB (must match the postgres service above) ---
+      DB_HOST: postgres            # service name on the docker network
+      DB_PORT: 5432                # container-internal port
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # --- Runtime ---
+      ENV: ${ENV}
+      DEBUG: ${DEBUG}
+      LOG_LEVEL: ${LOG_LEVEL}
+      # --- Security ---
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES}
+      SECURITY_BOOTSTRAP_ENABLED: ${SECURITY_BOOTSTRAP_ENABLED}
+      INITIAL_BACKDOOR_NAME: ${INITIAL_BACKDOOR_NAME}
+      INITIAL_BACKDOOR_EMAIL: ${INITIAL_BACKDOOR_EMAIL}
+      INITIAL_BACKDOOR_PASSWORD: ${INITIAL_BACKDOOR_PASSWORD}
+      # --- CORS / Hosts ---
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      # --- Ollama ---
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      OLLAMA_TOKEN: ${OLLAMA_TOKEN}
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,7 +68,7 @@ services:
     networks:
       - multisoft_network
     restart: unless-stopped
-  
+
   # ========== NEXT.JS FRONTEND ==========
   frontend:
     build:
@@ -53,8 +78,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Frontend env variables
-      NEXT_PUBLIC_API_URL: http://backend:8000
+      # NEXT_PUBLIC_* is exposed to the browser (which runs on the host),
+      # so this must be a URL the host can reach — not the docker service name.
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - backend

@@ -38,11 +38,14 @@ htmlcov/
 scripts/
 
 # Environment variables
+# Root .env is the docker-compose source of truth (see .env.example).
+# Backend/frontend .env files are for local (non-docker) development.
 .env
 .env.local
 .env.*.local
 .env.production.local
 .env.docker
+!.env.example
 
 # IDEs and Editors
 .vscode/
