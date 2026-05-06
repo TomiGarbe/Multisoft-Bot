@@ -19,13 +19,13 @@ import app.services.message_service as message_service
 logger = logging.getLogger(__name__)
 
 
-class InvalidBotConfigError(ValueError):
+class InvalidChannelConfigError(ValueError):
     """No se puede activar IA porque la config del canal es inválida."""
 
 
 def enable_ai(db: Session, conversation: Conversation, channel_config: Any) -> None:
     if not is_config_valid(channel_config):
-        raise InvalidBotConfigError(
+        raise InvalidChannelConfigError(
             f"Cannot enable AI for conversation {conversation.id}: invalid channel config"
         )
     _set_mode(db, conversation, "ai")

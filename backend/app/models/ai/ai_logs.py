@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import String, ForeignKey, Text
+from sqlalchemy import String, ForeignKey, Text, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,7 +23,12 @@ class AILog(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     conversation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
     )
+    request_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     provider: Mapped[str] = mapped_column(String(100), nullable=False)
     model: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    __table_args__ = (
+        Index("ix_ai_logs_request_id", "request_id"),
+    )

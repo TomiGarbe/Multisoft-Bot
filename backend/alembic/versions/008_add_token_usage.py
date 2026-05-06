@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         "token_usage",
-        sa.Column("business_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("prompt_tokens", sa.BigInteger(), nullable=False),
         sa.Column("completion_tokens", sa.BigInteger(), nullable=False),
         sa.Column("total_tokens", sa.BigInteger(), nullable=False),
@@ -28,14 +28,14 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["business_id"], ["tenants.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_token_usage_business_id", "token_usage", ["business_id"])
+    op.create_index("ix_token_usage_tenant_id", "token_usage", ["tenant_id"])
     op.create_index("ix_token_usage_created_at", "token_usage", ["created_at"])
 
 
 def downgrade() -> None:
     op.drop_index("ix_token_usage_created_at", table_name="token_usage")
-    op.drop_index("ix_token_usage_business_id", table_name="token_usage")
+    op.drop_index("ix_token_usage_tenant_id", table_name="token_usage")
     op.drop_table("token_usage")

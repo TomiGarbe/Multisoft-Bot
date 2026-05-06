@@ -33,7 +33,7 @@ class UserCreate(BaseModel):
     is_backdoor: bool = False
     user_type: Optional[UserType] = None
     tenant_id: Optional[uuid.UUID] = None
-    business_ids: list[uuid.UUID] = Field(default_factory=list)
+    tenant_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class UserUpdate(BaseModel):
@@ -46,7 +46,7 @@ class UserUpdate(BaseModel):
     is_backdoor: Optional[bool] = None
     user_type: Optional[UserType] = None
     tenant_id: Optional[uuid.UUID] = None
-    business_ids: Optional[list[uuid.UUID]] = None
+    tenant_ids: Optional[list[uuid.UUID]] = None
 
 
 class UserResponse(BaseModel):
@@ -57,7 +57,7 @@ class UserResponse(BaseModel):
     is_backdoor: bool = False
     is_active: bool = True
     tenant_id: Optional[uuid.UUID] = None
-    business_ids: list[uuid.UUID] = Field(default_factory=list)
+    tenant_ids: list[uuid.UUID] = Field(default_factory=list)
     tenant: Optional[TenantSummary] = None
     role: Optional[UserRoleSummary] = None
     permissions: list[UserPermissionSummary] = Field(default_factory=list)

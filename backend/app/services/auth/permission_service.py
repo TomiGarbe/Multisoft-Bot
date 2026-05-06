@@ -2,18 +2,16 @@ import logging
 import uuid
 from typing import Optional
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
-from app.models import Permission, User
-from app.models.auth import RolePermission, TenantUser, UserPermission
+from app.models.user import UserType
+from app.repositories.auth_repository import AuthRepository
 
 logger = logging.getLogger(__name__)
 
 
 def _get_all_permission_codes(db: Session) -> set[str]:
-    stmt = select(Permission.code)
-    return set(db.execute(stmt).scalars().all())
+    return AuthRepository(db).get_all_permission_codes()
 
 
 def get_user_permissions(
@@ -26,11 +24,10 @@ def get_user_permissions(
     Applies role-based permissions first, then user-level overrides
     (allowed=True adds, allowed=False removes).
     """
-    from app.models.auth import Role  # local import avoids any circular-import risk
-
+    repository = AuthRepository(db)
     if user_id is not None:
-        user = db.get(User, user_id)
-        if user and user.is_backdoor:
+        user = repository.get_user_with_type(user_id)
+        if user and user.user_type == UserType.BACKDOOR:
             permissions = _get_all_permission_codes(db)
             logger.debug(
                 "Resolved all permissions for backdoor user %s: %s",
@@ -43,25 +40,13 @@ def get_user_permissions(
         logger.debug("tenant_user_id not provided")
         return set()
 
-    stmt = (
-        select(TenantUser)
-        .where(TenantUser.id == tenant_user_id)
-        .options(
-            joinedload(TenantUser.user),
-            joinedload(TenantUser.role)
-            .joinedload(Role.role_permissions)
-            .joinedload(RolePermission.permission),
-            joinedload(TenantUser.user_permissions)
-            .joinedload(UserPermission.permission),
-        )
-    )
-    tenant_user = db.execute(stmt).unique().scalar_one_or_none()
+    tenant_user = repository.get_tenant_user_with_permissions(tenant_user_id=tenant_user_id)
 
     if not tenant_user:
         logger.debug("tenant_user %s not found", tenant_user_id)
         return set()
 
-    if tenant_user.user and tenant_user.user.is_backdoor:
+    if tenant_user.user and tenant_user.user.user_type == UserType.BACKDOOR:
         permissions = _get_all_permission_codes(db)
         logger.debug(
             "Resolved all permissions for backdoor tenant_user %s: %s",

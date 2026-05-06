@@ -3,7 +3,10 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.auth import get_current_tenant, get_current_user
+from app.api.dependencies.permissions import require_permission
 from app.db.session import get_db
+from app.models import User
 from app.schemas.channel import (
     ChannelConfigBundleResponse,
     ChannelCreate,
@@ -18,16 +21,22 @@ router = APIRouter(tags=["channels"])
 @router.get("/", response_model=list[ChannelResponse])
 async def read_channels(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(require_permission("channels.read")),
 ):
     service = ChannelService(db)
-    return service.get_channels(user=None)
+    return service.get_channels(user=current_user)
 
 
 @router.post("/", response_model=ChannelResponse, status_code=status.HTTP_201_CREATED)
 async def create_channel_endpoint(
     channel_data: ChannelCreate,
     db: Session = Depends(get_db),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    _: None = Depends(require_permission("channels.create")),
 ):
+    if channel_data.tenant_id != current_tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant access denied")
     service = ChannelService(db)
     try:
         return service.create_channel(
@@ -49,6 +58,7 @@ async def update_channel_endpoint(
     channel_id: uuid.UUID,
     channel_data: ChannelUpdate,
     db: Session = Depends(get_db),
+    _: None = Depends(require_permission("channels.update")),
 ):
     service = ChannelService(db)
     try:
@@ -68,6 +78,7 @@ async def update_channel_endpoint(
 async def get_channel_config_bundle(
     channel_id: uuid.UUID,
     db: Session = Depends(get_db),
+    _: None = Depends(require_permission("channels.read")),
 ):
     service = ChannelService(db)
     try:
@@ -87,6 +98,7 @@ async def get_channel_config_bundle(
 async def delete_channel_endpoint(
     channel_id: uuid.UUID,
     db: Session = Depends(get_db),
+    _: None = Depends(require_permission("channels.delete")),
 ):
     service = ChannelService(db)
     success = service.delete_channel(channel_id)

@@ -26,9 +26,6 @@ class Contact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     contact_identities: Mapped[List["ContactIdentity"]] = relationship(
         "ContactIdentity", back_populates="contact", cascade="all, delete-orphan"
     )
-    contact_usage_daily: Mapped[List["ContactUsageDaily"]] = relationship(
-        "ContactUsageDaily", back_populates="contact", cascade="all, delete-orphan"
-    )
     contact_usage: Mapped[List["ContactUsage"]] = relationship(
         "ContactUsage", back_populates="contact", cascade="all, delete-orphan"
     )

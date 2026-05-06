@@ -1,11 +1,17 @@
-import logging
-from app.interfaces.ai.ai_provider import AIProvider
+from typing import Any
 
-logger = logging.getLogger(__name__)
+from app.interfaces.ai.ai_interface import AIInterface
 
 
-class MockAIProvider(AIProvider):
-
-    def generate_response(self, conversation: dict, messages: list) -> str:
-        logger.info(f"[MOCK] generate_response | conversation_id={conversation.get('id')} | messages_count={len(messages)}")
+class MockAIProvider(AIInterface):
+    async def generate(self, prompt: str) -> str:
         return "This is a mock response"
+
+    async def generate_with_metadata(self, prompt: str) -> dict[str, Any]:
+        return {
+            "response": await self.generate(prompt),
+            "prompt_eval_count": 0,
+            "eval_count": 0,
+            "model": "mock",
+        }
+

@@ -96,7 +96,7 @@ export default function GlobalUsersPage() {
         <form id="global-user-form" className="space-y-4" onSubmit={submit}>
           <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Input label="ContraseÃ±a" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <div className="space-y-1 text-sm"><label>Tipo</label><select value={type} onChange={(e) => setType(e.target.value as 'ADMIN'|'BACKDOOR')} className="w-full rounded border border-slate-300 px-2 py-1"><option value="ADMIN">ADMIN</option><option value="BACKDOOR">BACKDOOR</option></select></div>
           {type === 'ADMIN' && <div className="max-h-40 space-y-1 overflow-auto rounded border border-slate-200 p-2">{tenants.map((t) => <label key={t.id} className="block text-sm"><input type="checkbox" checked={businessIds.includes(t.id)} onChange={() => toggleBusiness(t.id)} /> {t.name}</label>)}</div>}
         </form>

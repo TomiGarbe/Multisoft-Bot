@@ -1,15 +1,18 @@
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
+from app.api.dependencies.permissions import require_permission
 from app.services.realtime_service import event_bus
 
 router = APIRouter(tags=["realtime"])
 
 
 @router.get("/events")
-async def stream_events():
+async def stream_events(
+    _: None = Depends(require_permission("realtime.read")),
+):
     async def event_generator():
         queue = await event_bus.subscribe()
         try:
@@ -30,4 +33,3 @@ async def stream_events():
             "Connection": "keep-alive",
         },
     )
-

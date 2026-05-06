@@ -29,3 +29,4 @@ class Channel(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     channel_bot_configs: Mapped[List["ChannelBotConfig"]] = relationship(
         "ChannelBotConfig", back_populates="channel", cascade="all, delete-orphan"
     )
+    api_keys: Mapped[List["ApiKey"]] = relationship("ApiKey", back_populates="channel")

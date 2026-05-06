@@ -197,8 +197,12 @@ class MessageService:
             return None
         return self.save_inbound_message(conversation, normalized)
 
-    def send_message(self, data: MessageSendRequest) -> dict:
-        tenant_id = get_current_tenant_id()
+    def send_message(
+        self,
+        data: MessageSendRequest,
+        tenant_id: Optional[uuid.UUID] = None,
+    ) -> dict:
+        tenant_id = tenant_id or get_current_tenant_id()
         conversation = self.repository.get_conversation_by_id_and_tenant(data.conversation_id, tenant_id)
         if not conversation:
             raise ValueError(f"Conversation not found: {data.conversation_id}")
@@ -216,13 +220,23 @@ class MessageService:
             reply_to_id=data.reply_to_id,
         )
 
-    def list_messages(self, conversation_id: uuid.UUID) -> list[MessageResponse]:
-        tenant_id = get_current_tenant_id()
+    def list_messages(
+        self,
+        conversation_id: uuid.UUID,
+        tenant_id: Optional[uuid.UUID] = None,
+    ) -> list[MessageResponse]:
+        tenant_id = tenant_id or get_current_tenant_id()
+        conversation = self.repository.get_conversation_by_id_and_tenant(conversation_id, tenant_id)
+        if conversation is None:
+            raise ValueError(f"Conversation not found: {conversation_id}")
         messages = self.repository.list_messages(conversation_id=conversation_id, tenant_id=tenant_id)
         return [self._to_response(m) for m in messages]
 
     def get_contact_by_id(self, contact_id: uuid.UUID) -> Optional[Contact]:
         return self.repository.get_contact_by_id(contact_id)
+
+    def get_contact_by_id_and_tenant(self, contact_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[Contact]:
+        return self.repository.get_contact_by_id_and_tenant(contact_id, tenant_id)
 
     def ensure_contact_current_type(self, contact_id: uuid.UUID, default_type: str) -> Optional[Contact]:
         contact = self.repository.get_contact_by_id(contact_id)
@@ -376,6 +390,10 @@ def get_messages(db: Session, conversation_id: uuid.UUID) -> list[dict]:
 
 def get_contact(db: Session, contact_id: uuid.UUID) -> Optional[Contact]:
     return MessageService(db).get_contact_by_id(contact_id)
+
+
+def get_contact_by_tenant(db: Session, contact_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[Contact]:
+    return MessageService(db).get_contact_by_id_and_tenant(contact_id, tenant_id)
 
 
 def ensure_contact_current_type(db: Session, contact_id: uuid.UUID, default_type: str) -> Optional[Contact]:

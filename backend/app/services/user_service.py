@@ -50,7 +50,7 @@ def _validate_tenant(db: Session, tenant_id: uuid.UUID) -> Tenant:
 def _normalize_user_type(user_type: Optional[UserType], is_backdoor: bool) -> UserType:
     if user_type is not None:
         return user_type
-    return UserType.BACKDOOR if is_backdoor else UserType.BUSINESS_USER
+    return UserType.BACKDOOR if is_backdoor else UserType.USER
 
 
 def _is_backdoor(user_type: UserType) -> bool:
@@ -83,12 +83,8 @@ def _build_user_response(user: User) -> UserResponse:
     if role:
         role_data = UserRoleSummary(id=role.id, name=role.name, description=role.description)
 
-    business_ids = [link.business_id for link in user.business_links]
-    tenant_data = None
-    if user.business_links:
-        business = user.business_links[0].business
-        if business:
-            tenant_data = TenantSummary(id=business.id, name=business.name)
+    tenant_ids = [link.tenant_id for link in user.tenant_scopes]
+    tenant_data = user.tenant_scopes[0].tenant if user.tenant_scopes else None
 
     return UserResponse(
         id=user.id,
@@ -96,11 +92,11 @@ def _build_user_response(user: User) -> UserResponse:
         email=user.email,
         user_type=user.user_type,
         is_backdoor=user.is_backdoor,
-        tenant_id=tenant_link.tenant_id if tenant_link else (business_ids[0] if business_ids else None),
-        business_ids=business_ids,
+        tenant_id=tenant_link.tenant_id if tenant_link else (tenant_ids[0] if tenant_ids else None),
+        tenant_ids=tenant_ids,
         role=role_data,
         permissions=list(permission_map.values()),
-        tenant=tenant_data,
+        tenant=TenantSummary(id=tenant_data.id, name=tenant_data.name) if tenant_data else None,
         is_active=user.is_active,
     )
 
@@ -109,15 +105,10 @@ def _load_user_with_relations(db: Session, user_id: uuid.UUID) -> Optional[User]
     return user_repository.load_user_with_relations(db, user_id)
 
 
-def can_access_business(user: User, business_id: uuid.UUID) -> bool:
+def can_access_tenant(user: User, tenant_id: uuid.UUID) -> bool:
     if user.user_type == UserType.BACKDOOR:
         return True
-    if user.user_type == UserType.ADMIN:
-        return business_id in {link.business_id for link in user.business_links}
-    if user.user_type == UserType.BUSINESS_USER:
-        tenant_link = user.tenant_links[0] if user.tenant_links else None
-        return bool(tenant_link and tenant_link.tenant_id == business_id)
-    return False
+    return tenant_id in {link.tenant_id for link in user.tenant_scopes}
 
 
 def create_user(
@@ -131,28 +122,27 @@ def create_user(
     is_backdoor: bool = False,
     tenant_id: Optional[uuid.UUID] = None,
     user_type: Optional[UserType] = None,
-    business_ids: Optional[list[uuid.UUID]] = None,
+    tenant_ids: Optional[list[uuid.UUID]] = None,
 ) -> UserResponse:
     try:
         if get_user_by_email(db, email):
             raise ValueError("Email already registered")
 
         final_user_type = _normalize_user_type(user_type, is_backdoor)
-        final_business_ids = list(dict.fromkeys(business_ids or ([] if tenant_id is None else [tenant_id])))
+        final_tenant_ids = list(dict.fromkeys(tenant_ids or ([] if tenant_id is None else [tenant_id])))
 
         if final_user_type == UserType.BACKDOOR:
-            if role_id is not None or (permissions or []) or final_business_ids:
-                raise ValueError("Backdoor user cannot have business-scoped associations")
+            if role_id is not None or (permissions or []) or final_tenant_ids:
+                raise ValueError("Backdoor user cannot have tenant-scoped associations")
 
-        if final_user_type == UserType.ADMIN and not final_business_ids:
-            raise ValueError("Admin user must have at least one business assigned")
+        if final_user_type == UserType.ADMIN and not final_tenant_ids:
+            raise ValueError("Admin user must have at least one tenant assigned")
 
-        if final_user_type == UserType.BUSINESS_USER:
-            if len(final_business_ids) != 1:
-                raise ValueError("Business user must belong to exactly one business")
+        if final_user_type == UserType.USER and len(final_tenant_ids) != 1:
+            raise ValueError("User must belong to exactly one tenant")
 
-        for business_id in final_business_ids:
-            _validate_tenant(db, business_id)
+        for tenant_link_id in final_tenant_ids:
+            _validate_tenant(db, tenant_link_id)
 
         role = _validate_role(db, role_id)
         permission_records = _validate_permissions(db, permissions or [])
@@ -168,14 +158,14 @@ def create_user(
         )
         user_repository.flush(db)
 
-        if final_user_type == UserType.ADMIN:
-            for business_id in final_business_ids:
-                user_repository.add_user_business(db, user_id=user.id, business_id=business_id)
+        if final_user_type in (UserType.ADMIN, UserType.USER):
+            for tenant_link_id in final_tenant_ids:
+                user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=tenant_link_id)
 
-        if final_user_type == UserType.BUSINESS_USER:
+        if final_user_type == UserType.USER:
             tenant_user = user_repository.add_tenant_user(
                 db,
-                tenant_id=final_business_ids[0],
+                tenant_id=final_tenant_ids[0],
                 user_id=user.id,
                 role_id=role.id if role else None,
             )
@@ -208,7 +198,7 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
         incoming_user_type = updates.get("user_type")
         incoming_is_backdoor = updates.get("is_backdoor")
         if incoming_user_type is None and incoming_is_backdoor is not None:
-            incoming_user_type = UserType.BACKDOOR if incoming_is_backdoor else UserType.BUSINESS_USER
+            incoming_user_type = UserType.BACKDOOR if incoming_is_backdoor else UserType.USER
 
         final_user_type = incoming_user_type or user.user_type
 
@@ -229,66 +219,64 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
         if "is_active" in updates and updates["is_active"] is not None:
             user.is_active = updates["is_active"]
 
-        requested_business_ids = updates.get("business_ids")
-        if requested_business_ids is not None:
-            requested_business_ids = list(dict.fromkeys(requested_business_ids))
-            for business_id in requested_business_ids:
-                _validate_tenant(db, business_id)
+        requested_tenant_ids = updates.get("tenant_ids")
+        if requested_tenant_ids is not None:
+            requested_tenant_ids = list(dict.fromkeys(requested_tenant_ids))
+            for tenant_link_id in requested_tenant_ids:
+                _validate_tenant(db, tenant_link_id)
 
         if final_user_type == UserType.BACKDOOR:
             user.user_type = UserType.BACKDOOR
             user.is_backdoor = True
             user_repository.delete_tenant_users_by_user_id(db, user.id)
-            user_repository.delete_user_businesses_by_user_id(db, user.id)
+            user_repository.delete_user_tenant_links_by_user_id(db, user.id)
 
         elif final_user_type == UserType.ADMIN:
-            admin_business_ids = requested_business_ids
-            if admin_business_ids is None:
-                admin_business_ids = [link.business_id for link in user.business_links]
-            if not admin_business_ids:
-                raise ValueError("Admin user must have at least one business assigned")
+            admin_tenant_ids = requested_tenant_ids or [link.tenant_id for link in user.tenant_scopes]
+            if not admin_tenant_ids:
+                raise ValueError("Admin user must have at least one tenant assigned")
 
             user.user_type = UserType.ADMIN
             user.is_backdoor = False
             user_repository.delete_tenant_users_by_user_id(db, user.id)
-            user_repository.delete_user_businesses_by_user_id(db, user.id)
-            for business_id in admin_business_ids:
-                user_repository.add_user_business(db, user_id=user.id, business_id=business_id)
+            user_repository.delete_user_tenant_links_by_user_id(db, user.id)
+            for tenant_link_id in admin_tenant_ids:
+                user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=tenant_link_id)
 
         else:
-            business_user_business_ids = requested_business_ids
-            if business_user_business_ids is None:
+            user_tenant_ids = requested_tenant_ids
+            if user_tenant_ids is None:
                 tenant_user = user_repository.get_tenant_user_by_user_id(db, user.id)
-                business_user_business_ids = [tenant_user.tenant_id] if tenant_user else []
-            if len(business_user_business_ids) != 1:
-                raise ValueError("Business user must belong to exactly one business")
+                user_tenant_ids = [tenant_user.tenant_id] if tenant_user else []
+            if len(user_tenant_ids) != 1:
+                raise ValueError("User must belong to exactly one tenant")
 
             role = None
             if "role_id" in updates:
                 role_id = updates["role_id"]
                 role = _validate_role(db, role_id) if role_id is not None else None
 
-            user.user_type = UserType.BUSINESS_USER
+            user.user_type = UserType.USER
             user.is_backdoor = False
-            user_repository.delete_user_businesses_by_user_id(db, user.id)
+            user_repository.delete_user_tenant_links_by_user_id(db, user.id)
+            user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=user_tenant_ids[0])
 
             tenant_user = user_repository.get_tenant_user_by_user_id(db, user.id)
             if tenant_user is None:
                 tenant_user = user_repository.add_tenant_user(
                     db,
-                    tenant_id=business_user_business_ids[0],
+                    tenant_id=user_tenant_ids[0],
                     user_id=user.id,
                     role_id=role.id if role else None,
                 )
                 user_repository.flush(db)
             else:
-                tenant_user.tenant_id = business_user_business_ids[0]
+                tenant_user.tenant_id = user_tenant_ids[0]
                 if "role_id" in updates:
                     tenant_user.role_id = role.id if role else None
 
             if "permissions" in updates:
-                permissions = updates["permissions"]
-                permission_records = _validate_permissions(db, permissions or [])
+                permission_records = _validate_permissions(db, updates["permissions"] or [])
                 user_repository.delete_user_permissions_by_tenant_user_id(db, tenant_user.id)
                 for permission in permission_records:
                     user_repository.add_user_permission(
@@ -338,7 +326,7 @@ def get_global_users(db: Session, skip: int = 0, limit: int = 100) -> list[UserR
     return [_build_user_response(user) for user in [*admin_users, *backdoor_users]]
 
 
-def get_business_users(db: Session, business_id: uuid.UUID, skip: int = 0, limit: int = 100) -> list[UserResponse]:
-    _validate_tenant(db, business_id)
-    users = user_repository.list_business_users(db, business_id=business_id, skip=skip, limit=limit)
+def get_tenant_users(db: Session, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100) -> list[UserResponse]:
+    _validate_tenant(db, tenant_id)
+    users = user_repository.list_tenant_users(db, tenant_id=tenant_id, skip=skip, limit=limit)
     return [_build_user_response(user) for user in users]

@@ -1,87 +1,76 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.auth import get_current_tenant, get_current_user
+from app.api.dependencies.permissions import require_permission
 from app.db.session import get_db
-from app.models.channel import Channel
-from app.models.config import ChannelBotConfig
-from app.schemas.bot_config import ChannelBotConfigResponse, ChannelBotConfigUpdate
-from app.services.bot_config_service import BotConfigService
-from app.services.config_validation import get_config_validation_status
+from app.models import User
+from app.schemas.channel_config import (
+    ChannelConfigResponse,
+    ChannelConfigUpdate,
+    ChannelConfigValidationStatusResponse,
+)
+from app.services.channel_config_service import ChannelConfigService
 
 router = APIRouter(tags=["channel-config"])
 
 
-class ChannelConfigValidationStatusResponse(BaseModel):
-    is_valid: bool
-    missing_fields: list[str]
-
-
 @router.get(
     "/{id}",
-    response_model=ChannelBotConfigResponse,
+    response_model=ChannelConfigResponse,
 )
 async def get_channel_config(
     id: uuid.UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    __: None = Depends(require_permission("channel_config.read")),
 ):
-    channel_config = db.get(ChannelBotConfig, id)
-    if channel_config is None:
+    try:
+        return ChannelConfigService.get_channel_config_by_id_and_tenant(
+            db=db,
+            config_id=id,
+            tenant_id=current_tenant_id,
+            user=current_user,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Channel config not found: {id}",
+            detail=str(exc),
         )
-    return channel_config
 
 
 @router.put(
     "/{id}",
-    response_model=ChannelBotConfigResponse,
+    response_model=ChannelConfigResponse,
 )
 async def update_channel_config(
     id: uuid.UUID,
-    payload: ChannelBotConfigUpdate,
+    payload: ChannelConfigUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    __: None = Depends(require_permission("channel_config.update")),
 ):
-    channel_config = db.get(ChannelBotConfig, id)
-    if channel_config is None:
+    try:
+        return ChannelConfigService.update_channel_config(
+            db=db,
+            config_id=id,
+            tenant_id=current_tenant_id,
+            payload=payload,
+            user=current_user,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Channel config not found: {id}",
+            detail=str(exc),
         )
-
-    update_data = payload.model_dump(exclude_unset=True)
-    requested_channel_ids = update_data.pop("channel_ids", None)
-
-    target_configs: list[ChannelBotConfig] = [channel_config]
-    if requested_channel_ids:
-        existing_channel_ids = {
-            channel_id
-            for (channel_id,) in db.query(Channel.id).filter(Channel.id.in_(requested_channel_ids)).all()
-        }
-        missing_ids = [str(channel_id) for channel_id in requested_channel_ids if channel_id not in existing_channel_ids]
-        if missing_ids:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Channels not found: {', '.join(missing_ids)}",
-            )
-        target_configs = BotConfigService.get_or_create_configs_for_channels(db, requested_channel_ids)
-
-    for target_config in target_configs:
-        if "config_jsonb" in update_data:
-            target_config.config_jsonb = update_data["config_jsonb"]
-        if "settings_jsonb" in update_data:
-            target_config.settings_jsonb = update_data["settings_jsonb"]
-        if "user_types_jsonb" in update_data:
-            target_config.user_types_jsonb = update_data["user_types_jsonb"]
-        if "is_active" in update_data:
-            target_config.is_active = update_data["is_active"]
-
-    db.commit()
-    db.refresh(channel_config)
-    return channel_config
 
 
 @router.get(
@@ -91,12 +80,21 @@ async def update_channel_config(
 async def get_channel_config_status(
     id: uuid.UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    __: None = Depends(require_permission("channel_config.read")),
 ):
-    channel_config = db.get(ChannelBotConfig, id)
-    if channel_config is None:
+    try:
+        return ChannelConfigService.get_channel_config_status(
+            db=db,
+            config_id=id,
+            tenant_id=current_tenant_id,
+            user=current_user,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Channel config not found: {id}",
+            detail=str(exc),
         )
-
-    return get_config_validation_status(channel_config.config_jsonb)

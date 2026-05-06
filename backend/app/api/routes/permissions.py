@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.dependencies.permissions import require_permission
 from app.db.session import get_db
 from app.schemas.permission import PermissionResponse
 from app.services.permission_service import get_permission_by_id, get_permissions
@@ -17,7 +17,7 @@ async def read_permissions(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
+    _: None = Depends(require_permission("permissions.read")),
 ):
     return get_permissions(db, skip=skip, limit=limit)
 
@@ -26,7 +26,7 @@ async def read_permissions(
 async def read_permission(
     permission_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: tuple = Depends(get_current_user),
+    _: None = Depends(require_permission("permissions.read")),
 ):
     permission = get_permission_by_id(db, permission_id)
     if not permission:

@@ -1,52 +1,8 @@
-from sqlalchemy import ForeignKey, Integer, BigInteger, Date, String, UniqueConstraint, Index
+from sqlalchemy import ForeignKey, Integer, BigInteger, String, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 import uuid
-
-
-class UsageDaily(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    __tablename__ = "usage_daily"
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    tokens_used: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    messages_inbound: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    messages_outbound: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    contacts_active: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    conversations_started: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    ai_requests: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    actions_executed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-
-    __table_args__ = (UniqueConstraint("tenant_id", "date", name="uq_usage_daily_tenant_date"),)
-
-    # Relationships
-    tenant: Mapped["Tenant"] = relationship("Tenant")
-
-
-class ContactUsageDaily(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    __tablename__ = "contact_usage_daily"
-
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
-    )
-    contact_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False
-    )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    tokens_used: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    messages_inbound: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    messages_outbound: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    ai_requests: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    conversations_started: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-
-    __table_args__ = (UniqueConstraint("contact_id", "date", name="uq_contact_usage_daily_contact_date"),)
-
-    # Relationships
-    tenant: Mapped["Tenant"] = relationship("Tenant")
-    contact: Mapped["Contact"] = relationship("Contact", back_populates="contact_usage_daily")
 
 
 class ContactUsage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -71,16 +27,38 @@ class ContactUsage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     conversation: Mapped["Conversation"] = relationship("Conversation")
 
 
-class TokenUsage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    """Token consumption per AI request, associated to a tenant."""
-    __tablename__ = "token_usage"
+class AIUsageEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Granular AI usage events: 1 row per AI request."""
+    __tablename__ = "ai_usage_events"
 
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    prompt_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    completion_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    channel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), nullable=False
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
+    )
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
+    )
+    request_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     total_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    __table_args__ = (
+        Index("ix_ai_usage_events_tenant_id", "tenant_id"),
+        Index("ix_ai_usage_events_channel_id", "channel_id"),
+        Index("ix_ai_usage_events_conversation_id", "conversation_id"),
+        Index("ix_ai_usage_events_created_at", "created_at"),
+        Index("ix_ai_usage_events_request_id", "request_id"),
+    )
 
     tenant: Mapped["Tenant"] = relationship("Tenant")

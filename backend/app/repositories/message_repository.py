@@ -110,6 +110,13 @@ class MessageRepository(BaseRepository):
         stmt = select(Contact).where(Contact.id == contact_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
+    def get_contact_by_id_and_tenant(self, contact_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[Contact]:
+        stmt = select(Contact).where(
+            Contact.id == contact_id,
+            Contact.tenant_id == tenant_id,
+        )
+        return self.db.execute(stmt).scalar_one_or_none()
+
     def create_contact(self, tenant_id: uuid.UUID, name: Optional[str], phone: Optional[str]) -> Contact:
         contact = Contact(tenant_id=tenant_id, name=name, phone=phone)
         self.db.add(contact)

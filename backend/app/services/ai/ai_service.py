@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from app.providers.provider_factory import get_ai_provider
 from app.interfaces.ai.ai_interface import AIInterface
@@ -18,8 +18,13 @@ class AIService:
       (p.ej. /ai/test). El caller debe haber validado la config primero.
     """
 
-    def __init__(self):
-        self.provider: AIInterface = get_ai_provider()
+    def __init__(
+        self,
+        provider: AIInterface | None = None,
+        provider_resolver: Callable[[str | None], AIInterface] = get_ai_provider,
+        provider_name: str | None = None,
+    ):
+        self.provider: AIInterface = provider or provider_resolver(provider_name)
 
     async def generate_for_conversation(
         self,

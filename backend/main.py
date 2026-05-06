@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+import logging
 
-from app.api.routes import ai, auth, businesses, channel_config, channels, conversations, messages, permissions, realtime, roles, tenants, users, webhooks
+from app.api.routes import ai, api_keys, auth, channel_config, channels, conversations, messages, permissions, realtime, roles, tenants, users, webhooks
+from app.bootstrap.security import SecurityBootstrapService
 from app.core.config import settings
 from app.db.session import SessionLocal
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -23,7 +27,6 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth")
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users")
-app.include_router(businesses.router, prefix=f"{settings.API_V1_STR}/businesses")
 app.include_router(roles.router, prefix=f"{settings.API_V1_STR}/roles")
 app.include_router(permissions.router, prefix=f"{settings.API_V1_STR}/permissions")
 app.include_router(tenants.router, prefix=f"{settings.API_V1_STR}/tenants")
@@ -34,6 +37,26 @@ app.include_router(messages.router, prefix=f"{settings.API_V1_STR}/messages")
 app.include_router(conversations.router, prefix=f"{settings.API_V1_STR}/conversations")
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai")
 app.include_router(realtime.router, prefix=f"{settings.API_V1_STR}/realtime")
+app.include_router(api_keys.router, prefix=f"{settings.API_V1_STR}/api-keys")
+
+
+@app.on_event("startup")
+def bootstrap_security() -> None:
+    if not settings.SECURITY_BOOTSTRAP_ENABLED:
+        logger.info("Security bootstrap is disabled by configuration.")
+        return
+
+    db = SessionLocal()
+    try:
+        result = SecurityBootstrapService(db).run()
+        logger.info(
+            "Security bootstrap finished: created_permissions=%s created_roles=%s created_backdoor_user=%s",
+            result.created_permissions,
+            result.created_roles,
+            result.created_backdoor_user,
+        )
+    finally:
+        db.close()
 
 
 @app.get('/health')

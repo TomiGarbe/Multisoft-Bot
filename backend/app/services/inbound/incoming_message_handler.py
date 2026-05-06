@@ -22,7 +22,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.schemas.internal.normalized_message import NormalizedMessage
-from app.services.bot_config_service import BotConfigService
+from app.services.channel_config_service import ChannelConfigService
 from app.services.conversation.guards import should_use_ai
 from app.services.inbound.message_processor import MessageProcessor
 import app.services.message_service as message_service
@@ -50,7 +50,7 @@ async def handle_incoming_message(db: Session, message: NormalizedMessage) -> No
         return
 
     # 4. Resolver la config del canal.
-    channel_config = BotConfigService.get_active_channel_config(
+    channel_config = ChannelConfigService.get_active_channel_config(
         db, inbound.channel_id,
     )
     if not channel_config:
@@ -76,6 +76,8 @@ async def handle_incoming_message(db: Session, message: NormalizedMessage) -> No
         contact_id=inbound.sender_contact_id,
         tenant_id=inbound.tenant_id,
         channel_id=inbound.channel_id,
+        message_id=inbound.id,
+        request_id=inbound.provider_message_id,
     )
     if not ai_response:
         return

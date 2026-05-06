@@ -8,7 +8,7 @@ from app.core.tenant import get_current_tenant_id
 from app.models import Channel, User
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.channel import ChannelConfigBundleResponse, ChannelResponse
-from app.services.bot_config_service import BotConfigService
+from app.services.channel_config_service import ChannelConfigService
 
 
 VALID_CHANNEL_TYPES = ["whatsapp", "web", "instagram"]
@@ -36,10 +36,8 @@ class ChannelService:
         )
 
     def get_channels(self, user: Optional[User] = None) -> list[ChannelResponse]:
-        # DEV compatibility: keep current bypass behavior.
         if user is None:
-            channels = self.repository.get_all()
-            return [self._build_channel_response(c) for c in channels]
+            return []
 
         if not user.is_active:
             return []
@@ -81,7 +79,7 @@ class ChannelService:
         try:
             self.repository.create(channel)
             self.repository.flush()
-            BotConfigService.create_default_channel_config(self.db, channel.id)
+            ChannelConfigService.create_default_channel_config(self.db, channel.id)
             self.repository.commit()
             self.repository.refresh(channel)
             return self._build_channel_response(channel)
@@ -148,15 +146,11 @@ class ChannelService:
         tenant_id = get_current_tenant_id()
         logger.info("Fetching channel config bundle. channel_id=%s tenant_id=%s", channel_id, tenant_id)
 
-        # Prefer tenant-scoped lookup, but fall back to direct channel lookup to
-        # avoid false 404s when tenant context is misaligned in dev/transitional flows.
         channel = self.repository.get_by_id_and_tenant(channel_id, tenant_id)
-        if channel is None:
-            channel = self.repository.get_by_id(channel_id)
         if channel is None:
             raise LookupError(f"Channel not found: {channel_id}")
 
-        channel_config = BotConfigService.get_channel_config(self.db, channel_id)
+        channel_config = ChannelConfigService.get_channel_config(self.db, channel_id)
         config = channel_config.config_jsonb
         settings = channel_config.settings_jsonb
         user_types = channel_config.user_types_jsonb

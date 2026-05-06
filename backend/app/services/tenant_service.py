@@ -28,9 +28,8 @@ def get_tenants(db: Session, user: Optional[User] = None) -> list[TenantResponse
 
 
 def _resolve_tenants_for_user_scope(db: Session, user: Optional[User]) -> list[Tenant]:
-    # DEV: bypass user filtering must remain for current compatibility.
     if user is None:
-        return tenant_repository.get_all(db)
+        return []
     if not user.is_active:
         return []
     if user.is_backdoor:

@@ -30,7 +30,6 @@ def build_conversation_context(
     history = _get_history(db, conversation.id, exclude_id=current_message.id)
     contact = _get_contact(db, current_message.sender_contact_id)
     default_type = _resolve_default_type(config)
-    _ensure_contact_type(db, contact, default_type)
     user_type = _get_valid_contact_type(contact, config, default_type)
     user_memory = _extract_user_memory(contact)
 
@@ -85,16 +84,6 @@ def _resolve_default_type(config: dict) -> str:
     return "default"
 
 
-def _ensure_contact_type(db: Session, contact: Optional[Contact], default_type: str) -> None:
-    if not contact or contact.current_type is not None:
-        return
-    try:
-        message_service.ensure_contact_current_type(db, contact.id, default_type)
-        logger.info("Assigned initial current_type '%s' to contact: %s", default_type, contact.id)
-    except Exception:
-        logger.exception("Failed to set initial current_type for contact: %s", contact.id)
-
-
 def _get_valid_contact_type(
     contact: Optional[Contact],
     config: dict,
@@ -117,27 +106,3 @@ def _extract_user_memory(contact: Optional[Contact]) -> Optional[dict]:
     if not contact or not isinstance(contact.metadata_jsonb, dict):
         return None
     return contact.metadata_jsonb or None
-
-
-def apply_user_type_on_completion(
-    db: Session,
-    contact_id: Optional[uuid.UUID],
-    config: dict,
-) -> None:
-    """Bump contact.current_type if the active objective declares an on_completion target."""
-    if not contact_id:
-        return
-    contact = message_service.get_contact(db, contact_id)
-    if not contact:
-        return
-    objective = config.get("objective", {})
-    if not isinstance(objective, dict):
-        return
-    on_completion = objective.get("on_completion")
-    if not on_completion:
-        return
-    try:
-        message_service.apply_contact_current_type(db, contact.id, on_completion)
-        logger.info("Updated current_type to '%s' for contact: %s", on_completion, contact.id)
-    except Exception:
-        logger.exception("Failed to update current_type for contact: %s", contact.id)

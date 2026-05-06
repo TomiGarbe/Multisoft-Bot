@@ -10,7 +10,7 @@ from typing import List, Optional
 class UserType(str, PyEnum):
     ADMIN = "ADMIN"
     BACKDOOR = "BACKDOOR"
-    BUSINESS_USER = "BUSINESS_USER"
+    USER = "USER"
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -24,7 +24,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     is_backdoor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     user_type: Mapped[UserType] = mapped_column(
         Enum(UserType, name="user_type_enum"),
-        default=UserType.BUSINESS_USER,
+        default=UserType.USER,
         nullable=False,
     )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -33,8 +33,8 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant_links: Mapped[List["TenantUser"]] = relationship(
         "TenantUser", back_populates="user", cascade="all, delete-orphan"
     )
-    business_links: Mapped[List["UserBusiness"]] = relationship(
-        "UserBusiness", back_populates="user", cascade="all, delete-orphan"
+    tenant_scopes: Mapped[List["UserTenant"]] = relationship(
+        "UserTenant", back_populates="user", cascade="all, delete-orphan"
     )
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"

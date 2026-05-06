@@ -25,7 +25,7 @@ export default function LoginPage() {
       router.replace('/dashboard');
     } catch (err: unknown) {
       const errorWithResponse = err as { response?: { data?: { detail?: string } } };
-      const message = errorWithResponse.response?.data?.detail || 'No se pudo iniciar sesión';
+      const message = errorWithResponse.response?.data?.detail || 'No se pudo iniciar sesiÃ³n';
       setError(message);
     } finally {
       setLoading(false);
@@ -41,7 +41,7 @@ export default function LoginPage() {
               M
             </span>
             <h1 className="mt-4 text-2xl font-bold text-slate-900">Acceso</h1>
-            <p className="mt-1 text-sm text-slate-500">Ingresa a la plataforma de gestión.</p>
+            <p className="mt-1 text-sm text-slate-500">Ingresa a la plataforma de gestiÃ³n.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,7 +62,7 @@ export default function LoginPage() {
 
             <div className="space-y-1">
               <label htmlFor="password" className="text-sm font-medium text-slate-700">
-                Contraseña
+                ContraseÃ±a
               </label>
               <input
                 id="password"
