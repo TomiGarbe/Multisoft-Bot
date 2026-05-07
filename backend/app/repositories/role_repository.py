@@ -12,10 +12,22 @@ class RoleRepository(BaseRepository):
     def get_by_id(self, role_id: uuid.UUID) -> Optional[Role]:
         return super().get_by_id(Role, role_id)
 
+    def get_by_id_and_tenant_scope(self, role_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[Role]:
+        stmt = select(Role).where(Role.id == role_id, or_(Role.tenant_id == tenant_id, Role.tenant_id.is_(None)))
+        return self.db.execute(stmt).scalar_one_or_none()
+
     def get_by_id_with_permissions(self, role_id: uuid.UUID) -> Optional[Role]:
         stmt = (
             select(Role)
             .where(Role.id == role_id)
+            .options(joinedload(Role.role_permissions).joinedload(RolePermission.permission))
+        )
+        return self.db.execute(stmt).unique().scalars().first()
+
+    def get_by_id_and_tenant_scope_with_permissions(self, role_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[Role]:
+        stmt = (
+            select(Role)
+            .where(Role.id == role_id, or_(Role.tenant_id == tenant_id, Role.tenant_id.is_(None)))
             .options(joinedload(Role.role_permissions).joinedload(RolePermission.permission))
         )
         return self.db.execute(stmt).unique().scalars().first()

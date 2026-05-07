@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.models.ai.ai_logs import AILog
+from app.models.ai_log import AILog
 
 
 class AILogRepository:

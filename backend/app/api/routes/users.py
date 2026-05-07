@@ -15,7 +15,7 @@ from app.services.user_service import create_user, delete_user, get_global_users
 router = APIRouter(tags=["users"])
 
 
-@router.get("/", response_model=list[UserResponse])
+@router.get("", response_model=list[UserResponse])
 async def read_users(
     skip: int = 0,
     limit: int = 100,
@@ -37,7 +37,7 @@ async def read_global_users(
     return get_global_users(db, skip=skip, limit=limit)
 
 
-@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_endpoint(
     user_data: UserCreate,
     db: Session = Depends(get_db),
@@ -144,3 +144,4 @@ async def delete_user_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+

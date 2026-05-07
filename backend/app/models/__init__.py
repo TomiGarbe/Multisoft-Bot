@@ -1,5 +1,5 @@
 # Models package
-from .ai.ai_logs import AILog
+from .ai_log import AILog
 from .tenant import Tenant
 from .tenant_wallet import TenantWallet
 from .user import User

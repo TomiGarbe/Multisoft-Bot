@@ -42,6 +42,7 @@ PERMISSIONS: tuple[PermissionSeed, ...] = (
     PermissionSeed("conversations.update", "Update Conversations", "Update conversation state"),
     PermissionSeed("api_keys.manage", "Manage API Keys", "Create and revoke integration API keys"),
     PermissionSeed("ai.test", "Test AI", "Execute AI test endpoint"),
+    PermissionSeed("analytics.read", "Read Analytics", "View tenant/global aggregated analytics"),
     PermissionSeed("realtime.read", "Read Realtime", "Consume realtime stream"),
 )
 
@@ -84,6 +85,7 @@ ADMIN_PERMISSION_CODES: set[str] = {
     "conversations.update",
     "api_keys.manage",
     "ai.test",
+    "analytics.read",
     "realtime.read",
 }
 

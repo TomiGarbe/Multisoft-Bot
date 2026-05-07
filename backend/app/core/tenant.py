@@ -10,9 +10,8 @@ _current_tenant_id_ctx: ContextVar[Optional[uuid.UUID]] = ContextVar("current_te
 
 def get_current_tenant_id() -> uuid.UUID:
     """
-    Centralized tenant resolver for development and transitional phases.
-    Uses MULTISOFT_CURRENT_TENANT_ID when present, otherwise falls back
-    to a fixed development tenant id.
+    Legacy helper kept only for backward compatibility.
+    New code must use explicit tenant context via request dependencies.
     """
     context_tenant_id = _current_tenant_id_ctx.get()
     if context_tenant_id is not None:

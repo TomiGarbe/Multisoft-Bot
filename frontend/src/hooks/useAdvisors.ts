@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { getToken } from '@/services/auth';
-import { getApiErrorMessage } from '@/services/api';
+import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { deleteRole, getRoles } from '@/services/roles';
 import type { Role } from '@/types/access';
 
@@ -36,6 +36,15 @@ export function useAdvisors(toast?: { success: (message: string) => void; error:
 
   useEffect(() => {
     if (hasToken) void fetchAdvisors();
+  }, [hasToken, fetchAdvisors]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      if (hasToken) void fetchAdvisors();
+    };
+    window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
   }, [hasToken, fetchAdvisors]);
 
   const createAdvisor = () => {

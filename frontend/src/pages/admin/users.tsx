@@ -6,7 +6,7 @@ import Modal from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import Table from '@/components/ui/Table';
 import { ToastViewport, useToast } from '@/components/ui/toast';
-import { getApiErrorMessage } from '@/services/api';
+import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getToken } from '@/services/auth';
 import { getTenants } from '@/services/tenants';
 import { createAdminUser, createBackdoorUser, getGlobalUsers } from '@/services/users';
@@ -44,6 +44,15 @@ export default function GlobalUsersPage() {
 
   useEffect(() => {
     if (hasToken) void fetchAll();
+  }, [hasToken]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      if (hasToken) void fetchAll();
+    };
+    window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
   }, [hasToken]);
 
   const admins = useMemo(() => users.filter((u) => u.user_type === 'ADMIN'), [users]);

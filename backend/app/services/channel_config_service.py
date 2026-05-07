@@ -31,7 +31,6 @@ class ChannelConfigService:
             "behavior": {},
             "objectives": [],
             "data_collection": [],
-            "actions": [],
             "user_type_config": {},
         }
 

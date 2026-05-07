@@ -17,16 +17,17 @@ from app.services.tenant_service import (
     update_tenant,
 )
 from app.services.user_service import create_user, get_tenant_users, update_user
+from app.services.auth.access_service import can_operate_on_tenant_target
 
 router = APIRouter(tags=["tenants"])
 
 
-def _ensure_tenant_context(target_tenant_id: uuid.UUID, current_tenant_id: uuid.UUID) -> None:
-    if target_tenant_id != current_tenant_id:
+def _ensure_tenant_context(current_user: User, target_tenant_id: uuid.UUID, current_tenant_id: uuid.UUID) -> None:
+    if not can_operate_on_tenant_target(current_user, current_tenant_id, target_tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant access denied")
 
 
-@router.get("/", response_model=list[TenantResponse])
+@router.get("", response_model=list[TenantResponse])
 async def read_tenants(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -35,7 +36,7 @@ async def read_tenants(
     return get_tenants(db, user=current_user)
 
 
-@router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant_endpoint(
     tenant_data: TenantCreate,
     db: Session = Depends(get_db),
@@ -62,10 +63,11 @@ async def update_tenant_endpoint(
     tenant_id: uuid.UUID,
     tenant_data: TenantUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("tenants.update")),
 ):
-    _ensure_tenant_context(tenant_id, current_tenant_id)
+    _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
     try:
         tenant = update_tenant(
             db=db,
@@ -84,10 +86,11 @@ async def update_tenant_endpoint(
 async def delete_tenant_endpoint(
     tenant_id: uuid.UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("tenants.delete")),
 ):
-    _ensure_tenant_context(tenant_id, current_tenant_id)
+    _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
     success = delete_tenant(db, tenant_id)
     if not success:
         raise HTTPException(
@@ -102,11 +105,11 @@ async def read_tenant_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
-    _: User = Depends(get_current_user),
     __: None = Depends(require_permission("users.read")),
 ):
-    _ensure_tenant_context(tenant_id, current_tenant_id)
+    _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
     try:
         return get_tenant_users(db, tenant_id=tenant_id, skip=skip, limit=limit)
     except LookupError as exc:
@@ -118,11 +121,11 @@ async def create_tenant_user(
     tenant_id: uuid.UUID,
     user_data: UserCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
-    _: User = Depends(get_current_user),
     __: None = Depends(require_permission("users.create")),
 ):
-    _ensure_tenant_context(tenant_id, current_tenant_id)
+    _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
     try:
         return create_user(
             db=db,
@@ -147,11 +150,11 @@ async def update_tenant_user(
     user_id: uuid.UUID,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
-    _: User = Depends(get_current_user),
     __: None = Depends(require_permission("users.update")),
 ):
-    _ensure_tenant_context(tenant_id, current_tenant_id)
+    _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
     try:
         payload = user_data.model_dump(exclude_unset=True)
         payload["user_type"] = UserType.USER
@@ -165,3 +168,4 @@ async def update_tenant_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+

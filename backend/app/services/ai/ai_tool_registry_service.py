@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.bot_action import BotAction, ChannelBotActionLink
@@ -22,8 +23,8 @@ class AIToolRegistryService:
         tenant_id: uuid.UUID,
         channel_id: uuid.UUID,
     ) -> list[BotAction]:
-        stmt = (
-            select(BotAction)
+        base_stmt = (
+            select(BotAction.id, BotAction.created_at)
             .join(ChannelBotActionLink, ChannelBotActionLink.bot_action_id == BotAction.id)
             .join(ChannelBotConfig, ChannelBotConfig.id == ChannelBotActionLink.channel_bot_config_id)
             .where(
@@ -34,10 +35,24 @@ class AIToolRegistryService:
                 ChannelBotConfig.channel_id == channel_id,
                 ChannelBotConfig.is_active.is_(True),
             )
-            .order_by(BotAction.created_at.desc())
-            .distinct(BotAction.id)
         )
-        return self.db.execute(stmt).scalars().all()
+        # PostgreSQL DISTINCT ON requires ORDER BY to start with the same expressions.
+        dedup_subquery = (
+            base_stmt
+            .order_by(BotAction.id.asc(), BotAction.created_at.desc())
+            .distinct(BotAction.id)
+            .subquery()
+        )
+        stmt = (
+            select(BotAction)
+            .join(dedup_subquery, dedup_subquery.c.id == BotAction.id)
+            .order_by(dedup_subquery.c.created_at.desc())
+        )
+        try:
+            return self.db.execute(stmt).scalars().all()
+        except SQLAlchemyError:
+            self.db.rollback()
+            raise
 
     def get_tools(
         self,

@@ -17,7 +17,17 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-http_method_enum = sa.Enum("GET", "POST", "PUT", "PATCH", "DELETE", name="http_method_enum")
+# Keep enum creation explicit+idempotent and prevent table creation from trying
+# to create the same type a second time.
+http_method_enum = postgresql.ENUM(
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    name="http_method_enum",
+    create_type=False,
+)
 
 
 def upgrade() -> None:

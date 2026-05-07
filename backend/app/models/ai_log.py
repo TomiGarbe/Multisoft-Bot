@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import String, ForeignKey, Text, Index
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,5 +30,8 @@ class AILog(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     model: Mapped[str] = mapped_column(String(100), nullable=False)
 
     __table_args__ = (
+        Index("ix_ai_logs_tenant_id", "tenant_id"),
+        Index("ix_ai_logs_channel_id", "channel_id"),
+        Index("ix_ai_logs_conversation_id", "conversation_id"),
         Index("ix_ai_logs_request_id", "request_id"),
     )

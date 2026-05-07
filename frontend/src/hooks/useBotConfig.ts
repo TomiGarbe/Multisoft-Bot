@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import api, { getApiErrorMessage } from '@/services/api';
+import api, { getActiveTenantContext, getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 
 export type BotConfigPrimitive = string | number | boolean | null;
 export type BotConfigObject = Record<string, BotConfigPrimitive>;
@@ -15,7 +15,7 @@ export interface BotConfig {
   [key: string]: BotConfigSection;
 }
 
-const STORAGE_KEY = 'bot_config';
+const STORAGE_KEY_PREFIX = 'bot_config';
 
 const DEFAULT_CONFIG: BotConfig = {
   identity: {},
@@ -37,12 +37,17 @@ function sanitizeConfig(raw: unknown): BotConfig {
   } as BotConfig;
 }
 
+function getStorageKey(): string {
+  const { tenantId, scope } = getActiveTenantContext();
+  return `${STORAGE_KEY_PREFIX}:${scope}:${tenantId ?? 'none'}`;
+}
+
 function readLocalConfig(): BotConfig {
   if (typeof window === 'undefined') {
     return { ...DEFAULT_CONFIG };
   }
 
-  const saved = window.localStorage.getItem(STORAGE_KEY);
+  const saved = window.localStorage.getItem(getStorageKey());
   if (!saved) {
     return { ...DEFAULT_CONFIG };
   }
@@ -56,7 +61,7 @@ function readLocalConfig(): BotConfig {
 
 function writeLocalConfig(config: BotConfig) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  window.localStorage.setItem(getStorageKey(), JSON.stringify(config));
 }
 
 export function useBotConfig() {
@@ -78,6 +83,26 @@ export function useBotConfig() {
     };
 
     void load();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      setLoading(true);
+      api
+        .get('/bot-config')
+        .then((response) => {
+          const loaded = sanitizeConfig(response.data);
+          setConfig(loaded);
+          writeLocalConfig(loaded);
+        })
+        .catch(() => {
+          setConfig(readLocalConfig());
+        })
+        .finally(() => setLoading(false));
+    };
+    window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
   }, []);
 
   const updateConfig = useCallback(async (section: string, data: BotConfigSection) => {

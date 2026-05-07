@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from app.api.dependencies.auth import get_current_user as _get_current_user_model
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse
+from app.schemas.user import UserResponse
 from app.services.auth_service import AuthService
+from app.services.user_service import get_user_response_by_id
 
 
 router = APIRouter(tags=["auth"])
@@ -65,3 +67,14 @@ async def refresh(
         "refresh_token": result.refresh_token,
         "token_type": result.token_type,
     }
+
+
+@router.get("/me", response_model=UserResponse)
+async def me(
+    user=Depends(_get_current_user_model),
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_user_response_by_id(db, user.id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

@@ -1,6 +1,7 @@
 import { Menu } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { getPageTitle } from '@/lib/navigation';
+import TenantSwitcher from '@/components/tenants/TenantSwitcher';
 
 interface HeaderProps {
   onOpenSidebar: () => void;
@@ -23,6 +24,7 @@ export default function Header({ onOpenSidebar }: HeaderProps) {
       <div className="flex-1">
         <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
       </div>
+      <TenantSwitcher />
     </header>
   );
 }

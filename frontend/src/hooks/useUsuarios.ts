@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { getApiErrorMessage } from '@/services/api';
+import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getToken } from '@/services/auth';
 import { deleteUser, getUsers } from '@/services/users';
 import type { User } from '@/types/access';
@@ -38,6 +38,15 @@ export function useUsuarios(toast?: { success: (message: string) => void; error:
 
   useEffect(() => {
     if (hasToken) void fetchUsuarios();
+  }, [hasToken, fetchUsuarios]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      if (hasToken) void fetchUsuarios();
+    };
+    window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
   }, [hasToken, fetchUsuarios]);
 
   const openCreateUsuario = () => {

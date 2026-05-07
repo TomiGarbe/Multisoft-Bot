@@ -27,7 +27,7 @@ def build_conversation_context(
     config: dict,
 ) -> dict:
     """Return the kwargs dict that PromptBuilder.build expects."""
-    history = _get_history(db, conversation.id, exclude_id=current_message.id)
+    history = _get_history(db, conversation.id, current_message.tenant_id, exclude_id=current_message.id)
     contact = _get_contact(db, current_message.sender_contact_id)
     default_type = _resolve_default_type(config)
     user_type = _get_valid_contact_type(contact, config, default_type)
@@ -41,8 +41,13 @@ def build_conversation_context(
     }
 
 
-def _get_history(db: Session, conversation_id: uuid.UUID, exclude_id: uuid.UUID) -> list[dict]:
-    messages = message_service.get_messages(db, conversation_id)
+def _get_history(
+    db: Session,
+    conversation_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+    exclude_id: uuid.UUID,
+) -> list[dict]:
+    messages = message_service.get_messages(db, conversation_id, tenant_id=tenant_id)
     messages = [m for m in messages if m["id"] != str(exclude_id)]
     messages = messages[-_HISTORY_LIMIT:]
     return _map_messages(messages)

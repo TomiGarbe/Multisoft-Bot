@@ -17,14 +17,15 @@ from app.services.conversation_service import ConversationService
 router = APIRouter(tags=["conversations"])
 
 
-@router.get("/", response_model=list[ConversationResponse])
+@router.get("", response_model=list[ConversationResponse])
 async def read_conversations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("conversations.read")),
 ):
     service = ConversationService(db)
-    return service.get_conversations(user_id=current_user.id)
+    return service.get_conversations(user_id=current_user.id, tenant_id=current_tenant_id)
 
 
 @router.patch("/{id}/mode", response_model=ConversationModeUpdateResponse)
@@ -50,3 +51,4 @@ async def update_conversation_mode(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     return ConversationModeUpdateResponse(id=str(conversation.id), mode=conversation.mode)
+

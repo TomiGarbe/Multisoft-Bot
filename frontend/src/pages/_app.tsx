@@ -1,6 +1,7 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
+import { TenantProvider } from '@/context/tenant-context';
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
@@ -9,7 +10,9 @@ export default function App({ Component, pageProps }: AppProps) {
         <title>Multisoft Bot</title>
         <meta name="description" content="Multisoft Bot admin panel" />
       </Head>
-      <Component {...pageProps} />
+      <TenantProvider>
+        <Component {...pageProps} />
+      </TenantProvider>
     </>
   );
 }

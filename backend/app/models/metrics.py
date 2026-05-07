@@ -20,6 +20,7 @@ class ContactUsage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("conversation_id", name="uq_contact_usage_conversation"),
         Index("ix_contact_usage_contact_id", "contact_id"),
+        Index("ix_contact_usage_conversation_id", "conversation_id"),
     )
 
     # Relationships

@@ -14,28 +14,31 @@ from app.schemas.channel import (
     ChannelUpdate,
 )
 from app.services.channel_service import ChannelService
+from app.services.auth.access_service import can_operate_on_tenant_target
 
 router = APIRouter(tags=["channels"])
 
 
-@router.get("/", response_model=list[ChannelResponse])
+@router.get("", response_model=list[ChannelResponse])
 async def read_channels(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("channels.read")),
 ):
     service = ChannelService(db)
-    return service.get_channels(user=current_user)
+    return service.get_channels(user=current_user, tenant_id=current_tenant_id)
 
 
-@router.post("/", response_model=ChannelResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ChannelResponse, status_code=status.HTTP_201_CREATED)
 async def create_channel_endpoint(
     channel_data: ChannelCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("channels.create")),
 ):
-    if channel_data.tenant_id != current_tenant_id:
+    if not can_operate_on_tenant_target(current_user, current_tenant_id, channel_data.tenant_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant access denied")
     service = ChannelService(db)
     try:
@@ -58,12 +61,14 @@ async def update_channel_endpoint(
     channel_id: uuid.UUID,
     channel_data: ChannelUpdate,
     db: Session = Depends(get_db),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("channels.update")),
 ):
     service = ChannelService(db)
     try:
         channel = service.update_channel(
             channel_id=channel_id,
+            tenant_id=current_tenant_id,
             **channel_data.model_dump(exclude_unset=True),
         )
     except ValueError as exc:
@@ -78,11 +83,12 @@ async def update_channel_endpoint(
 async def get_channel_config_bundle(
     channel_id: uuid.UUID,
     db: Session = Depends(get_db),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("channels.read")),
 ):
     service = ChannelService(db)
     try:
-        bundle = service.get_channel_config_bundle(channel_id)
+        bundle = service.get_channel_config_bundle(channel_id, tenant_id=current_tenant_id)
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except ValueError as exc:
@@ -98,12 +104,14 @@ async def get_channel_config_bundle(
 async def delete_channel_endpoint(
     channel_id: uuid.UUID,
     db: Session = Depends(get_db),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("channels.delete")),
 ):
     service = ChannelService(db)
-    success = service.delete_channel(channel_id)
+    success = service.delete_channel(channel_id, tenant_id=current_tenant_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Channel not found",
         )
+

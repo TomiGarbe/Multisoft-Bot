@@ -8,7 +8,7 @@ import {
   sendMessage,
   setConversationMode,
 } from '@/services/conversations';
-import { getApiErrorMessage } from '@/services/api';
+import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getChannelConfigStatus } from '@/services/channelConfig';
 import type { ChannelConfigValidationStatus } from '@/types/channelConfig';
 
@@ -87,6 +87,32 @@ export function useConversations() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      setConversations([]);
+      setSelectedId('');
+      setMessages({});
+      setConfigStatusByConversation({});
+      setError(null);
+      setLoadingConversations(true);
+      getConversations()
+        .then((data) => {
+          setConversations(data);
+          hydrateConfigStatus(data).catch(() => {});
+          if (data.length > 0) setSelectedId(data[0].id);
+        })
+        .catch((err: unknown) => {
+          setError(getApiErrorMessage(err, 'Error al cargar conversaciones'));
+        })
+        .finally(() => {
+          setLoadingConversations(false);
+        });
+    };
+    window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+  }, [hydrateConfigStatus]);
 
   useEffect(() => {
     if (!selectedId) return;

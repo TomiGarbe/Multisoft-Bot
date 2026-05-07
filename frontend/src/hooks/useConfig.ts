@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { getApiErrorMessage } from '@/services/api';
+import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getToken } from '@/services/auth';
 import { deleteChannel, getChannels } from '@/services/channels';
 import type { Channel } from '@/types/channel';
@@ -36,6 +36,15 @@ export function useConfig(toast?: { success: (message: string) => void; error: (
 
   useEffect(() => {
     if (hasToken) void fetchConfig();
+  }, [hasToken, fetchConfig]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      if (hasToken) void fetchConfig();
+    };
+    window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
   }, [hasToken, fetchConfig]);
 
   const createConfig = () => {

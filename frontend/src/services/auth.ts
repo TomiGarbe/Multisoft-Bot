@@ -1,4 +1,6 @@
 import api from './api';
+import { clearActiveTenantContext } from './api';
+import type { User } from '@/types/access';
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
@@ -32,6 +34,12 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
 export function logout(): void {
   removeToken();
+  clearActiveTenantContext();
+}
+
+export async function getCurrentUser(): Promise<User> {
+  const { data } = await api.get<User>('/auth/me');
+  return data;
 }
 
 export function getToken(): string | null {

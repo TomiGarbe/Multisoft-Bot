@@ -12,7 +12,7 @@ from app.services.permission_service import get_permission_by_id, get_permission
 router = APIRouter(tags=["permissions"])
 
 
-@router.get("/", response_model=list[PermissionResponse])
+@router.get("", response_model=list[PermissionResponse])
 async def read_permissions(
     skip: int = 0,
     limit: int = 100,
@@ -35,3 +35,4 @@ async def read_permission(
             detail="Permission not found",
         )
     return permission
+

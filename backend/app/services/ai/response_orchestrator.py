@@ -230,6 +230,7 @@ class AIResponseOrchestrator:
                         ai_payload = await self.call_ai(prompt, provider_name=provider_name)
                         response = str((ai_payload or {}).get("response") or "")
             except Exception:
+                db.rollback()
                 logger.exception("AI generation failed for conversation: %s", conversation.id)
         else:
             logger.info("AI gate blocked execution for conversation: %s", conversation.id)
@@ -380,6 +381,7 @@ class AIResponseOrchestrator:
                 usage_event.total_tokens,
             )
         except Exception:
+            db.rollback()
             logger.exception(
                 "Failed to record token usage (conversation_id=%s, tenant_id=%s)",
                 conversation_id,
@@ -414,6 +416,7 @@ class AIResponseOrchestrator:
                 "model": model,
             })
         except Exception:
+            db.rollback()
             logger.exception("Failed to save AI log for conversation: %s", conversation_id)
 
     def _ensure_contact_default_type(
@@ -435,6 +438,7 @@ class AIResponseOrchestrator:
             message_service.ensure_contact_current_type(db, contact.id, default_type)
             logger.info("Assigned initial current_type '%s' to contact: %s", default_type, contact.id)
         except Exception:
+            db.rollback()
             logger.exception("Failed to set initial current_type for contact: %s", contact.id)
 
     def _apply_user_type_on_completion(
@@ -461,4 +465,5 @@ class AIResponseOrchestrator:
             message_service.apply_contact_current_type(db, contact.id, on_completion)
             logger.info("Updated current_type to '%s' for contact: %s", on_completion, contact.id)
         except Exception:
+            db.rollback()
             logger.exception("Failed to update current_type for contact: %s", contact.id)

@@ -3,7 +3,6 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.tenant import get_current_tenant_id
 from app.models import Role
 from app.repositories.role_repository import RoleRepository
 from app.schemas.role import RolePermissionSummary, RoleResponse
@@ -51,20 +50,15 @@ class RoleService:
     def create_role(
         self,
         name: str,
+        tenant_id: uuid.UUID,
         description: Optional[str] = None,
         permissions: Optional[list[uuid.UUID]] = None,
-        tenant_id: Optional[uuid.UUID] = None,
     ) -> RoleResponse:
         try:
             permission_ids = self._validate_permissions(permissions or [])
 
-            # Keep current behavior: tenant_id remains optional.
-            resolved_tenant_id = tenant_id
-            if resolved_tenant_id is None:
-                _ = get_current_tenant_id()
-
             role = Role(
-                tenant_id=resolved_tenant_id,
+                tenant_id=tenant_id,
                 name=name,
                 description=description,
                 is_system=False,
@@ -84,11 +78,13 @@ class RoleService:
             self.repository.rollback()
             raise
 
-    def update_role(self, role_id: uuid.UUID, **updates) -> Optional[RoleResponse]:
+    def update_role(self, role_id: uuid.UUID, tenant_id: uuid.UUID, **updates) -> Optional[RoleResponse]:
         try:
-            role = self.repository.get_by_id(role_id)
+            role = self.repository.get_by_id_and_tenant_scope(role_id, tenant_id)
             if role is None:
                 return None
+            if role.tenant_id is None:
+                raise PermissionError("System roles cannot be modified")
 
             mapped_updates: dict[str, object] = {}
             if "name" in updates and updates["name"] is not None:
@@ -113,11 +109,13 @@ class RoleService:
             self.repository.rollback()
             raise
 
-    def delete_role(self, role_id: uuid.UUID) -> bool:
+    def delete_role(self, role_id: uuid.UUID, tenant_id: uuid.UUID) -> bool:
         try:
-            role = self.repository.get_by_id(role_id)
+            role = self.repository.get_by_id_and_tenant_scope(role_id, tenant_id)
             if role is None:
                 return False
+            if role.tenant_id is None:
+                raise PermissionError("System roles cannot be deleted")
 
             self.repository.delete_role_permissions(role.id)
             self.repository.delete(role)
@@ -127,8 +125,8 @@ class RoleService:
             self.repository.rollback()
             raise
 
-    def get_roles(self, skip: int = 0, limit: int = 100) -> list[RoleResponse]:
-        roles = self.repository.get_all(skip=skip, limit=limit)
+    def get_roles(self, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100) -> list[RoleResponse]:
+        roles = self.repository.get_all_by_tenant(tenant_id=tenant_id, skip=skip, limit=limit)
         return [_build_role_response(role) for role in roles]
 
 
@@ -139,25 +137,25 @@ def get_role_by_id(db: Session, role_id: uuid.UUID) -> Optional[Role]:
 def create_role(
     db: Session,
     name: str,
+    tenant_id: uuid.UUID,
     description: Optional[str] = None,
     permissions: Optional[list[uuid.UUID]] = None,
-    tenant_id: Optional[uuid.UUID] = None,
 ) -> RoleResponse:
     return RoleService(db).create_role(
         name=name,
+        tenant_id=tenant_id,
         description=description,
         permissions=permissions,
-        tenant_id=tenant_id,
     )
 
 
-def update_role(db: Session, role_id: uuid.UUID, **updates) -> Optional[RoleResponse]:
-    return RoleService(db).update_role(role_id=role_id, **updates)
+def update_role(db: Session, role_id: uuid.UUID, tenant_id: uuid.UUID, **updates) -> Optional[RoleResponse]:
+    return RoleService(db).update_role(role_id=role_id, tenant_id=tenant_id, **updates)
 
 
-def delete_role(db: Session, role_id: uuid.UUID) -> bool:
-    return RoleService(db).delete_role(role_id=role_id)
+def delete_role(db: Session, role_id: uuid.UUID, tenant_id: uuid.UUID) -> bool:
+    return RoleService(db).delete_role(role_id=role_id, tenant_id=tenant_id)
 
 
-def get_roles(db: Session, skip: int = 0, limit: int = 100) -> list[RoleResponse]:
-    return RoleService(db).get_roles(skip=skip, limit=limit)
+def get_roles(db: Session, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100) -> list[RoleResponse]:
+    return RoleService(db).get_roles(tenant_id=tenant_id, skip=skip, limit=limit)

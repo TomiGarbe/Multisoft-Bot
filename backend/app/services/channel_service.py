@@ -4,7 +4,6 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.tenant import get_current_tenant_id
 from app.models import Channel, User
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.channel import ChannelConfigBundleResponse, ChannelResponse
@@ -35,18 +34,10 @@ class ChannelService:
             is_active=channel.is_active,
         )
 
-    def get_channels(self, user: Optional[User] = None) -> list[ChannelResponse]:
-        if user is None:
+    def get_channels(self, user: Optional[User] = None, tenant_id: Optional[uuid.UUID] = None) -> list[ChannelResponse]:
+        if user is None or tenant_id is None or not user.is_active:
             return []
-
-        if not user.is_active:
-            return []
-
-        if user.is_backdoor:
-            channels = self.repository.get_all()
-            return [self._build_channel_response(c) for c in channels]
-
-        channels = self.repository.get_all_by_user_id(user.id)
+        channels = self.repository.get_all_by_tenant(tenant_id)
         return [self._build_channel_response(c) for c in channels]
 
     def create_channel(
@@ -90,9 +81,9 @@ class ChannelService:
     def update_channel(
         self,
         channel_id: uuid.UUID,
+        tenant_id: uuid.UUID,
         **kwargs: Any,
     ) -> ChannelResponse:
-        tenant_id = get_current_tenant_id()
         channel = self.repository.get_by_id_and_tenant(channel_id, tenant_id)
         if not channel:
             raise LookupError("Channel not found")
@@ -128,9 +119,8 @@ class ChannelService:
             self.repository.rollback()
             raise
 
-    def delete_channel(self, channel_id: uuid.UUID) -> bool:
+    def delete_channel(self, channel_id: uuid.UUID, tenant_id: uuid.UUID) -> bool:
         try:
-            tenant_id = get_current_tenant_id()
             channel = self.repository.get_by_id_and_tenant(channel_id, tenant_id)
             if channel is None:
                 return False
@@ -142,8 +132,7 @@ class ChannelService:
             self.repository.rollback()
             raise
 
-    def get_channel_config_bundle(self, channel_id: uuid.UUID) -> ChannelConfigBundleResponse:
-        tenant_id = get_current_tenant_id()
+    def get_channel_config_bundle(self, channel_id: uuid.UUID, tenant_id: uuid.UUID) -> ChannelConfigBundleResponse:
         logger.info("Fetching channel config bundle. channel_id=%s tenant_id=%s", channel_id, tenant_id)
 
         channel = self.repository.get_by_id_and_tenant(channel_id, tenant_id)
@@ -169,8 +158,8 @@ class ChannelService:
         )
 
 
-def get_channels(db: Session, user: Optional[User] = None) -> list[ChannelResponse]:
-    return ChannelService(db).get_channels(user=user)
+def get_channels(db: Session, user: Optional[User] = None, tenant_id: Optional[uuid.UUID] = None) -> list[ChannelResponse]:
+    return ChannelService(db).get_channels(user=user, tenant_id=tenant_id)
 
 
 def create_channel(
@@ -192,9 +181,9 @@ def create_channel(
     )
 
 
-def update_channel(db: Session, channel_id: uuid.UUID, **kwargs: Any) -> ChannelResponse:
-    return ChannelService(db).update_channel(channel_id=channel_id, **kwargs)
+def update_channel(db: Session, channel_id: uuid.UUID, tenant_id: uuid.UUID, **kwargs: Any) -> ChannelResponse:
+    return ChannelService(db).update_channel(channel_id=channel_id, tenant_id=tenant_id, **kwargs)
 
 
-def delete_channel(db: Session, channel_id: uuid.UUID) -> bool:
-    return ChannelService(db).delete_channel(channel_id=channel_id)
+def delete_channel(db: Session, channel_id: uuid.UUID, tenant_id: uuid.UUID) -> bool:
+    return ChannelService(db).delete_channel(channel_id=channel_id, tenant_id=tenant_id)

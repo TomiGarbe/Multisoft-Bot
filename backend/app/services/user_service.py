@@ -105,6 +105,13 @@ def _load_user_with_relations(db: Session, user_id: uuid.UUID) -> Optional[User]
     return user_repository.load_user_with_relations(db, user_id)
 
 
+def get_user_response_by_id(db: Session, user_id: uuid.UUID) -> UserResponse:
+    user = _load_user_with_relations(db, user_id)
+    if user is None:
+        raise LookupError("User not found")
+    return _build_user_response(user)
+
+
 def can_access_tenant(user: User, tenant_id: uuid.UUID) -> bool:
     if user.user_type == UserType.BACKDOOR:
         return True

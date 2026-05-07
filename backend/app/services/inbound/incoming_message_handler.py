@@ -18,6 +18,7 @@ test) debe entrar por aquí para garantizar consistencia y trazabilidad.
 """
 
 import logging
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -32,14 +33,14 @@ logger = logging.getLogger(__name__)
 _processor = MessageProcessor()
 
 
-async def handle_incoming_message(db: Session, message: NormalizedMessage) -> None:
+async def handle_incoming_message(db: Session, message: NormalizedMessage, tenant_id: uuid.UUID) -> None:
     # 1. Cortar si el mensaje proviene del propio bot (echo).
     if message.is_bot:
         logger.info("Skipping bot echo: channel=%s id=%s", message.channel_id, message.external_message_id)
         return
 
     # 2. Obtener o crear la conversación.
-    conversation = message_service.get_or_create_conversation(db, message)
+    conversation = message_service.get_or_create_conversation_with_tenant(db, message, tenant_id=tenant_id)
     if not conversation:
         return
 
@@ -89,6 +90,7 @@ async def handle_incoming_message(db: Session, message: NormalizedMessage) -> No
     try:
         message_service.dispatch_to_channel(db, conversation, outbound)
     except Exception:
+        db.rollback()
         logger.exception(
             "Failed to dispatch outbound message %s for conversation %s",
             outbound.id, conversation.id,

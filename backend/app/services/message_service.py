@@ -4,7 +4,6 @@ from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.tenant import get_current_tenant_id
 from app.interfaces.messaging.message_provider import MessageProvider
 from app.models.channel import Channel
 from app.models.contact import Contact
@@ -59,8 +58,7 @@ class MessageService:
     def ensure_message_id(self, message: object) -> str:
         return _ensure_message_id_value(message)
 
-    def get_or_create_conversation(self, normalized: NormalizedMessage) -> Optional[Conversation]:
-        tenant_id = get_current_tenant_id()
+    def get_or_create_conversation(self, normalized: NormalizedMessage, tenant_id: uuid.UUID) -> Optional[Conversation]:
         channel_uuid = uuid.UUID(normalized.channel_id)
 
         channel = self.repository.get_channel_by_id_and_tenant(channel_uuid, tenant_id)
@@ -191,8 +189,14 @@ class MessageService:
         self.repository.refresh(message)
         return result
 
-    def create_inbound_message(self, normalized: NormalizedMessage) -> Optional[Message]:
-        conversation = self.get_or_create_conversation(normalized)
+    def create_inbound_message(
+        self,
+        normalized: NormalizedMessage,
+        tenant_id: Optional[uuid.UUID] = None,
+    ) -> Optional[Message]:
+        if tenant_id is None:
+            raise ValueError("tenant_id is required for inbound message creation")
+        conversation = self.get_or_create_conversation(normalized, tenant_id=tenant_id)
         if not conversation:
             return None
         return self.save_inbound_message(conversation, normalized)
@@ -200,9 +204,8 @@ class MessageService:
     def send_message(
         self,
         data: MessageSendRequest,
-        tenant_id: Optional[uuid.UUID] = None,
+        tenant_id: uuid.UUID,
     ) -> dict:
-        tenant_id = tenant_id or get_current_tenant_id()
         conversation = self.repository.get_conversation_by_id_and_tenant(data.conversation_id, tenant_id)
         if not conversation:
             raise ValueError(f"Conversation not found: {data.conversation_id}")
@@ -223,9 +226,8 @@ class MessageService:
     def list_messages(
         self,
         conversation_id: uuid.UUID,
-        tenant_id: Optional[uuid.UUID] = None,
+        tenant_id: uuid.UUID,
     ) -> list[MessageResponse]:
-        tenant_id = tenant_id or get_current_tenant_id()
         conversation = self.repository.get_conversation_by_id_and_tenant(conversation_id, tenant_id)
         if conversation is None:
             raise ValueError(f"Conversation not found: {conversation_id}")
@@ -337,6 +339,7 @@ class MessageService:
                 "conversation_id": str(message.conversation_id),
                 "message": serialized,
             },
+            tenant_id=message.tenant_id,
         )
 
 
@@ -347,7 +350,15 @@ def ensure_message_id(message: object) -> str:
 
 
 def get_or_create_conversation(db: Session, normalized: NormalizedMessage) -> Optional[Conversation]:
-    return MessageService(db).get_or_create_conversation(normalized)
+    raise ValueError("tenant_id is required for get_or_create_conversation")
+
+
+def get_or_create_conversation_with_tenant(
+    db: Session,
+    normalized: NormalizedMessage,
+    tenant_id: uuid.UUID,
+) -> Optional[Conversation]:
+    return MessageService(db).get_or_create_conversation(normalized, tenant_id=tenant_id)
 
 
 def save_inbound_message(db: Session, conversation: Conversation, normalized: NormalizedMessage) -> Optional[Message]:
@@ -375,16 +386,28 @@ def dispatch_to_channel(
 
 
 def create_inbound_message(db: Session, normalized: NormalizedMessage) -> Optional[Message]:
-    return MessageService(db).create_inbound_message(normalized)
+    raise ValueError("tenant_id is required for create_inbound_message")
+
+
+def create_inbound_message_with_tenant(
+    db: Session,
+    normalized: NormalizedMessage,
+    tenant_id: uuid.UUID,
+) -> Optional[Message]:
+    return MessageService(db).create_inbound_message(normalized, tenant_id=tenant_id)
 
 
 def send_message(db: Session, data: dict) -> dict:
+    raise ValueError("tenant_id is required for send_message")
+
+
+def send_message_with_tenant(db: Session, data: dict, tenant_id: uuid.UUID) -> dict:
     request = MessageSendRequest(**data)
-    return MessageService(db).send_message(request)
+    return MessageService(db).send_message(request, tenant_id=tenant_id)
 
 
-def get_messages(db: Session, conversation_id: uuid.UUID) -> list[dict]:
-    messages = MessageService(db).list_messages(conversation_id)
+def get_messages(db: Session, conversation_id: uuid.UUID, tenant_id: uuid.UUID) -> list[dict]:
+    messages = MessageService(db).list_messages(conversation_id, tenant_id=tenant_id)
     return [m.model_dump(mode="json") for m in messages]
 
 

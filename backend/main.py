@@ -4,6 +4,7 @@ from sqlalchemy import text
 import logging
 
 from app.api.routes import (
+    analytics,
     ai,
     api_keys,
     auth,
@@ -53,6 +54,7 @@ app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks")
 app.include_router(messages.router, prefix=f"{settings.API_V1_STR}/messages")
 app.include_router(conversations.router, prefix=f"{settings.API_V1_STR}/conversations")
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai")
+app.include_router(analytics.router, prefix=f"{settings.API_V1_STR}/analytics")
 app.include_router(realtime.router, prefix=f"{settings.API_V1_STR}/realtime")
 app.include_router(api_keys.router, prefix=f"{settings.API_V1_STR}/api-keys")
 app.include_router(bot_actions.router, prefix=f"{settings.API_V1_STR}/bot-actions")

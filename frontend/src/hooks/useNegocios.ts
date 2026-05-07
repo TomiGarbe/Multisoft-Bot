@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { getApiErrorMessage } from '@/services/api';
+import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getToken } from '@/services/auth';
 import { deleteTenant, getTenants } from '@/services/tenants';
 import type { Tenant } from '@/types/tenant';
@@ -38,6 +38,15 @@ export function useNegocios(toast?: { success: (message: string) => void; error:
 
   useEffect(() => {
     if (hasToken) void fetchNegocios();
+  }, [hasToken, fetchNegocios]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      if (hasToken) void fetchNegocios();
+    };
+    window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
   }, [hasToken, fetchNegocios]);
 
   const openCreateNegocio = () => {
