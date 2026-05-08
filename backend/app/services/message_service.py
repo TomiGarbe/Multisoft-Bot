@@ -41,6 +41,7 @@ def _serialize_message(message: Message) -> MessageResponse:
         content=message.content_text,
         status=message.status,
         provider_message_id=message.provider_message_id,
+        replied_to_message_id=message.replied_to_message_id,
         created_at=message.created_at,
     )
 
@@ -114,6 +115,7 @@ class MessageService:
             provider_timestamp=normalized.timestamp,
             has_media=normalized.has_media,
             raw_payload=normalized.raw_payload,
+            replied_to_message_id=normalized.replied_to_message_id,
         )
         self.repository.create_message(message)
         self.repository.touch_conversation_last_message(conversation)
@@ -128,6 +130,7 @@ class MessageService:
         content: str,
         attachments: Optional[list] = None,
         raw_payload: Optional[dict] = None,
+        replied_to_message_id: Optional[str] = None,
     ) -> Message:
         thread = self.repository.get_thread_by_id_and_tenant(conversation.chat_thread_id, conversation.tenant_id)
         if thread is None:
@@ -145,6 +148,7 @@ class MessageService:
             status="pending",
             has_media=bool(attachments),
             raw_payload=raw_payload,
+            replied_to_message_id=replied_to_message_id,
         )
         self.repository.create_message(message)
         self.repository.commit()
@@ -172,12 +176,33 @@ class MessageService:
         content = message.content_text or ""
 
         if reply_to_id:
-            result = provider.reply_to_message(str(channel.id), to, content, reply_to_id)
+            result = provider.reply_to_message(
+                str(channel.id),
+                to,
+                content,
+                reply_to_id,
+                channel_external_id=channel.external_id,
+                channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
+            )
         elif attachments:
             media_url = attachments[0].get("url", "")
-            result = provider.send_media(str(channel.id), to, media_url, content or None)
+            result = provider.send_media(
+                str(channel.id),
+                to,
+                media_url,
+                content or None,
+                channel_external_id=channel.external_id,
+                channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
+            )
         else:
-            result = provider.send_text(str(channel.id), to, content)
+            result = provider.send_text(
+                str(channel.id),
+                to,
+                content,
+                reply_to_message_id=reply_to_id,
+                channel_external_id=channel.external_id,
+                channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
+            )
 
         self.repository.update_message(
             message,
@@ -215,12 +240,13 @@ class MessageService:
             data.content,
             attachments=data.attachments,
             raw_payload=data.model_dump(),
+            replied_to_message_id=data.reply_to_message_id or data.reply_to_id,
         )
         return self.dispatch_to_channel(
             conversation,
             message,
             attachments=data.attachments,
-            reply_to_id=data.reply_to_id,
+            reply_to_id=data.reply_to_message_id or data.reply_to_id,
         )
 
     def list_messages(
@@ -371,8 +397,15 @@ def save_outbound_message(
     content: str,
     attachments: Optional[list] = None,
     raw_payload: Optional[dict] = None,
+    replied_to_message_id: Optional[str] = None,
 ) -> Message:
-    return MessageService(db).save_outbound_message(conversation, content, attachments, raw_payload)
+    return MessageService(db).save_outbound_message(
+        conversation,
+        content,
+        attachments,
+        raw_payload,
+        replied_to_message_id,
+    )
 
 
 def dispatch_to_channel(

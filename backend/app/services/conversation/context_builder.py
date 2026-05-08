@@ -18,6 +18,7 @@ import app.services.message_service as message_service
 logger = logging.getLogger(__name__)
 
 _HISTORY_LIMIT = 15
+_GROUP_FOCUS_LIMIT = 6
 
 
 def build_conversation_context(
@@ -32,12 +33,16 @@ def build_conversation_context(
     default_type = _resolve_default_type(config)
     user_type = _get_valid_contact_type(contact, config, default_type)
     user_memory = _extract_user_memory(contact)
+    target_message = _resolve_target_message(current_message, history)
+    group_context = _build_group_context(current_message, history)
 
     return {
         "messages": history,
         "user_memory": user_memory,
         "current_message": current_message.content_text,
         "user_type": user_type,
+        "target_message": target_message,
+        "group_context": group_context,
     }
 
 
@@ -67,8 +72,53 @@ def _map_messages(messages: list[dict]) -> list[dict]:
         else:
             logger.warning("Unknown sender_type '%s' — skipping message", sender_type)
             continue
-        mapped.append({"role": role, "content": content})
+        mapped.append(
+            {
+                "role": role,
+                "content": content,
+                "provider_message_id": msg.get("provider_message_id"),
+                "sender_external_id": msg.get("sender_external_id"),
+                "sender_name": msg.get("sender_name"),
+                "replied_to_message_id": msg.get("replied_to_message_id"),
+                "is_group": bool(msg.get("is_group")),
+            }
+        )
     return mapped
+
+
+def _resolve_target_message(current_message: Message, history: list[dict]) -> Optional[dict]:
+    target_provider_id = current_message.replied_to_message_id
+    if not target_provider_id:
+        return None
+    for msg in reversed(history):
+        if msg.get("provider_message_id") == target_provider_id:
+            return msg
+    return {"provider_message_id": target_provider_id}
+
+
+def _build_group_context(current_message: Message, history: list[dict]) -> Optional[dict]:
+    if not current_message.is_group:
+        return None
+
+    sender_id = current_message.sender_external_id
+    sender_history = [
+        m for m in history
+        if sender_id and m.get("sender_external_id") == sender_id
+    ][-_GROUP_FOCUS_LIMIT:]
+    mentioned_participants = sorted(
+        {
+            str(m.get("sender_external_id"))
+            for m in history[-_HISTORY_LIMIT:]
+            if m.get("sender_external_id")
+        }
+    )
+    return {
+        "current_sender_external_id": sender_id,
+        "current_sender_name": current_message.sender_name,
+        "current_replied_to_message_id": current_message.replied_to_message_id,
+        "recent_messages_from_same_sender": sender_history,
+        "recent_participants": mentioned_participants,
+    }
 
 
 def _get_contact(db: Session, contact_id: Optional[uuid.UUID]) -> Optional[Contact]:

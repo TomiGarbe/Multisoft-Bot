@@ -157,11 +157,44 @@ class PromptBuilder:
 
         conversation = self.build_conversation(context.get("messages", []))
         current_message = self.build_current_message(context.get("current_message"))
+        target_message = context.get("target_message")
+        group_context = context.get("group_context")
 
         if conversation:
             chunks.append(conversation)
         if current_message:
             chunks.append(current_message)
+        if isinstance(target_message, dict) and target_message:
+            target_text = (target_message.get("content") or "").strip()
+            target_sender = target_message.get("sender_name") or target_message.get("sender_external_id") or "desconocido"
+            if target_text:
+                chunks.append(f"[MENSAJE TARGET]\nDe: {target_sender}\nContenido: {target_text}")
+            elif target_message.get("provider_message_id"):
+                chunks.append(
+                    "[MENSAJE TARGET]\n"
+                    f"provider_message_id: {target_message.get('provider_message_id')}"
+                )
+        if isinstance(group_context, dict) and group_context:
+            participants = group_context.get("recent_participants") or []
+            sender_msgs = group_context.get("recent_messages_from_same_sender") or []
+            lines = []
+            if group_context.get("current_sender_name") or group_context.get("current_sender_external_id"):
+                lines.append(
+                    "Usuario objetivo: "
+                    f"{group_context.get('current_sender_name') or group_context.get('current_sender_external_id')}"
+                )
+            if group_context.get("current_replied_to_message_id"):
+                lines.append(f"Reply target id: {group_context.get('current_replied_to_message_id')}")
+            if participants:
+                lines.append("Participantes recientes: " + ", ".join(str(p) for p in participants))
+            if sender_msgs:
+                lines.append("Ultimos mensajes del usuario objetivo:")
+                for m in sender_msgs[-4:]:
+                    text = (m.get("content") or "").strip()
+                    if text:
+                        lines.append(f"- {text}")
+            if lines:
+                chunks.append("[CONTEXTO GRUPAL]\n" + "\n".join(lines))
 
         if not chunks:
             return ""

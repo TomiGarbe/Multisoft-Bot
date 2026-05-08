@@ -85,6 +85,16 @@ class Settings(BaseSettings):
         description="Optional authentication token for Ollama API"
     )
 
+    # ========== WHATSAPP MULTISOFT ==========
+    WHATSAPP_MULTISOFT_WEBHOOK_URL: Optional[str] = Field(
+        default=None,
+        description="Outgoing webhook URL for Multisoft WhatsApp service",
+    )
+    WHATSAPP_MULTISOFT_TIMEOUT_SECONDS: float = Field(
+        default=15.0,
+        description="Timeout in seconds for Multisoft WhatsApp outbound HTTP calls",
+    )
+
     # ========== MODEL CONFIGURATION ==========
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

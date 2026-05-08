@@ -88,7 +88,8 @@ async def handle_incoming_message(db: Session, message: NormalizedMessage, tenan
 
     # 10. Enviar al canal.
     try:
-        message_service.dispatch_to_channel(db, conversation, outbound)
+        reply_to_id = inbound.provider_message_id if inbound.is_group else None
+        message_service.dispatch_to_channel(db, conversation, outbound, reply_to_id=reply_to_id)
     except Exception:
         db.rollback()
         logger.exception(

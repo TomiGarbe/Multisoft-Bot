@@ -19,6 +19,7 @@ class NormalizedMessage(BaseModel):
 
     is_group: bool
     group_id: Optional[str] = None
+    replied_to_message_id: Optional[str] = None
 
     is_status: bool
     is_bot: bool = False

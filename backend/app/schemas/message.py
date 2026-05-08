@@ -10,6 +10,7 @@ class MessageSendRequest(BaseModel):
     content: str = ""
     attachments: list[dict] = Field(default_factory=list)
     reply_to_id: Optional[str] = None
+    reply_to_message_id: Optional[str] = None
 
 
 class MessageResponse(BaseModel):
@@ -21,6 +22,7 @@ class MessageResponse(BaseModel):
     content: Optional[str] = None
     status: Optional[str] = None
     provider_message_id: Optional[str] = None
+    replied_to_message_id: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
