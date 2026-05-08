@@ -11,6 +11,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.core.policies.inbound_whatsapp_whitelist import should_process_incoming_message
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.internal.normalized_message import NormalizedMessage
 from app.services.message_service import ensure_message_id
@@ -33,5 +34,22 @@ async def handle_webhook(db: Session, channel_id: str, payload: dict, tenant_id:
     if normalized.is_status:
         logger.info("Ignoring status message for channel=%s", normalized.channel_id)
         return
+
+    if (channel.type or "").strip().lower() == "whatsapp":
+        allowed = should_process_incoming_message(
+            is_group=normalized.is_group,
+            sender_phone=normalized.sender_external_id,
+            group_id=normalized.group_id,
+        )
+        if not allowed:
+            logger.info(
+                "Ignoring inbound message from unauthorized sender/group"
+                " channel=%s is_group=%s sender=%s group=%s",
+                normalized.channel_id,
+                normalized.is_group,
+                normalized.sender_external_id,
+                normalized.group_id,
+            )
+            return
 
     await handle_incoming_message(db, normalized, tenant_id=tenant_id)

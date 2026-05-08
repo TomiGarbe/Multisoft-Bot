@@ -94,6 +94,14 @@ class Settings(BaseSettings):
         default=15.0,
         description="Timeout in seconds for Multisoft WhatsApp outbound HTTP calls",
     )
+    WHATSAPP_ALLOWED_NUMBERS: str = Field(
+        default="",
+        description="Comma-separated WhatsApp sender numbers allowed for inbound private messages",
+    )
+    WHATSAPP_ALLOWED_GROUPS: str = Field(
+        default="",
+        description="Comma-separated WhatsApp group IDs allowed for inbound group messages",
+    )
 
     # ========== MODEL CONFIGURATION ==========
     model_config = SettingsConfigDict(
