@@ -28,7 +28,7 @@ export function useConfig(toast?: { success: (message: string) => void; error: (
       const result = await getChannels();
       setConfigItems(result);
     } catch (err) {
-      setError(getApiErrorMessage(err, 'No se pudo cargar la configuración.'));
+      setError(getApiErrorMessage(err, 'No se pudo cargar la configuracion.'));
     } finally {
       setLoading(false);
     }
@@ -58,16 +58,16 @@ export function useConfig(toast?: { success: (message: string) => void; error: (
   };
 
   const deleteConfig = async (item: Channel) => {
-    const confirmed = window.confirm(`�Eliminar la configuración \"${item.name}\"? Esta acción no se puede deshacer.`);
+    const confirmed = window.confirm(`Eliminar la configuracion \"${item.name}\"? Esta accion no se puede deshacer.`);
     if (!confirmed) return;
 
     try {
       setDeletingId(item.id);
       await deleteChannel(item.id);
-      toast?.success('Configuración eliminada correctamente.');
+      toast?.success('Configuracion eliminada correctamente.');
       await fetchConfig();
     } catch (err) {
-      const message = getApiErrorMessage(err, 'No se pudo eliminar la configuración.');
+      const message = getApiErrorMessage(err, 'No se pudo eliminar la configuracion.');
       if (toast) toast.error(message);
       else setError(message);
     } finally {

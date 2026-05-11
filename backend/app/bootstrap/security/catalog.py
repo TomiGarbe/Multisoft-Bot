@@ -46,14 +46,12 @@ PERMISSIONS: tuple[PermissionSeed, ...] = (
     PermissionSeed("realtime.read", "Read Realtime", "Consume realtime stream"),
 )
 
-BACKDOOR_ROLE_NAME = "BACKDOOR"
-ADMIN_ROLE_NAME = "ADMIN"
-TENANT_USER_ROLE_NAME = "TENANT_USER"
+BACKDOOR_ROLE_NAME = "Backdoor"
+ADMIN_ROLE_NAME = "Administrador"
 
 ROLE_DEFINITIONS: dict[str, str] = {
     BACKDOOR_ROLE_NAME: "Global role with full access to every permission",
     ADMIN_ROLE_NAME: "Tenant-level administration role",
-    TENANT_USER_ROLE_NAME: "Tenant-level operational role",
 }
 
 ADMIN_PERMISSION_CODES: set[str] = {
@@ -61,7 +59,6 @@ ADMIN_PERMISSION_CODES: set[str] = {
     "users.create",
     "users.update",
     "users.delete",
-    "users.create_admin",
     "tenants.read",
     "tenants.update",
     "channels.read",
@@ -86,16 +83,5 @@ ADMIN_PERMISSION_CODES: set[str] = {
     "api_keys.manage",
     "ai.test",
     "analytics.read",
-    "realtime.read",
-}
-
-TENANT_USER_PERMISSION_CODES: set[str] = {
-    "channels.read",
-    "channel_config.read",
-    "bot_actions.read",
-    "messages.read",
-    "messages.send",
-    "conversations.read",
-    "conversations.update",
     "realtime.read",
 }

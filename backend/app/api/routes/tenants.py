@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_tenant, get_current_user
 from app.api.dependencies.permissions import require_permission
+from app.core.timezones import LATAM_TIMEZONE_OPTIONS
 from app.db.session import get_db
 from app.models import User
 from app.models.user import UserType
-from app.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
+from app.schemas.tenant import TenantCreate, TenantResponse, TenantTimezoneOption, TenantUpdate
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.services.tenant_service import (
     create_tenant,
@@ -34,6 +35,13 @@ async def read_tenants(
     _: None = Depends(require_permission("tenants.read")),
 ):
     return get_tenants(db, user=current_user)
+
+
+@router.get("/timezones", response_model=list[TenantTimezoneOption])
+async def read_supported_tenant_timezones(
+    _: None = Depends(require_permission("tenants.read")),
+):
+    return [TenantTimezoneOption(value=item.value, label=item.label) for item in LATAM_TIMEZONE_OPTIONS]
 
 
 @router.post("", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)

@@ -23,6 +23,8 @@ from app.api.routes import (
 )
 from app.bootstrap.security import SecurityBootstrapService
 from app.core.config import settings
+from app.core.datetime_utils import reset_current_tenant_timezone
+from app.core.serialization import configure_datetime_encoder
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ app = FastAPI(
     version=settings.VERSION,
     description=settings.DESCRIPTION,
 )
+configure_datetime_encoder()
 
 # CORS middleware
 app.add_middleware(
@@ -58,6 +61,13 @@ app.include_router(analytics.router, prefix=f"{settings.API_V1_STR}/analytics")
 app.include_router(realtime.router, prefix=f"{settings.API_V1_STR}/realtime")
 app.include_router(api_keys.router, prefix=f"{settings.API_V1_STR}/api-keys")
 app.include_router(bot_actions.router, prefix=f"{settings.API_V1_STR}/bot-actions")
+
+
+@app.middleware("http")
+async def reset_tenant_timezone_context(request, call_next):
+    reset_current_tenant_timezone()
+    response = await call_next(request)
+    return response
 
 
 @app.on_event("startup")

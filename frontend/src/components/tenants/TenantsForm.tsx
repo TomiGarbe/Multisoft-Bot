@@ -10,6 +10,12 @@ import {
 import type { Tenant } from '@/types/tenant';
 import { getApiErrorMessage } from '@/services/api';
 import { generateSlug } from '@/utils/slug';
+import {
+  DEFAULT_TENANT_TIMEZONE,
+  isAllowedTenantTimezone,
+  TENANT_TIMEZONE_OPTIONS,
+  resolveTenantTimezone,
+} from '@/constants/timezones';
 
 interface Props {
   isOpen: boolean;
@@ -28,7 +34,7 @@ export default function TenantsForm({
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [industry, setIndustry] = useState('');
-  const [timezone, setTimezone] = useState('');
+  const [timezone, setTimezone] = useState(DEFAULT_TENANT_TIMEZONE);
   const [isActivo, setIsActivo] = useState(true);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -40,7 +46,7 @@ export default function TenantsForm({
       setSlug(tenant.slug);
       setDescription(tenant.description ?? '');
       setIndustry(tenant.industry ?? '');
-      setTimezone(tenant.timezone ?? '');
+      setTimezone(resolveTenantTimezone(tenant.timezone));
       setIsActivo(tenant.is_active);
       setSlugTouched(true);
     } else {
@@ -48,7 +54,7 @@ export default function TenantsForm({
       setSlug('');
       setDescription('');
       setIndustry('');
-      setTimezone('');
+      setTimezone(DEFAULT_TENANT_TIMEZONE);
       setIsActivo(true);
       setSlugTouched(false);
     }
@@ -62,6 +68,15 @@ export default function TenantsForm({
   }, [name, slugTouched]);
 
   const handleSubmit = async () => {
+    if (!timezone) {
+      alert('La zona horaria es obligatoria.');
+      return;
+    }
+    if (!isAllowedTenantTimezone(timezone)) {
+      alert('Selecciona una zona horaria valida de la lista.');
+      return;
+    }
+
     try {
       setIsSaving(true);
 
@@ -116,7 +131,7 @@ export default function TenantsForm({
         {/* DESCRIPTION */}
         <textarea
           className="w-full border p-2 rounded"
-          placeholder="Descripción"
+          placeholder="Descripcion"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
@@ -130,12 +145,24 @@ export default function TenantsForm({
         />
 
         {/* TIMEZONE */}
-        <input
-          className="w-full border p-2 rounded"
-          placeholder="Zona horaria (ej. America/Argentina/Buenos_Aires)"
-          value={timezone}
-          onChange={(e) => setTimezone(e.target.value)}
-        />
+        <div className="space-y-1">
+          <label htmlFor="tenant-timezone" className="block text-sm font-medium text-slate-700">
+            Zona horaria
+          </label>
+          <select
+            id="tenant-timezone"
+            className="w-full rounded border border-slate-300 bg-white p-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            required
+          >
+            {TENANT_TIMEZONE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* ACTIVE */}
         {tenant && (

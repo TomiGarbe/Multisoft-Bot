@@ -57,7 +57,7 @@ export default function BusinessUsersPage() {
         email,
         password,
         role_id: roleId || null,
-        user_type: 'BUSINESS_USER',
+        user_type: 'User',
       });
       toast.success('Usuario del negocio creado correctamente.');
       setIsOpen(false);
@@ -88,10 +88,11 @@ export default function BusinessUsersPage() {
         <form id="business-user-form" className="space-y-4" onSubmit={submit}>
           <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Input label="Contrasena" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <div className="space-y-1 text-sm"><label>Rol</label><select value={roleId} onChange={(e) => setRoleId(e.target.value)} className="w-full rounded border border-slate-300 px-2 py-1"><option value="">Sin rol</option>{roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></div>
         </form>
       </Modal>
     </AppLayout>
   );
 }
+

@@ -8,6 +8,9 @@ interface ApiConversation {
   status: 'open' | 'closed';
   mode?: 'ai' | 'human';
   channel_id?: string | null;
+  channel_name?: string | null;
+  channel_type?: string | null;
+  channel_provider?: string | null;
   channel_config_id?: string | null;
   started_at: string;
   last_message_at: string | null;
@@ -35,10 +38,13 @@ function mapConversation(raw: ApiConversation): Conversation {
   return {
     id: raw.id,
     channelId: raw.channel_id ?? undefined,
+    channelName: raw.channel_name ?? undefined,
+    channelType: raw.channel_type ?? undefined,
+    channelProvider: raw.channel_provider ?? undefined,
     channelConfigId: raw.channel_config_id ?? undefined,
     // contactName and contactPhone are not yet returned by GET /conversations.
-    // Fallback until the backend includes contact info in the response.
-    contactName: `Contacto ${raw.id.slice(0, 8)}`,
+    // Use a neutral fallback to avoid exposing internal ids in UI.
+    contactName: 'Contacto sin nombre',
     status: raw.status,
     // mode is part of the backend model but not yet in GET /conversations response.
     mode: raw.mode ?? 'ai',
@@ -55,10 +61,6 @@ function mapMessage(raw: ApiMessage): Message {
     content: raw.content ?? '',
     createdAt: raw.created_at,
   };
-}
-
-export function mapApiMessage(raw: ApiMessage): Message {
-  return mapMessage(raw);
 }
 
 // ─── Service functions ─────────────────────────────────────────────────────────
@@ -86,7 +88,3 @@ export async function setConversationMode(
   await api.patch(`/conversations/${conversationId}/mode`, { mode });
 }
 
-export function getRealtimeEventsUrl(): string {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-  return `${apiUrl}/realtime/events`;
-}

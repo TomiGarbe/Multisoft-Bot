@@ -1,5 +1,6 @@
 import { Phone } from 'lucide-react';
 import { Conversation } from '@/types/chat';
+import type { ChannelMeta } from './channelMeta';
 
 interface Props {
   conversation: Conversation;
@@ -8,6 +9,7 @@ interface Props {
   aiUnavailable?: boolean;
   aiUnavailableReason?: string;
   onOpenConfig?: () => void;
+  channelMeta: ChannelMeta;
 }
 
 const AVATAR_COLORS = [
@@ -44,11 +46,13 @@ export default function ConversationHeader({
   aiUnavailable,
   aiUnavailableReason,
   onOpenConfig,
+  channelMeta,
 }: Props) {
   const initials = getInitials(conversation.contactName);
   const color = avatarColor(conversation.id);
 
   const canClickToggle = !!onModeToggle && !isToggling && !(aiUnavailable && conversation.mode === 'human');
+  const ChannelIcon = channelMeta.Icon;
 
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b border-gray-200 bg-white shadow-sm">
@@ -61,6 +65,12 @@ export default function ConversationHeader({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="font-semibold text-gray-900 text-sm">{conversation.contactName}</h2>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${channelMeta.badgeClassName}`}
+          >
+            <ChannelIcon className="h-3 w-3" />
+            {channelMeta.label}
+          </span>
           <span
             className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${
               conversation.status === 'open'

@@ -2,11 +2,11 @@ import uuid
 from typing import Optional
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.auth import TenantUser
 from app.models.config import ChannelBotConfig
-from app.models.conversation import Conversation
+from app.models.conversation import Conversation, ChatThread
 from app.repositories.base_repository import BaseRepository
 
 
@@ -25,7 +25,7 @@ class ConversationRepository(BaseRepository):
         stmt = select(Conversation).where(
             Conversation.id == conversation_id,
             Conversation.tenant_id == tenant_id,
-        )
+        ).options(joinedload(Conversation.chat_thread))
         return self.db.execute(stmt).scalar_one_or_none()
 
     def get_all(self) -> list[Conversation]:
@@ -35,6 +35,9 @@ class ConversationRepository(BaseRepository):
     def get_all_by_tenant(self, tenant_id: uuid.UUID) -> list[Conversation]:
         stmt = (
             select(Conversation)
+            .options(
+                joinedload(Conversation.chat_thread).joinedload(ChatThread.channel),
+            )
             .where(Conversation.tenant_id == tenant_id)
             .order_by(Conversation.last_message_at.desc())
         )

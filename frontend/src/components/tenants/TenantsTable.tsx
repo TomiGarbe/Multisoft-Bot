@@ -2,6 +2,7 @@ import Table from '@/components/ui/Table';
 import Button from '@/components/ui/Button';
 import { Pencil, Trash } from 'lucide-react';
 import type { Tenant } from '@/types/tenant';
+import { TENANT_TIMEZONE_LABEL_BY_VALUE } from '@/constants/timezones';
 
 interface Props {
   tenants: Tenant[];
@@ -18,7 +19,7 @@ export default function TenantsTable({
 }: Props) {
   return (
     <Table
-      headers={['Nombre', 'Slug', 'Industria', 'Zona horaria', 'Descripción', 'Estado', 'Acciones']}
+      headers={['Nombre', 'Slug', 'Industria', 'Zona horaria', 'Descripcion', 'Estado', 'Acciones']}
       hasRows={tenants.length > 0}
       emptyMessage="No se encontraron negocios."
     >
@@ -26,9 +27,9 @@ export default function TenantsTable({
         <tr key={tenant.id}>
           <td className="px-4 py-3 font-medium">{tenant.name}</td>
           <td className="px-4 py-3 text-sm text-slate-600">{tenant.slug}</td>
-          <td className="px-4 py-3 text-sm text-slate-600">{tenant.industry ?? '�'}</td>
-          <td className="px-4 py-3 text-sm text-slate-600">{tenant.timezone ?? '�'}</td>
-          <td className="px-4 py-3 text-sm text-slate-600">{tenant.description ?? '�'}</td>
+          <td className="px-4 py-3 text-sm text-slate-600">{tenant.industry ?? '-'}</td>
+          <td className="px-4 py-3 text-sm text-slate-600">{(tenant.timezone && TENANT_TIMEZONE_LABEL_BY_VALUE[tenant.timezone]) || tenant.timezone || '-'}</td>
+          <td className="px-4 py-3 text-sm text-slate-600">{tenant.description ?? '-'}</td>
 
           <td className="px-4 py-3">
             <span

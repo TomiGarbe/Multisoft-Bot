@@ -3,6 +3,7 @@ import uuid
 from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
+from fastapi.encoders import jsonable_encoder
 
 from app.interfaces.messaging.message_provider import MessageProvider
 from app.models.channel import Channel
@@ -15,6 +16,19 @@ from app.schemas.message import MessageResponse, MessageSendRequest
 from app.services.realtime_service import event_bus
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_channel_provider_name(channel: Channel) -> str:
+    if isinstance(channel.config_jsonb, dict):
+        provider = channel.config_jsonb.get("provider")
+        if isinstance(provider, str) and provider.strip():
+            return provider
+    # Backward-compatible fallback for old rows without provider.
+    if (channel.type or "").strip().lower() == "whatsapp":
+        return "multisoft"
+    if (channel.type or "").strip().lower() == "web":
+        return "web"
+    return channel.type
 
 
 def _ensure_message_id_value(message: object) -> str:
@@ -171,7 +185,8 @@ class MessageService:
         if channel is None:
             raise ValueError(f"Channel not found: {thread.channel_id}")
 
-        provider = self.provider_resolver(channel.type)
+        provider_name = _resolve_channel_provider_name(channel)
+        provider = self.provider_resolver(provider_name)
         to = thread.external_chat_id
         content = message.content_text or ""
 
@@ -239,7 +254,7 @@ class MessageService:
             conversation,
             data.content,
             attachments=data.attachments,
-            raw_payload=data.model_dump(),
+            raw_payload=data.model_dump(mode="json"),
             replied_to_message_id=data.reply_to_message_id or data.reply_to_id,
         )
         return self.dispatch_to_channel(
@@ -357,7 +372,7 @@ class MessageService:
         return _serialize_message(message)
 
     def _publish_new_message_event(self, message: Message) -> None:
-        serialized = self._to_response(message).model_dump(mode="json")
+        serialized = jsonable_encoder(self._to_response(message))
         event_bus.publish(
             "new_message",
             {
@@ -441,7 +456,7 @@ def send_message_with_tenant(db: Session, data: dict, tenant_id: uuid.UUID) -> d
 
 def get_messages(db: Session, conversation_id: uuid.UUID, tenant_id: uuid.UUID) -> list[dict]:
     messages = MessageService(db).list_messages(conversation_id, tenant_id=tenant_id)
-    return [m.model_dump(mode="json") for m in messages]
+    return [jsonable_encoder(m) for m in messages]
 
 
 def get_contact(db: Session, contact_id: uuid.UUID) -> Optional[Contact]:
@@ -469,4 +484,4 @@ def set_conversation_mode(db: Session, conversation: Conversation, mode: str) ->
 
 
 def serialize_message(message: Message) -> dict:
-    return _serialize_message(message).model_dump(mode="json")
+    return jsonable_encoder(_serialize_message(message))

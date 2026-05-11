@@ -78,7 +78,7 @@ async def create_admin_user_endpoint(
             email=user_data.email,
             password=user_data.password,
             is_active=user_data.is_active,
-            user_type=UserType.ADMIN,
+            user_type=UserType.ADMINISTRADOR,
             tenant_ids=user_data.tenant_ids,
         )
     except ValueError as exc:
@@ -144,4 +144,5 @@ async def delete_user_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+
 

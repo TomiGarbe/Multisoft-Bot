@@ -21,13 +21,25 @@ from app.providers.provider_factory import get_message_provider
 logger = logging.getLogger(__name__)
 
 
+def _resolve_channel_provider_name(channel) -> str:
+    if isinstance(channel.config_jsonb, dict):
+        provider = channel.config_jsonb.get("provider")
+        if isinstance(provider, str) and provider.strip():
+            return provider
+    if (channel.type or "").strip().lower() == "whatsapp":
+        return "multisoft"
+    if (channel.type or "").strip().lower() == "web":
+        return "web"
+    return channel.type
+
+
 async def handle_webhook(db: Session, channel_id: str, payload: dict, tenant_id: uuid.UUID) -> None:
     channel = ChannelRepository(db).get_by_id_and_tenant(uuid.UUID(channel_id), tenant_id)
     if not channel:
         logger.warning("Channel not found or outside tenant scope for webhook: channel=%s tenant=%s", channel_id, tenant_id)
         return
 
-    provider = get_message_provider(channel.type)
+    provider = get_message_provider(_resolve_channel_provider_name(channel))
     normalized: NormalizedMessage = provider.normalize_incoming_payload(channel_id, payload)
     ensure_message_id(normalized)
 

@@ -17,7 +17,7 @@ export default function HomePage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50">
       <div className="text-center">
         <h1 className="mb-4 text-3xl font-bold text-slate-900">Inicio</h1>
-        <p className="text-slate-600">Redirigiendo a la sección correspondiente.</p>
+        <p className="text-slate-600">Redirigiendo a la seccion correspondiente.</p>
       </div>
     </div>
   );

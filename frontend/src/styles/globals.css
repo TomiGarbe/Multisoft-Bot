@@ -14,7 +14,16 @@ html,
 body,
 #__next {
   height: 100%;
-  overflow: hidden;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+#__next {
+  overflow: visible;
 }
 
 .main {

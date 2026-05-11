@@ -1,18 +1,8 @@
-import { Building2, Globe } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { useTenantContext } from '@/context/tenant-context';
 
 export default function TenantSwitcher() {
-  const {
-    loading,
-    error,
-    tenants,
-    activeTenantId,
-    scope,
-    canUseGlobalScope,
-    setTenant,
-    setScope,
-    activeTenant,
-  } = useTenantContext();
+  const { loading, error, tenants, activeTenantId, setTenant, activeTenant } = useTenantContext();
 
   if (loading) {
     return <span className="text-xs text-slate-500">Cargando tenant...</span>;
@@ -28,22 +18,6 @@ export default function TenantSwitcher() {
 
   return (
     <div className="flex items-center gap-2">
-      {canUseGlobalScope && (
-        <button
-          type="button"
-          onClick={() => setScope(scope === 'global' ? 'tenant' : 'global')}
-          className={`inline-flex h-9 items-center gap-1 rounded-md border px-2 text-xs font-medium transition ${
-            scope === 'global'
-              ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-          }`}
-          title="Alternar scope de analytics"
-        >
-          <Globe className="h-3.5 w-3.5" />
-          {scope === 'global' ? 'Global' : 'Tenant'}
-        </button>
-      )}
-
       <label className="sr-only" htmlFor="tenant-switcher">
         Tenant activo
       </label>
@@ -62,8 +36,6 @@ export default function TenantSwitcher() {
           ))}
         </select>
       </div>
-
-      <span className="hidden text-xs text-slate-500 md:inline">{activeTenant?.slug}</span>
     </div>
   );
 }

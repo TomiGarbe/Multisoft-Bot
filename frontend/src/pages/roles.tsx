@@ -1,27 +1,27 @@
-import AppLayout from '@/components/layout/AppLayout';
+﻿import AppLayout from '@/components/layout/AppLayout';
 import Button from '@/components/ui/Button';
 import PageHeader from '@/components/ui/PageHeader';
 import { ToastViewport, useToast } from '@/components/ui/toast';
 import RolesForm from '@/components/roles/RolesForm';
 import RolesTable from '@/components/roles/RolesTable';
-import { useAdvisors } from '@/hooks/useAdvisors';
+import { useRoles } from '@/hooks/useRoles';
 
 export default function RolesPage() {
   const toast = useToast();
   const {
     hasToken,
-    advisors,
+    roles,
     loading,
     error,
     deletingId,
     isFormOpen,
-    selectedAdvisor,
-    createAdvisor,
-    updateAdvisor,
-    deleteAdvisor,
+    selectedRole,
+    createRole,
+    updateRole,
+    deleteRole,
     setIsFormOpen,
-    fetchAdvisors,
-  } = useAdvisors(toast);
+    fetchRoles,
+  } = useRoles(toast);
 
   if (!hasToken) return null;
 
@@ -31,23 +31,23 @@ export default function RolesPage() {
       <div className="space-y-6 p-6 md:p-8">
         <PageHeader
           title="Roles"
-          description="Administra roles y permisos del sistema."
-          actions={<Button onClick={createAdvisor}>+ Crear rol</Button>}
+          description="Administra roles y permisos de este negocio."
+          actions={<Button onClick={createRole}>+ Crear rol</Button>}
         />
-        {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
         {loading ? (
           <div className="text-center text-sm text-slate-500">Cargando roles...</div>
         ) : (
-          <RolesTable roles={advisors} isDeletingId={deletingId} onEdit={updateAdvisor} onDelete={deleteAdvisor} />
+          <RolesTable roles={roles} isDeletingId={deletingId} onEdit={updateRole} onDelete={deleteRole} />
         )}
       </div>
       <RolesForm
         open={isFormOpen}
-        role={selectedAdvisor}
+        role={selectedRole}
         onClose={() => setIsFormOpen(false)}
         onSuccess={(message) => {
           toast.success(message);
-          void fetchAdvisors();
+          void fetchRoles();
         }}
       />
     </AppLayout>

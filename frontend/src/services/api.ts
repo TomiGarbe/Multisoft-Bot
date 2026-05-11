@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 const ACTIVE_TENANT_ID_KEY = 'active_tenant_id';
-const ACTIVE_SCOPE_KEY = 'active_scope';
 export const TENANT_CONTEXT_CHANGED_EVENT = 'tenant-context-changed';
 
 const api = axios.create({
@@ -19,14 +18,13 @@ api.interceptors.request.use((config) => {
 
   const token = localStorage.getItem('access_token');
   const activeTenantId = localStorage.getItem(ACTIVE_TENANT_ID_KEY);
-  const activeScope = (localStorage.getItem(ACTIVE_SCOPE_KEY) || 'tenant').trim().toLowerCase();
   if (!token) {
     return config;
   }
 
   config.headers = config.headers ?? {};
   config.headers.Authorization = `Bearer ${token}`;
-  if (activeScope !== 'global' && activeTenantId && activeTenantId.trim().length > 0) {
+  if (activeTenantId && activeTenantId.trim().length > 0) {
     config.headers['X-Tenant-Id'] = activeTenantId;
   } else {
     delete (config.headers as Record<string, string>)['X-Tenant-Id'];
@@ -34,16 +32,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export type ActiveScope = 'tenant' | 'global';
-
 function notifyTenantContextChanged(): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(TENANT_CONTEXT_CHANGED_EVENT));
 }
 
-export function setActiveTenantContext(tenantId: string | null, scope: ActiveScope = 'tenant'): void {
+export function setActiveTenantContext(tenantId: string | null): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(ACTIVE_SCOPE_KEY, scope);
   if (tenantId && tenantId.trim().length > 0) {
     localStorage.setItem(ACTIVE_TENANT_ID_KEY, tenantId);
   } else {
@@ -54,18 +49,16 @@ export function setActiveTenantContext(tenantId: string | null, scope: ActiveSco
 
 export function clearActiveTenantContext(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(ACTIVE_SCOPE_KEY);
   localStorage.removeItem(ACTIVE_TENANT_ID_KEY);
   notifyTenantContextChanged();
 }
 
-export function getActiveTenantContext(): { tenantId: string | null; scope: ActiveScope } {
+export function getActiveTenantContext(): { tenantId: string | null } {
   if (typeof window === 'undefined') {
-    return { tenantId: null, scope: 'tenant' };
+    return { tenantId: null };
   }
   const tenantId = localStorage.getItem(ACTIVE_TENANT_ID_KEY);
-  const storedScope = (localStorage.getItem(ACTIVE_SCOPE_KEY) || 'tenant').trim().toLowerCase();
-  return { tenantId, scope: storedScope === 'global' ? 'global' : 'tenant' };
+  return { tenantId };
 }
 
 export function getApiErrorMessage(error: unknown, fallback = 'Unexpected error'): string {

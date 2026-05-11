@@ -131,7 +131,7 @@ class AuthService:
         user_id: uuid.UUID,
         email: str,
         is_backdoor: bool = False,
-        user_type: str = "USER",
+        user_type: str = "User",
         expires_delta: Optional[timedelta] = None,
     ) -> str:
         return create_access_token(
@@ -178,7 +178,7 @@ def create_access_token(
     user_id: uuid.UUID,
     email: str,
     is_backdoor: bool = False,
-    user_type: str = "USER",
+    user_type: str = "User",
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     if expires_delta is None:

@@ -43,10 +43,14 @@ export interface User {
   permissions: Permission[];
   is_active?: boolean;
   is_backdoor?: boolean;
-  user_type?: 'ADMIN' | 'BACKDOOR' | 'BUSINESS_USER';
+  user_type?: 'Administrador' | 'Backdoor' | 'User';
   tenant_id?: string | null;
   business_ids?: string[];
+  tenant_ids?: string[];
   tenant?: TenantSummary | null;
+  created_at?: string | null;
+  last_login_at?: string | null;
+  last_access_at?: string | null;
 }
 
 export interface CreateUserInput {
@@ -57,9 +61,10 @@ export interface CreateUserInput {
   permissions?: string[];
   is_active?: boolean;
   is_backdoor?: boolean;
-  user_type?: 'ADMIN' | 'BACKDOOR' | 'BUSINESS_USER';
+  user_type?: 'Administrador' | 'Backdoor' | 'User';
   tenant_id?: string;
   business_ids?: string[];
+  tenant_ids?: string[];
 }
 
 export interface UpdateUserInput {
@@ -70,7 +75,9 @@ export interface UpdateUserInput {
   permissions?: string[];
   is_active?: boolean;
   is_backdoor?: boolean;
-  user_type?: 'ADMIN' | 'BACKDOOR' | 'BUSINESS_USER';
+  user_type?: 'Administrador' | 'Backdoor' | 'User';
   tenant_id?: string | null;
   business_ids?: string[];
+  tenant_ids?: string[];
 }
+

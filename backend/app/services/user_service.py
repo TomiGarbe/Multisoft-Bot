@@ -142,7 +142,7 @@ def create_user(
             if role_id is not None or (permissions or []) or final_tenant_ids:
                 raise ValueError("Backdoor user cannot have tenant-scoped associations")
 
-        if final_user_type == UserType.ADMIN and not final_tenant_ids:
+        if final_user_type == UserType.ADMINISTRADOR and not final_tenant_ids:
             raise ValueError("Admin user must have at least one tenant assigned")
 
         if final_user_type == UserType.USER and len(final_tenant_ids) != 1:
@@ -165,7 +165,7 @@ def create_user(
         )
         user_repository.flush(db)
 
-        if final_user_type in (UserType.ADMIN, UserType.USER):
+        if final_user_type in (UserType.ADMINISTRADOR, UserType.USER):
             for tenant_link_id in final_tenant_ids:
                 user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=tenant_link_id)
 
@@ -238,12 +238,12 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
             user_repository.delete_tenant_users_by_user_id(db, user.id)
             user_repository.delete_user_tenant_links_by_user_id(db, user.id)
 
-        elif final_user_type == UserType.ADMIN:
+        elif final_user_type == UserType.ADMINISTRADOR:
             admin_tenant_ids = requested_tenant_ids or [link.tenant_id for link in user.tenant_scopes]
             if not admin_tenant_ids:
                 raise ValueError("Admin user must have at least one tenant assigned")
 
-            user.user_type = UserType.ADMIN
+            user.user_type = UserType.ADMINISTRADOR
             user.is_backdoor = False
             user_repository.delete_tenant_users_by_user_id(db, user.id)
             user_repository.delete_user_tenant_links_by_user_id(db, user.id)
@@ -328,7 +328,7 @@ def get_users(
 
 
 def get_global_users(db: Session, skip: int = 0, limit: int = 100) -> list[UserResponse]:
-    admin_users = user_repository.list_users_by_type(db, UserType.ADMIN, skip=skip, limit=limit)
+    admin_users = user_repository.list_users_by_type(db, UserType.ADMINISTRADOR, skip=skip, limit=limit)
     backdoor_users = user_repository.list_users_by_type(db, UserType.BACKDOOR, skip=skip, limit=limit)
     return [_build_user_response(user) for user in [*admin_users, *backdoor_users]]
 
@@ -337,3 +337,4 @@ def get_tenant_users(db: Session, tenant_id: uuid.UUID, skip: int = 0, limit: in
     _validate_tenant(db, tenant_id)
     users = user_repository.list_tenant_users(db, tenant_id=tenant_id, skip=skip, limit=limit)
     return [_build_user_response(user) for user in users]
+

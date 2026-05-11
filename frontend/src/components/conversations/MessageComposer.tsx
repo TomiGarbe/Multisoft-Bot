@@ -141,7 +141,7 @@ export default function MessageComposer({ onSend }: Props) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
-          placeholder="Escribí un mensaje... (Enter para enviar)"
+          placeholder="Escribi un mensaje... (Enter para enviar)"
           className="flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-colors overflow-y-auto"
           style={{ lineHeight: '1.5', maxHeight: '120px' }}
         />

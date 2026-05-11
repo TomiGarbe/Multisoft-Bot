@@ -3,6 +3,7 @@ import { Conversation, Message, SendPayload } from '@/types/chat';
 import ConversationHeader from './ConversationHeader';
 import ConversationMessages from './ConversationMessages';
 import MessageComposer from './MessageComposer';
+import { getChannelMeta, type ChannelMeta } from './channelMeta';
 
 interface Props {
   conversation: Conversation | undefined;
@@ -16,6 +17,7 @@ interface Props {
   aiUnavailableReason?: string;
   onOpenConfig?: () => void;
   onBackToList?: () => void;
+  channelMeta?: ChannelMeta;
 }
 
 export default function ConversationView({
@@ -30,13 +32,14 @@ export default function ConversationView({
   aiUnavailableReason,
   onOpenConfig,
   onBackToList,
+  channelMeta,
 }: Props) {
   if (!conversation) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 gap-3 text-gray-400">
         <MessageSquare className="w-12 h-12 opacity-20" />
         <p className="text-sm">
-          Seleccioná una conversación para comenzar
+          Selecciona una conversacion para comenzar
         </p>
       </div>
     );
@@ -57,6 +60,7 @@ export default function ConversationView({
         </div>
         <ConversationHeader
           conversation={conversation}
+          channelMeta={channelMeta ?? getChannelMeta()}
           onModeToggle={onModeToggle}
           isToggling={isToggling}
           aiUnavailable={aiUnavailable}

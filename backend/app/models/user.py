@@ -8,9 +8,9 @@ from typing import List, Optional
 
 
 class UserType(str, PyEnum):
-    ADMIN = "ADMIN"
-    BACKDOOR = "BACKDOOR"
-    USER = "USER"
+    ADMINISTRADOR = "Administrador"
+    BACKDOOR = "Backdoor"
+    USER = "User"
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -23,7 +23,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_backdoor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     user_type: Mapped[UserType] = mapped_column(
-        Enum(UserType, name="user_type_enum"),
+        Enum(
+            UserType,
+            name="user_type_enum",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            validate_strings=True,
+        ),
         default=UserType.USER,
         nullable=False,
     )

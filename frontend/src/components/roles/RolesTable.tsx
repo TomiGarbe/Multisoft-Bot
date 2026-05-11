@@ -18,7 +18,7 @@ export default function RolesTable({
 }: Props) {
   return (
     <Table
-      headers={['Nombre', 'Descripción', 'Acciones']}
+      headers={['Nombre', 'Descripcion', 'Acciones']}
       hasRows={roles.length > 0}
       emptyMessage="No se encontraron roles."
     >
@@ -26,7 +26,7 @@ export default function RolesTable({
         <tr key={role.id}>
           <td className="px-4 py-3 text-sm font-medium text-slate-900">{role.name}</td>
 
-          <td className="px-4 py-3 text-sm text-slate-700">{role.description ?? '�'}</td>
+          <td className="px-4 py-3 text-sm text-slate-700">{role.description ?? '-'}</td>
 
           <td className="px-4 py-3 text-sm">
             <div className="flex items-center gap-2">

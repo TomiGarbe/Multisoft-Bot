@@ -8,6 +8,11 @@ from app.models import Channel, User
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.channel import ChannelConfigBundleResponse, ChannelResponse
 from app.services.channel_config_service import ChannelConfigService
+from app.providers.messaging.catalog import (
+    MESSAGE_PROVIDER_VALUES,
+    is_supported_provider_for_channel_type,
+    normalize_provider_value,
+)
 
 
 VALID_CHANNEL_TYPES = ["whatsapp", "web", "instagram"]
@@ -34,6 +39,39 @@ class ChannelService:
             is_active=channel.is_active,
         )
 
+    def _normalize_and_validate_provider_config(
+        self,
+        channel_type: str,
+        config: Optional[Dict[str, Any]],
+        *,
+        require_provider: bool,
+    ) -> Optional[Dict[str, Any]]:
+        if config is None:
+            if require_provider:
+                raise ValueError("Provider is required in config.provider")
+            return None
+        if not isinstance(config, dict):
+            raise ValueError("Config must be a JSON object")
+
+        provider_raw = config.get("provider")
+        normalized_provider = normalize_provider_value(
+            provider_raw if isinstance(provider_raw, str) else None
+        )
+        if not normalized_provider:
+            if require_provider:
+                raise ValueError("Provider is required in config.provider")
+            return config
+        if normalized_provider not in MESSAGE_PROVIDER_VALUES:
+            raise ValueError(f"Unsupported provider: {provider_raw}")
+        if not is_supported_provider_for_channel_type(channel_type, normalized_provider):
+            raise ValueError(
+                f"Provider '{normalized_provider}' is not valid for channel type '{channel_type}'"
+            )
+
+        normalized_config = dict(config)
+        normalized_config["provider"] = normalized_provider
+        return normalized_config
+
     def get_channels(self, user: Optional[User] = None, tenant_id: Optional[uuid.UUID] = None) -> list[ChannelResponse]:
         if user is None or tenant_id is None or not user.is_active:
             return []
@@ -50,6 +88,11 @@ class ChannelService:
         is_active: bool = True,
     ) -> ChannelResponse:
         self._validate_channel_type(type)
+        normalized_config = self._normalize_and_validate_provider_config(
+            type,
+            config,
+            require_provider=True,
+        )
 
         if not self.repository.tenant_exists(tenant_id):
             raise LookupError("Tenant not found")
@@ -63,7 +106,7 @@ class ChannelService:
             type=type,
             name=name,
             external_id=external_id,
-            config_jsonb=config,
+            config_jsonb=normalized_config,
             is_active=is_active,
         )
 
@@ -90,6 +133,21 @@ class ChannelService:
 
         if "type" in kwargs and kwargs["type"]:
             self._validate_channel_type(kwargs["type"])
+
+        channel_type = kwargs.get("type") or channel.type
+
+        if "config" in kwargs:
+            kwargs["config"] = self._normalize_and_validate_provider_config(
+                channel_type,
+                kwargs["config"],
+                require_provider=True,
+            )
+        elif isinstance(channel.config_jsonb, dict):
+            self._normalize_and_validate_provider_config(
+                channel_type,
+                channel.config_jsonb,
+                require_provider=True,
+            )
 
         if "external_id" in kwargs and kwargs["external_id"]:
             existing = self.repository.get_by_tenant_and_external_id_excluding_id(

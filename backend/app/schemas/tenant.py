@@ -1,6 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 import uuid
+
+from app.core.timezones import is_supported_tenant_timezone
 
 
 class TenantCreate(BaseModel):
@@ -10,6 +12,15 @@ class TenantCreate(BaseModel):
     industry: Optional[str] = None
     timezone: Optional[str] = None
 
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        if not is_supported_tenant_timezone(value):
+            raise ValueError("Unsupported timezone. Use one of the allowed IANA tenant timezones.")
+        return value
+
 
 class TenantUpdate(BaseModel):
     name: Optional[str] = None
@@ -18,6 +29,20 @@ class TenantUpdate(BaseModel):
     is_active: Optional[bool] = None
     industry: Optional[str] = None
     timezone: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        if not is_supported_tenant_timezone(value):
+            raise ValueError("Unsupported timezone. Use one of the allowed IANA tenant timezones.")
+        return value
+
+
+class TenantTimezoneOption(BaseModel):
+    value: str
+    label: str
 
 
 class TenantResponse(BaseModel):

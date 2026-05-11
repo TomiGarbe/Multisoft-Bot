@@ -134,7 +134,7 @@ export default function RolesForm({ open, onClose, role, onSuccess }: RolesFormP
 
         <div className="space-y-1.5">
           <label htmlFor="role-description" className="block text-sm font-medium text-slate-700">
-            Descripción
+            Descripcion
           </label>
           <textarea
             id="role-description"

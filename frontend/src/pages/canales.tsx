@@ -31,7 +31,7 @@ export default function CanalesPage() {
       <div className="space-y-6 p-6 md:p-8">
         <PageHeader
           title="Canales"
-          description="Administra canales y su configuración operativa."
+          description="Administra canales y su configuracion operativa."
           actions={<Button onClick={createConfig}>+ Crear canal</Button>}
         />
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}

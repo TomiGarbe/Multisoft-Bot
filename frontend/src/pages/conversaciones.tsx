@@ -12,6 +12,7 @@ export default function ConversationsPage() {
   const [showListOnMobile, setShowListOnMobile] = useState(true);
   const {
     conversations,
+    allConversations,
     selectedId,
     selectedConversation,
     messages,
@@ -25,17 +26,28 @@ export default function ConversationsPage() {
     dismissError,
     togglingModes,
     configStatusByConversation,
+    search,
+    selectedChannel,
+    selectedStatus,
+    channelOptions,
+    stats,
+    setSearch,
+    setSelectedChannel,
+    setSelectedStatus,
+    clearFilters,
+    resolveConversationChannel,
   } = useConversations();
 
-  const selectedStatus = selectedId ? configStatusByConversation[selectedId] : undefined;
-  const isAiUnavailable = !!selectedStatus && !selectedStatus.is_valid;
+  const selectedConversationStatus = selectedId ? configStatusByConversation[selectedId] : undefined;
+  const isAiUnavailable = !!selectedConversationStatus && !selectedConversationStatus.is_valid;
   const aiUnavailableReason = isAiUnavailable
-    ? selectedStatus?.missing_fields?.length
-      ? `Completa la configuracion del bot para activar la IA (faltan: ${selectedStatus.missing_fields.join(', ')})`
+    ? selectedConversationStatus?.missing_fields?.length
+      ? `Completa la configuracion del bot para activar la IA (faltan: ${selectedConversationStatus.missing_fields.join(', ')})`
       : 'Completa la configuracion del bot para activar la IA'
     : undefined;
 
   const hasSelectedConversation = !!selectedConversation;
+  const hasAnyConversation = allConversations.length > 0;
   const showSidebarMobile = showListOnMobile || !hasSelectedConversation;
   const showChatMobile = !showListOnMobile && hasSelectedConversation;
 
@@ -61,11 +73,22 @@ export default function ConversationsPage() {
           >
             <ConversationsSidebar
               conversations={conversations}
+              totalConversations={stats.total}
+              openConversations={stats.open}
               selectedId={selectedId}
               onSelect={(id) => {
                 selectConversation(id);
                 setShowListOnMobile(false);
               }}
+              search={search}
+              onSearchChange={setSearch}
+              selectedChannel={selectedChannel}
+              onChannelChange={setSelectedChannel}
+              selectedStatus={selectedStatus}
+              onStatusChange={setSelectedStatus}
+              channelOptions={channelOptions}
+              onClearFilters={clearFilters}
+              getChannelMeta={resolveConversationChannel}
               loading={loadingConversations}
             />
           </div>
@@ -81,6 +104,7 @@ export default function ConversationsPage() {
               isToggling={togglingModes[selectedId]}
               aiUnavailable={isAiUnavailable}
               aiUnavailableReason={aiUnavailableReason}
+              channelMeta={selectedConversation ? resolveConversationChannel(selectedConversation) : undefined}
               onOpenConfig={() => {
                 const openConfig = async () => {
                   try {
@@ -108,6 +132,18 @@ export default function ConversationsPage() {
             />
           </div>
         </div>
+
+        {!loadingConversations && !hasAnyConversation && (
+          <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            No hay conversaciones para este tenant.
+          </div>
+        )}
+
+        {!loadingConversations && hasAnyConversation && conversations.length === 0 && (
+          <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            No hay conversaciones para este canal o filtros. Ajusta los filtros para ver resultados.
+          </div>
+        )}
       </div>
     </AppLayout>
   );

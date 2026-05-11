@@ -60,7 +60,7 @@ export function useNegocios(toast?: { success: (message: string) => void; error:
   };
 
   const deleteNegocio = async (negocio: Tenant) => {
-    const confirmed = window.confirm(`�Eliminar el negocio "${negocio.name}"? Esta acción no se puede deshacer.`);
+    const confirmed = window.confirm(`Eliminar el negocio "${negocio.name}"? Esta accion no se puede deshacer.`);
     if (!confirmed) return;
 
     try {

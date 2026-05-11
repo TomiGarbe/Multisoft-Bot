@@ -25,7 +25,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       {isOpen && (
         <button
           type="button"
-          aria-label="Cerrar menú"
+          aria-label="Cerrar menu"
           className="fixed inset-0 z-40 bg-slate-900/40 lg:hidden"
           onClick={onClose}
         />
@@ -39,13 +39,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="flex h-[var(--layout-header-height)] items-center justify-between border-b border-slate-200 px-6">
           <div>
             <h1 className="text-xl font-bold text-slate-900">Multisoft Bot</h1>
-            <p className="text-sm text-slate-500">Panel de administración</p>
+            <p className="text-sm text-slate-500">Panel de administracion</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 lg:hidden"
-            aria-label="Cerrar menú"
+            aria-label="Cerrar menu"
           >
             <X className="h-4 w-4" />
           </button>
@@ -89,7 +89,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             onClick={logout}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-rose-600"
           >
-            Cerrar sesión
+            Cerrar sesion
           </button>
         </div>
       </aside>

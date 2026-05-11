@@ -9,6 +9,9 @@ export interface MediaItem {
 export interface Conversation {
   id: string;
   channelId?: string;
+  channelName?: string;
+  channelType?: string;
+  channelProvider?: string;
   channelConfigId?: string;
   contactName: string;
   contactPhone?: string;

@@ -21,10 +21,10 @@ const PERMISSION_GROUP_LABELS: Record<PermissionGroup, string> = {
   roles: 'Roles',
   conversations: 'Conversaciones',
   contacts: 'Contactos',
-  bot_config: 'Configuración del bot',
+  bot_config: 'Configuracion del bot',
   channels: 'Canales',
-  metrics: 'Métricas',
-  audit: 'Auditoría',
+  metrics: 'Metricas',
+  audit: 'Auditoria',
   other: 'Otros',
 };
 

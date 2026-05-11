@@ -38,8 +38,8 @@ function sanitizeConfig(raw: unknown): BotConfig {
 }
 
 function getStorageKey(): string {
-  const { tenantId, scope } = getActiveTenantContext();
-  return `${STORAGE_KEY_PREFIX}:${scope}:${tenantId ?? 'none'}`;
+  const { tenantId } = getActiveTenantContext();
+  return `${STORAGE_KEY_PREFIX}:${tenantId ?? 'none'}`;
 }
 
 function readLocalConfig(): BotConfig {
@@ -121,7 +121,7 @@ export function useBotConfig() {
     try {
       await api.put('/bot-config', nextConfig);
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, 'No se pudo guardar la configuración.'));
+      throw new Error(getApiErrorMessage(error, 'No se pudo guardar la configuracion.'));
     }
   }, []);
 
@@ -131,3 +131,4 @@ export function useBotConfig() {
     updateConfig,
   };
 }
+

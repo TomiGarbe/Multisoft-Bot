@@ -19,6 +19,11 @@ class ConversationCreate(BaseModel):
 class ConversationResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
+    chat_thread_id: uuid.UUID
+    channel_id: uuid.UUID
+    channel_name: Optional[str] = None
+    channel_type: Optional[str] = None
+    channel_provider: Optional[str] = None
     status: str
     mode: Literal["ai", "human"]
     channel_config_id: Optional[uuid.UUID] = None

@@ -31,7 +31,7 @@ export default function ConversationMessages({ messages, loading = false, onRetr
       ) : messages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
           <MessageSquare className="w-8 h-8 opacity-30" />
-          <p className="text-sm">No hay mensajes aún</p>
+          <p className="text-sm">No hay mensajes aun</p>
         </div>
       ) : (
         <>

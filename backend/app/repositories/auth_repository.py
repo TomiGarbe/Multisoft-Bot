@@ -118,7 +118,7 @@ class AuthRepository(BaseRepository):
         return self.db.execute(stmt).unique().scalar_one_or_none()
 
     def update_last_login(self, user: User) -> None:
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(timezone.utc)
 
     def cleanup_expired_refresh_tokens(self) -> int:
         stmt = delete(RefreshToken).where(

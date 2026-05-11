@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional, TypeVar
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 TModel = TypeVar("TModel")
+logger = logging.getLogger(__name__)
 
 
 class BaseRepository:
@@ -18,4 +21,9 @@ class BaseRepository:
         self.db.delete(entity)
 
     def commit(self) -> None:
-        self.db.commit()
+        try:
+            self.db.commit()
+        except SQLAlchemyError:
+            logger.exception("Database commit failed")
+            self.db.rollback()
+            raise

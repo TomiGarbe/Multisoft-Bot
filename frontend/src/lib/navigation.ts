@@ -2,9 +2,7 @@ import {
   LayoutDashboard,
   Building2,
   Users,
-  ShieldCheck,
-  UserCog,
-  MessageSquare,
+  ShieldCheck,  MessageSquare,
   Radio,
   Settings,
   type LucideIcon,
@@ -21,10 +19,10 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/negocios',       label: 'Negocios',       icon: Building2       },
   { path: '/admin/users',    label: 'Usuarios Globales', icon: Users        },
   { path: '/roles',          label: 'Roles',          icon: ShieldCheck     },
-  { path: '/advisors',       label: 'Advisors',       icon: UserCog         },
+  { path: '/users',          label: 'Usuarios',       icon: Users           },
   { path: '/conversaciones', label: 'Conversaciones', icon: MessageSquare   },
   { path: '/canales',        label: 'Canales',        icon: Radio           },
-  { path: '/configuracion',  label: 'Configuración',  icon: Settings        },
+  { path: '/configuracion',  label: 'Configuracion',  icon: Settings        },
 ];
 
 const ROUTE_TITLES: Record<string, string> = Object.fromEntries([
@@ -45,3 +43,5 @@ export function getPageTitle(pathname: string): string {
   const raw = pathname.split('/').filter(Boolean)[0] ?? '';
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
+
+

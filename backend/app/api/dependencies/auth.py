@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import User
+from app.core.datetime_utils import set_current_tenant_timezone
 from app.repositories.auth_repository import AuthRepository
+from app.repositories.tenant_repository import get_by_id as get_tenant_by_id
 from app.services.auth.access_service import can_access_tenant, get_effective_permissions, is_super_admin
 from app.services.auth_service import verify_token
 
@@ -113,6 +115,7 @@ async def get_current_tenant_context(
     if normalized_scope == "global":
         if not user_is_super_admin:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Global scope access denied")
+        set_current_tenant_timezone(None)
         return TenantContext(
             tenant_id=None,
             requested_tenant_id=requested_tenant_id,
@@ -156,6 +159,8 @@ async def get_current_tenant_context(
             detail="Tenant access denied",
         )
     logger.debug("AUTH tenant granted user=%s tenant=%s", current_user.id, resolved_tenant_id)
+    tenant = get_tenant_by_id(db, resolved_tenant_id)
+    set_current_tenant_timezone(tenant.timezone if tenant else None)
     return TenantContext(
         tenant_id=resolved_tenant_id,
         requested_tenant_id=requested_tenant_id,

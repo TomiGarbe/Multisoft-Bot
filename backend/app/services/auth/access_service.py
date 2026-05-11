@@ -32,7 +32,7 @@ def can_access_tenant(db: Session, user: User, tenant_id: uuid.UUID) -> bool:
         logger.debug("AUTH access bypass: user=%s tenant=%s", user.id, tenant_id)
         return True
 
-    if user.user_type == UserType.ADMIN:
+    if user.user_type == UserType.ADMINISTRADOR:
         return repository.user_has_tenant_scope(user_id=user.id, tenant_id=tenant_id)
 
     return repository.has_tenant_user_link(user_id=user.id, tenant_id=tenant_id)
@@ -86,3 +86,4 @@ def can_access_channel_config(db: Session, user: User, channel_config_id: uuid.U
     if channel_config_tenant_id is None:
         return False
     return can_access_tenant_resource(db, user, channel_config_tenant_id)
+

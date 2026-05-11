@@ -18,12 +18,20 @@ class ConversationService:
         self.repository = ConversationRepository(db)
 
     def _build_response(self, conversation: Conversation) -> ConversationResponse:
+        channel = conversation.chat_thread.channel if conversation.chat_thread else None
+        channel_config = channel.config_jsonb if channel and isinstance(channel.config_jsonb, dict) else {}
+        channel_provider = channel_config.get("provider") if isinstance(channel_config.get("provider"), str) else None
         channel_config_id = self.repository.get_active_channel_config_id_by_channel_id(
             conversation.chat_thread.channel_id
         )
         return ConversationResponse(
             id=conversation.id,
             tenant_id=conversation.tenant_id,
+            chat_thread_id=conversation.chat_thread_id,
+            channel_id=conversation.chat_thread.channel_id,
+            channel_name=channel.name if channel else None,
+            channel_type=channel.type if channel else None,
+            channel_provider=channel_provider,
             status=conversation.status,
             mode=conversation.mode,
             channel_config_id=channel_config_id,

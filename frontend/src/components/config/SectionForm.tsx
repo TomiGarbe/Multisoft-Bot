@@ -55,7 +55,7 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1800);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la sección.');
+      setError(err instanceof Error ? err.message : 'No se pudo guardar la seccion.');
     } finally {
       setSaving(false);
     }
@@ -149,7 +149,7 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
                       });
                       setError(null);
                     } catch {
-                      setError('JSON inválido en un elemento de la lista.');
+                      setError('JSON invalido en un elemento de la lista.');
                     }
                   }}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400"
@@ -202,7 +202,7 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
       <div>
         <h2 className="text-lg font-semibold text-slate-900">{toLabel(sectionKey)}</h2>
         <p className="mt-1 text-xs text-slate-500">
-          {isArraySection ? 'Lista editable por sección' : 'Campos dinámicos por sección'}
+          {isArraySection ? 'Lista editable por seccion' : 'Campos dinamicos por seccion'}
         </p>
       </div>
 
@@ -213,7 +213,7 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
       <div className="flex items-center justify-end gap-2">
         {saved ? <span className="text-xs font-medium text-emerald-600">Guardado</span> : null}
         <Button type="button" onClick={handleSave} disabled={saving || !isDirty}>
-          {saving ? 'Guardando...' : 'Guardar sección'}
+          {saving ? 'Guardando...' : 'Guardar seccion'}
         </Button>
       </div>
     </article>

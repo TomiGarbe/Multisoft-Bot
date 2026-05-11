@@ -25,7 +25,7 @@ export default function GlobalUsersPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [type, setType] = useState<'ADMIN' | 'BACKDOOR'>('ADMIN');
+  const [type, setType] = useState<'Administrador' | 'Backdoor'>('Administrador');
   const [businessIds, setBusinessIds] = useState<string[]>([]);
 
   const fetchAll = async () => {
@@ -55,8 +55,8 @@ export default function GlobalUsersPage() {
     return () => window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
   }, [hasToken]);
 
-  const admins = useMemo(() => users.filter((u) => u.user_type === 'ADMIN'), [users]);
-  const backdoors = useMemo(() => users.filter((u) => u.user_type === 'BACKDOOR'), [users]);
+  const admins = useMemo(() => users.filter((u) => u.user_type === 'Administrador'), [users]);
+  const backdoors = useMemo(() => users.filter((u) => u.user_type === 'Backdoor'), [users]);
 
   const toggleBusiness = (businessId: string) => {
     setBusinessIds((prev) => (prev.includes(businessId) ? prev.filter((id) => id !== businessId) : [...prev, businessId]));
@@ -66,14 +66,14 @@ export default function GlobalUsersPage() {
     event.preventDefault();
     try {
       setSaving(true);
-      if (type === 'BACKDOOR') {
-        await createBackdoorUser({ name, email, password, user_type: 'BACKDOOR' });
+      if (type === 'Backdoor') {
+        await createBackdoorUser({ name, email, password, user_type: 'Backdoor' });
       } else {
-        await createAdminUser({ name, email, password, user_type: 'ADMIN', business_ids: businessIds });
+        await createAdminUser({ name, email, password, user_type: 'Administrador', tenant_ids: businessIds });
       }
       toast.success('Usuario global creado correctamente.');
       setIsOpen(false);
-      setName(''); setEmail(''); setPassword(''); setBusinessIds([]); setType('ADMIN');
+      setName(''); setEmail(''); setPassword(''); setBusinessIds([]); setType('Administrador');
       await fetchAll();
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'No se pudo crear el usuario global.'));
@@ -93,7 +93,7 @@ export default function GlobalUsersPage() {
         {loading ? <div className="text-sm text-slate-500">Cargando...</div> : (
           <div className="space-y-6">
             <Table headers={['Admin', 'Email', 'Negocios']} hasRows={admins.length > 0} emptyMessage="Sin admins.">
-              {admins.map((u) => <tr key={u.id}><td className="px-4 py-3 text-sm">{u.name}</td><td className="px-4 py-3 text-sm">{u.email}</td><td className="px-4 py-3 text-sm">{u.business_ids?.length ?? 0}</td></tr>)}
+              {admins.map((u) => <tr key={u.id}><td className="px-4 py-3 text-sm">{u.name}</td><td className="px-4 py-3 text-sm">{u.email}</td><td className="px-4 py-3 text-sm">{u.tenant_ids?.length ?? u.business_ids?.length ?? 0}</td></tr>)}
             </Table>
             <Table headers={['Backdoor', 'Email', 'Acceso']} hasRows={backdoors.length > 0} emptyMessage="Sin backdoors.">
               {backdoors.map((u) => <tr key={u.id}><td className="px-4 py-3 text-sm">{u.name}</td><td className="px-4 py-3 text-sm">{u.email}</td><td className="px-4 py-3 text-sm">Global</td></tr>)}
@@ -105,11 +105,12 @@ export default function GlobalUsersPage() {
         <form id="global-user-form" className="space-y-4" onSubmit={submit}>
           <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <div className="space-y-1 text-sm"><label>Tipo</label><select value={type} onChange={(e) => setType(e.target.value as 'ADMIN'|'BACKDOOR')} className="w-full rounded border border-slate-300 px-2 py-1"><option value="ADMIN">ADMIN</option><option value="BACKDOOR">BACKDOOR</option></select></div>
-          {type === 'ADMIN' && <div className="max-h-40 space-y-1 overflow-auto rounded border border-slate-200 p-2">{tenants.map((t) => <label key={t.id} className="block text-sm"><input type="checkbox" checked={businessIds.includes(t.id)} onChange={() => toggleBusiness(t.id)} /> {t.name}</label>)}</div>}
+          <Input label="Contrasena" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <div className="space-y-1 text-sm"><label>Tipo</label><select value={type} onChange={(e) => setType(e.target.value as 'Administrador' | 'Backdoor')} className="w-full rounded border border-slate-300 px-2 py-1"><option value="Administrador">Administrador</option><option value="Backdoor">Backdoor</option></select></div>
+          {type === 'Administrador' && <div className="max-h-40 space-y-1 overflow-auto rounded border border-slate-200 p-2">{tenants.map((t) => <label key={t.id} className="block text-sm"><input type="checkbox" checked={businessIds.includes(t.id)} onChange={() => toggleBusiness(t.id)} /> {t.name}</label>)}</div>}
         </form>
       </Modal>
     </AppLayout>
   );
 }
+

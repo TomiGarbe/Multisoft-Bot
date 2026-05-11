@@ -11,8 +11,6 @@ from app.bootstrap.security.catalog import (
     BACKDOOR_ROLE_NAME,
     PERMISSIONS,
     ROLE_DEFINITIONS,
-    TENANT_USER_PERMISSION_CODES,
-    TENANT_USER_ROLE_NAME,
 )
 from app.bootstrap.security.repository import SecurityBootstrapRepository
 from app.core.config import settings
@@ -85,13 +83,9 @@ class SecurityBootstrapService:
 
         all_permissions = list(permissions_by_code.values())
         admin_permissions = [permissions_by_code[code] for code in ADMIN_PERMISSION_CODES if code in permissions_by_code]
-        tenant_user_permissions = [
-            permissions_by_code[code] for code in TENANT_USER_PERMISSION_CODES if code in permissions_by_code
-        ]
 
         self.repo.set_role_permissions(roles[BACKDOOR_ROLE_NAME], all_permissions)
         self.repo.set_role_permissions(roles[ADMIN_ROLE_NAME], admin_permissions)
-        self.repo.set_role_permissions(roles[TENANT_USER_ROLE_NAME], tenant_user_permissions)
 
         return roles[BACKDOOR_ROLE_NAME]
 
