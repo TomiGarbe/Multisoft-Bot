@@ -30,6 +30,7 @@ import app.services.message_service as message_service
 from app.services.conversation.context_builder import build_conversation_context
 from app.services.conversation.guards import should_use_ai
 from app.services.conversation.mode_service import disable_ai
+from app.services.config_structure import section_entries
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class AIResponseOrchestrator:
             db=db,
             contact_id=current_message.sender_contact_id,
             config=config,
+            user_types=(channel_config.user_types_jsonb or {}),
         )
         prompt = self.build_prompt(config, context)
         if not prompt:
@@ -425,6 +427,7 @@ class AIResponseOrchestrator:
         *,
         contact_id: Optional[uuid.UUID],
         config: dict,
+        user_types: dict[str, Any],
     ) -> None:
         if not contact_id:
             return
@@ -433,7 +436,9 @@ class AIResponseOrchestrator:
         if not contact or contact.current_type is not None:
             return
 
-        default_type = config.get("default_type") or "default"
+        default_type = user_types.get("default_type") if isinstance(user_types, dict) else None
+        if not isinstance(default_type, str) or not default_type.strip():
+            default_type = config.get("default_type") if isinstance(config.get("default_type"), str) else "new"
         try:
             message_service.ensure_contact_current_type(db, contact.id, default_type)
             logger.info("Assigned initial current_type '%s' to contact: %s", default_type, contact.id)
@@ -450,10 +455,13 @@ class AIResponseOrchestrator:
         if not contact_id:
             return
 
-        objective = config.get("objective", {})
-        if not isinstance(objective, dict):
-            return
-        on_completion = objective.get("on_completion")
+        objectives = section_entries(config, "objectives")
+        on_completion = None
+        for objective in objectives:
+            maybe_value = objective.get("on_completion")
+            if isinstance(maybe_value, str) and maybe_value.strip():
+                on_completion = maybe_value.strip()
+                break
         if not on_completion:
             return
 

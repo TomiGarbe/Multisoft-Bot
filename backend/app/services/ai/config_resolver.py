@@ -5,6 +5,8 @@ Resuelve la configuración final para el PromptBuilder según el tipo de usuario
 No accede a DB, no llama servicios externos, no muta el config original.
 """
 
+from app.services.config_structure import section_entries, section_fields
+
 BASE_KEYS = ("identity", "tone", "rules", "objectives", "data_collection")
 
 
@@ -23,7 +25,13 @@ def get_sections_by_type(config: dict, user_type: str) -> dict:
         Nuevo dict con base config + overrides aplicados, listo para PromptBuilder.
         Las keys de type_config pisan las de base config.
     """
-    base = {k: config[k] for k in BASE_KEYS if k in config}
+    base = {
+        "identity": section_fields(config, "identity"),
+        "tone": section_fields(config, "tone"),
+        "rules": section_fields(config, "rules"),
+        "objectives": section_entries(config, "objectives"),
+        "data_collection": section_entries(config, "data_collection"),
+    }
 
     user_types = config.get("user_type_config", {})
     type_config = user_types.get(user_type) or user_types.get("default") or {}

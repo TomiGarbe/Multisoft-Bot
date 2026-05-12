@@ -2,9 +2,6 @@ import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import { ToastViewport, useToast } from '@/components/ui/toast';
-import AdvancedSettingsSection from '@/components/settings/AdvancedSettingsSection';
-import AssistantSettingsSection from '@/components/settings/AssistantSettingsSection';
-import ChannelSettingsSection from '@/components/settings/ChannelSettingsSection';
 import GeneralSettingsSection from '@/components/settings/GeneralSettingsSection';
 import IntegrationsSettingsSection from '@/components/settings/IntegrationsSettingsSection';
 import SecuritySettingsSection from '@/components/settings/SecuritySettingsSection';
@@ -14,11 +11,8 @@ import { useSettingsPage } from '@/hooks/useSettingsPage';
 
 const tabs = [
   { key: 'general', label: 'General' },
-  { key: 'assistant', label: 'IA / Asistente' },
-  { key: 'channels', label: 'Canales' },
   { key: 'integrations', label: 'Integraciones' },
   { key: 'security', label: 'Seguridad' },
-  { key: 'advanced', label: 'Avanzado' },
 ];
 
 export default function ConfiguracionPage() {
@@ -35,7 +29,7 @@ export default function ConfiguracionPage() {
         <div className="shrink-0 px-6 pt-6 md:px-8 md:pt-8">
           <PageHeader
             title="Configuracion"
-            description="Configuracion organizada por negocio, asistente, canales e integraciones."
+            description="Configuracion operativa, comportamiento AI y seguridad webhook por canal."
           />
         </div>
 
@@ -43,17 +37,21 @@ export default function ConfiguracionPage() {
           <div className="space-y-6">
             <SettingsTabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
-            {(activeTab === 'assistant' || activeTab === 'channels' || activeTab === 'integrations') ? (
-              <section className="rounded-xl border border-slate-200 bg-white p-4">
-                <ChannelSelector
-                  value={settings.selectedChannelId ?? ''}
-                  options={settings.channelOptions}
-                  onChange={settings.handleChannelChange}
-                  disabled={settings.channelsLoading || !settings.channels.length}
-                  placeholder="Sin canales disponibles"
-                />
-              </section>
-            ) : null}
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <ChannelSelector
+                label="Alcance de configuracion"
+                value={settings.selectedChannelId ?? ''}
+                options={settings.channelOptions}
+                onChange={settings.handleChannelChange}
+                disabled={settings.channelsLoading || !settings.channelOptions.length}
+                placeholder="Sin canales disponibles"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                {settings.isAllChannelsSelected
+                  ? 'Estas editando configuracion global para todos los canales.'
+                  : `Estas editando solo ${settings.selectedChannel?.name ?? 'el canal seleccionado'}.`}
+              </p>
+            </section>
 
             {settings.channelsLoading || settings.loadingChannelConfig ? (
               <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">Cargando configuracion...</div>
@@ -61,36 +59,46 @@ export default function ConfiguracionPage() {
 
             {activeTab === 'general' ? (
               <GeneralSettingsSection
-                value={settings.tenantSettings}
-                onChange={settings.updateTenantSettings}
-                onSave={() => void settings.saveTenant()}
-                isDirty={settings.isTenantDirty}
-                saving={settings.savingTenantSettings}
-              />
-            ) : null}
-
-            {activeTab === 'assistant' ? (
-              <AssistantSettingsSection value={settings.channelConfig} onChange={settings.updateConfigState} />
-            ) : null}
-
-            {activeTab === 'channels' ? (
-              <ChannelSettingsSection
-                channel={settings.selectedChannel}
-                value={settings.channelSettings}
+                scopeLabel={settings.isAllChannelsSelected ? 'Todos los canales' : settings.selectedChannel?.name ?? 'Canal'}
+                channelSettings={settings.channelSettings}
                 userTypes={settings.userTypes}
-                status={settings.status}
-                missingFields={settings.missingFields}
-                isDirty={settings.isChannelDirty}
-                saving={settings.savingChannelConfig}
-                onSave={() => void settings.saveChannel()}
+                botConfig={settings.channelConfig}
                 onChannelSettingsChange={settings.updateChannelSettings}
                 onUserTypesChange={settings.updateUserTypes}
+                onBotConfigChange={settings.updateConfigState}
+                onSaveChannelConfig={() => void settings.saveChannel()}
+                isChannelDirty={settings.isChannelDirty}
+                savingChannel={settings.savingChannelConfig}
+                statusText={settings.status.is_valid ? 'Configuracion AI valida.' : `Faltan campos: ${settings.missingFields.join(', ') || 'revisar identidad y reglas'}.`}
               />
             ) : null}
 
-            {activeTab === 'integrations' ? <IntegrationsSettingsSection channel={settings.selectedChannel} /> : null}
-            {activeTab === 'security' ? <SecuritySettingsSection /> : null}
-            {activeTab === 'advanced' ? <AdvancedSettingsSection /> : null}
+            {activeTab === 'security' ? (
+              <SecuritySettingsSection
+                channels={settings.channels}
+                apiKeys={settings.apiKeys}
+                loading={settings.apiKeysLoading}
+                saving={settings.apiKeysSaving}
+                onCreate={settings.createWebhookApiKey}
+                onRegenerate={settings.regenerateWebhookApiKey}
+                onDeactivate={settings.deactivateWebhookApiKey}
+                onDelete={settings.deleteWebhookApiKey}
+              />
+            ) : null}
+
+            {activeTab === 'integrations' ? (
+              <IntegrationsSettingsSection
+                items={settings.integrations}
+                selectedActionIds={settings.selectedIntegrationIds}
+                mixedActionIds={settings.mixedIntegrationIds}
+                scopeLabel={settings.isAllChannelsSelected ? 'Todos los canales' : settings.selectedChannel?.name ?? 'Canal'}
+                loading={settings.integrationsLoading}
+                saving={settings.integrationsSaving}
+                dirty={settings.isIntegrationsDirty}
+                onToggle={settings.toggleIntegration}
+                onSave={() => void settings.saveIntegrations()}
+              />
+            ) : null}
           </div>
         </div>
       </div>

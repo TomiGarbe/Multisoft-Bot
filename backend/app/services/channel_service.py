@@ -8,6 +8,7 @@ from app.models import Channel, User
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.channel import ChannelConfigBundleResponse, ChannelResponse
 from app.services.channel_config_service import ChannelConfigService
+from app.services.config_structure import normalize_config_document
 from app.providers.messaging.catalog import (
     MESSAGE_PROVIDER_VALUES,
     is_supported_provider_for_channel_type,
@@ -198,7 +199,7 @@ class ChannelService:
             raise LookupError(f"Channel not found: {channel_id}")
 
         channel_config = ChannelConfigService.get_channel_config(self.db, channel_id)
-        config = channel_config.config_jsonb
+        config = normalize_config_document(channel_config.config_jsonb)
         settings = channel_config.settings_jsonb
         user_types = channel_config.user_types_jsonb
 
@@ -208,6 +209,9 @@ class ChannelService:
             raise ValueError("Settings invalida")
         if not isinstance(user_types, dict):
             raise ValueError("User types invalido")
+
+        settings = dict(settings)
+        settings["config_id"] = str(channel_config.id)
 
         return ChannelConfigBundleResponse(
             config=config,

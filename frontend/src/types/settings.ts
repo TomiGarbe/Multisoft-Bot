@@ -9,8 +9,6 @@ export type TenantSettingsEditable = {
   name: string;
   timezone: string;
   industry: string;
-  language: string;
-  logoUrl: string;
 };
 
 export type ChannelSettingsEditable = {

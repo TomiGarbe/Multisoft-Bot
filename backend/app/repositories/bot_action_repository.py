@@ -55,13 +55,21 @@ class BotActionRepository:
             stmt = stmt.where(BotAction.name.ilike(search_term))
 
         if channel_id is not None:
-            stmt = (
-                stmt.join(ChannelBotActionLink, ChannelBotActionLink.bot_action_id == BotAction.id)
-                .join(ChannelBotConfig, ChannelBotConfig.id == ChannelBotActionLink.channel_bot_config_id)
-                .where(ChannelBotConfig.channel_id == channel_id, ChannelBotConfig.tenant_id == tenant_id)
+            channel_config_ids_subquery = (
+                select(ChannelBotConfig.id).where(
+                    ChannelBotConfig.channel_id == channel_id,
+                    ChannelBotConfig.tenant_id == tenant_id,
+                )
+            )
+            stmt = stmt.where(
+                BotAction.id.in_(
+                    select(ChannelBotActionLink.bot_action_id).where(
+                        ChannelBotActionLink.channel_bot_config_id.in_(channel_config_ids_subquery)
+                    )
+                )
             )
 
-        stmt = stmt.order_by(BotAction.created_at.desc()).distinct(BotAction.id)
+        stmt = stmt.order_by(BotAction.created_at.desc())
         return self.db.execute(stmt).scalars().all()
 
     def get_enabled_by_tenant(self, tenant_id: uuid.UUID) -> list[BotAction]:

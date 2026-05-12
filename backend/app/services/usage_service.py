@@ -14,6 +14,7 @@ from app.models.metrics import AIUsageEvent
 from app.models.tenant import Tenant
 from app.repositories.ai.ai_log_repository import AILogRepository
 from app.repositories.ai_usage_repository import AIUsageRepository
+from app.services.config_structure import section_entries
 
 
 class UsageService:
@@ -306,9 +307,7 @@ class UsageService:
         edges: dict[tuple[str, str], None] = {}
         for row in rows:
             config_jsonb = row.config_jsonb if isinstance(row.config_jsonb, dict) else {}
-            objectives = config_jsonb.get("objectives") if isinstance(config_jsonb, dict) else []
-            if not isinstance(objectives, list):
-                continue
+            objectives = section_entries(config_jsonb, "objectives")
             for objective in objectives:
                 if not isinstance(objective, dict):
                     continue

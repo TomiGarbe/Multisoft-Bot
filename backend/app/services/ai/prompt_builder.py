@@ -1,4 +1,5 @@
 import logging
+from app.services.config_structure import section_entries, section_fields
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class PromptBuilder:
         return "\n\n".join(section for section in sections if section).strip()
 
     def build_identity(self, config: dict) -> str:
-        identity = config.get("identity", {})
+        identity = section_fields(config, "identity")
         lines = []
 
         role = identity.get("role")
@@ -60,7 +61,7 @@ class PromptBuilder:
         return "[IDENTIDAD]\n" + "\n".join(lines)
 
     def build_tone(self, config: dict) -> str:
-        tone = config.get("tone", {})
+        tone = section_fields(config, "tone")
         lines = []
 
         tone_value = tone.get("tone")
@@ -77,10 +78,14 @@ class PromptBuilder:
         return "[TONO]\n" + "\n".join(lines)
 
     def build_rules(self, config: dict) -> str:
-        rules_section = config.get("rules", {})
+        rules_section = section_fields(config, "rules")
         lines = []
 
-        rules = [rule for rule in rules_section.get("rules", []) if rule]
+        rules = [
+            *[rule for rule in rules_section.get("global_rules", []) if rule],
+            *[rule for rule in rules_section.get("business_rules", []) if rule],
+            *[rule for rule in rules_section.get("safety_rules", []) if rule],
+        ]
         if rules:
             lines.append("Reglas:")
             lines.extend(f"- {rule}" for rule in rules)
@@ -99,19 +104,19 @@ class PromptBuilder:
         return [b for b in blocks if user_type in b.get("applies_to", [])]
 
     def build_objective(self, config: dict, user_type: str) -> str:
-        valid = self._filter_by_user_type(config.get("objectives", []), user_type)
+        valid = self._filter_by_user_type(section_entries(config, "objectives"), user_type)
         if not valid:
             return ""
 
         lines = []
         for obj in valid:
             description = obj.get("description")
-            objective_type = obj.get("objective_type")
+            objective_type = obj.get("objective_type") or obj.get("objective")
             if description:
                 lines.append(f"Objetivo: {description}")
             if objective_type:
                 lines.append(f"Tipo: {objective_type}")
-            flow = [step for step in obj.get("conversation_flow", []) if step]
+            flow = [step for step in obj.get("conversation_flow", []) if step] or [step for step in obj.get("guidelines", []) if step]
             if flow:
                 lines.append("Flujo:")
                 lines.extend(f"- {step}" for step in flow)

@@ -3,51 +3,38 @@ export interface ChannelConfigValidationStatus {
   missing_fields: string[];
 }
 
-export interface BotIdentityConfig {
-  role: string;
-  bot_name: string;
-  industry: string;
-  language: string;
+export type CustomFieldType = 'short_text' | 'long_text' | 'list' | 'group' | 'group_list';
+
+export interface CustomFieldConfig {
+  key: string;
+  label: string;
+  type: CustomFieldType;
   description: string;
+  required: boolean;
+  options: string[];
+  fields: CustomFieldConfig[];
+  item_fields: CustomFieldConfig[];
+  notes: string[];
 }
 
-export interface BotToneConfig {
-  tone: string;
-  style_rules: string[];
-}
-
-export interface BotRulesConfig {
-  rules: string[];
-  fallback_message: string;
-}
-
-export interface BotActionConfig {
-  name: string;
-  description: string;
-}
-
-export interface BotObjectiveConfig {
-  description: string;
-  cta_message: string;
-  applies_to: string[];
-  conversation_flow: string[];
-}
-
-export interface DataCollectionField {
-  name: string;
+export interface ConfigSection {
+  id: string;
   type: string;
+  label: string;
+  enabled: boolean;
+  priority: number;
+  fields?: Record<string, unknown>;
+  entries?: Record<string, unknown>[];
+  custom_fields?: CustomFieldConfig[];
+  notes?: string;
 }
 
-export interface BotConfigEditable {
-  identity: BotIdentityConfig;
-  tone: BotToneConfig;
-  rules: BotRulesConfig;
-  actions: BotActionConfig[];
-  objectives: BotObjectiveConfig[];
-  data_collection: {
-    fields: DataCollectionField[];
-  };
+export interface ConfigDocument {
+  version: number;
+  sections: ConfigSection[];
 }
+
+export type BotConfigEditable = ConfigDocument;
 
 export interface ChannelBotConfig {
   id: string;
@@ -55,7 +42,7 @@ export interface ChannelBotConfig {
   channel_id: string;
   is_active: boolean;
   version: number;
-  config_jsonb: Record<string, unknown>;
+  config_jsonb: ConfigDocument;
   created_at: string;
   updated_at: string;
 }

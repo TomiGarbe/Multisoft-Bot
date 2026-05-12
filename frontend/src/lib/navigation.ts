@@ -4,6 +4,7 @@ import {
   Users,
   ShieldCheck,  MessageSquare,
   Radio,
+  Link2,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/users',          label: 'Usuarios',       icon: Users           },
   { path: '/conversaciones', label: 'Conversaciones', icon: MessageSquare   },
   { path: '/canales',        label: 'Canales',        icon: Radio           },
+  { path: '/integraciones',  label: 'Integraciones',  icon: Link2           },
   { path: '/configuracion',  label: 'Configuracion',  icon: Settings        },
 ];
 

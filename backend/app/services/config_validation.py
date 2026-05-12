@@ -1,4 +1,5 @@
 from typing import Any
+from app.services.config_structure import section_fields
 
 
 def get_config_validation_status(config: Any) -> dict[str, Any]:
@@ -11,10 +12,13 @@ def get_config_validation_status(config: Any) -> dict[str, Any]:
     """
     missing_fields: list[str] = []
 
-    if not _has_non_empty_string(config, "identity", "role"):
-        missing_fields.append("identity.role")
+    identity = section_fields(config, "identity")
+    tone = section_fields(config, "tone")
 
-    if not _has_non_empty_string(config, "tone", "tone"):
+    if not _has_non_empty_string(identity, "bot_name"):
+        missing_fields.append("identity.bot_name")
+
+    if not _has_non_empty_string(tone, "tone"):
         missing_fields.append("tone.tone")
 
     return {
@@ -23,13 +27,8 @@ def get_config_validation_status(config: Any) -> dict[str, Any]:
     }
 
 
-def _has_non_empty_string(source: Any, parent_key: str, child_key: str) -> bool:
+def _has_non_empty_string(source: Any, child_key: str) -> bool:
     if not isinstance(source, dict):
         return False
-
-    parent = source.get(parent_key)
-    if not isinstance(parent, dict):
-        return False
-
-    value = parent.get(child_key)
+    value = source.get(child_key)
     return isinstance(value, str) and bool(value.strip())

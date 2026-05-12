@@ -10,29 +10,14 @@ from app.models.user import User
 from app.repositories.channel_config_repository import ChannelConfigRepository
 from app.schemas.channel_config import ChannelConfigUpdate
 from app.services.auth.access_service import can_access_tenant_resource
+from app.services.config_structure import default_config_document, normalize_config_document
 from app.services.config_validation import get_config_validation_status
 
 
 class ChannelConfigService:
     @staticmethod
     def _default_config_jsonb() -> dict[str, Any]:
-        return {
-            "identity": {
-                "role": "assistant",
-                "description": "",
-                "industry": "",
-                "language": "",
-            },
-            "tone": {
-                "tone": "neutral",
-                "style_rules": [],
-            },
-            "rules": {"rules": []},
-            "behavior": {},
-            "objectives": [],
-            "data_collection": [],
-            "user_type_config": {},
-        }
+        return default_config_document()
 
     @staticmethod
     def _default_user_types_jsonb() -> dict[str, Any]:
@@ -119,6 +104,7 @@ class ChannelConfigService:
         channel_config = repository.get_by_id_and_tenant(config_id=config_id, tenant_id=tenant_id)
         if channel_config is None:
             raise LookupError(f"Channel config not found: {config_id}")
+        channel_config.config_jsonb = normalize_config_document(channel_config.config_jsonb)
         return channel_config
 
     @staticmethod
@@ -153,7 +139,7 @@ class ChannelConfigService:
 
         for target_config in target_configs:
             if "config_jsonb" in update_data:
-                target_config.config_jsonb = update_data["config_jsonb"]
+                target_config.config_jsonb = normalize_config_document(update_data["config_jsonb"])
             if "settings_jsonb" in update_data:
                 target_config.settings_jsonb = update_data["settings_jsonb"]
             if "user_types_jsonb" in update_data:
