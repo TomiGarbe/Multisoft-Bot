@@ -26,15 +26,16 @@ export function normalizePhone(value: string): string {
   const hasPlusPrefix = trimmed.startsWith('+');
   const digitsOnly = trimmed.replace(/\D/g, '');
 
-  return hasPlusPrefix ? `+${digitsOnly}` : `+${digitsOnly}`;
+  if (!digitsOnly) return '';
+  return hasPlusPrefix ? `+${digitsOnly}` : digitsOnly;
 }
 
 export function validatePhone(value: string): string | null {
   const normalized = normalizePhone(value);
 
   if (!normalized) return 'El telefono es obligatorio.';
-  if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
-    return 'Ingresa un telefono valido en formato internacional. Ej: +54 9 351 123 4567';
+  if (!/^(?:\+[1-9]\d{7,14}|[1-9]\d{7,14})$/.test(normalized)) {
+    return 'Ingresa un telefono valido en formato internacional. Ej: 5493511234567 o +5493511234567';
   }
 
   return null;
