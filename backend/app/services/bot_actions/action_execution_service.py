@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -16,6 +17,8 @@ from app.services.bot_actions.template_engine import render_template_object, ren
 from app.utils.bot_actions_constants import MAX_BODY_SIZE, MAX_RETRY_COUNT, MAX_TIMEOUT_MS
 from app.utils.bot_actions_sanitization import sanitize_nested_secrets, truncate_payload
 from app.utils.bot_actions_validators import validate_external_url_or_raise
+
+logger = logging.getLogger(__name__)
 
 
 class ActionExecutionService:
@@ -75,6 +78,15 @@ class ActionExecutionService:
         }
         sanitized_request = sanitize_nested_secrets(request_payload)
         sanitized_request["body"] = truncate_payload(sanitized_request.get("body"))
+        logger.info(
+            "EXECUTING TOOL HTTP (action_id=%s method=%s url=%s headers=%s params=%s body=%s)",
+            action.id,
+            action.method.value,
+            rendered_url,
+            sanitized_request.get("headers"),
+            sanitized_request.get("query_params"),
+            sanitized_request.get("body"),
+        )
 
         result = await self.http_client.execute(
             method=action.method.value,
@@ -90,6 +102,14 @@ class ActionExecutionService:
         sanitized_response = sanitize_nested_secrets(response_payload)
         sanitized_response["data"] = truncate_payload(sanitized_response.get("data"))
         sanitized_response["text"] = truncate_payload(sanitized_response.get("text"))
+        logger.info(
+            "TOOL HTTP RESPONSE (action_id=%s status=%s success=%s error=%s body=%s)",
+            action.id,
+            sanitized_response.get("status_code"),
+            sanitized_response.get("success"),
+            sanitized_response.get("error"),
+            sanitized_response.get("data") or sanitized_response.get("text"),
+        )
 
         self._log_execution(
             action_id=action.id,

@@ -37,6 +37,9 @@ class ChannelConfigService:
             "max_bot_messages_message": "Te paso con un asesor para ayudarte mejor",
             "human_handoff_reset_hours": 24,
             "quota_exceeded_message": "Llegaste al limite de uso de IA por ahora. Intenta mas tarde.",
+            "tool_failure_message": (
+                "No pude obtener esa informacion en este momento. Podes intentar nuevamente en unos minutos."
+            ),
             "unsupported_content_message": (
                 "Por el momento no puedo escuchar audios, ver fotos o archivos, queres que te pase con un asesor?"
             ),

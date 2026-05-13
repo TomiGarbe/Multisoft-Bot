@@ -19,14 +19,6 @@ from app.core.config import settings
 from app.models.conversation import Conversation
 from app.repositories.ai.ai_log_repository import AILogRepository
 from app.services.ai.ai_service import AIService
-from app.services.ai.debug_logger import (
-    is_ai_debug_enabled,
-    log_block,
-    log_footer,
-    log_header,
-    make_debug_id,
-    split_prompt_sections,
-)
 from app.services.ai.ai_tool_execution_service import AIToolExecutionService
 from app.services.ai.ai_tool_registry_service import AIToolRegistryService
 from app.services.ai.out_of_scope_detector import is_out_of_scope
@@ -45,8 +37,13 @@ logger = logging.getLogger(__name__)
 _DEFAULT_FALLBACK = "No pude procesar tu mensaje en este momento, podes intentar nuevamente?"
 _MAX_TOOL_LOOP_ITERATIONS = 1
 _SYSTEM_TOOLS_INSTRUCTION = (
-    "Si necesitas datos externos o de sistema, usa tools disponibles. "
-    "No inventes resultados de tools."
+    "Si el usuario pide datos externos o en tiempo real, debes usar las tools disponibles antes de responder. "
+    "No digas que no tenes acceso si hay tools habilitadas. "
+    "No inventes resultados: primero ejecuta la tool y luego responde con el resultado real. "
+    "Si una tool falla, explicalo naturalmente en contexto y no hables de media no soportada. "
+    "Nunca inventes valores aproximados, estimaciones ni cotizaciones si la tool falla. "
+    "Si no hay datos reales de la tool, decilo explicitamente y pedi reintentar. "
+    "Prioriza resolver la consulta actual del usuario antes de objetivos comerciales."
 )
 
 
@@ -109,11 +106,10 @@ class AIResponseOrchestrator:
         channel_id: uuid.UUID,
         message_id: Optional[uuid.UUID] = None,
         request_id: Optional[str] = None,
+        inbound_has_media: bool = False,
     ) -> Optional[str]:
         config = channel_config.config_jsonb or {}
         channel_settings = channel_config.settings_jsonb or {}
-        debug_enabled = is_ai_debug_enabled()
-        debug_id = make_debug_id() if debug_enabled else None
         provider_name = "ollama"
         if isinstance(channel_settings, dict):
             provider_name = str(channel_settings.get("ai_provider") or "ollama")
@@ -126,35 +122,9 @@ class AIResponseOrchestrator:
 
         response = None
         ai_payload: dict[str, Any] | None = None
-        tool_names: list[str] = []
-        if debug_enabled and debug_id is not None:
-            log_header(
-                debug_id=debug_id,
-                metadata={
-                    "tenant_id": str(tenant_id),
-                    "channel_id": str(channel_id),
-                    "conversation_id": str(conversation.id),
-                    "contact_id": str(contact_id) if contact_id else None,
-                    "request_id": request_id,
-                    "provider": provider_name,
-                    "channel_has_settings": isinstance(channel_settings, dict),
-                },
-            )
-            for section_name, section_text in split_prompt_sections(prompt).items():
-                log_block(debug_id=debug_id, title=f"PROMPT::{section_name}", value=section_text)
-            log_block(
-                debug_id=debug_id,
-                title="CHANNEL_CONFIG_APPLIED",
-                value={
-                    "behavior": config.get("behavior"),
-                    "identity": config.get("identity"),
-                    "tone": config.get("tone"),
-                    "rules": config.get("rules"),
-                    "objectives_count": len(section_entries(config, "objectives")),
-                    "data_collection_count": len(section_entries(config, "data_collection")),
-                    "channel_settings": channel_settings if isinstance(channel_settings, dict) else {},
-                },
-            )
+        tools_available = False
+        tool_call_attempted = False
+        tool_failure_detected = False
 
         if should_use_ai(conversation, channel_config):
             try:
@@ -166,7 +136,7 @@ class AIResponseOrchestrator:
                         if isinstance(channel_settings, dict)
                         else None
                     ) or fallback_message
-                    logger.warning(
+                    logger.info(
                         (
                             "AI quota blocked execution "
                             "(conversation_id=%s tenant_id=%s reason=%s remaining_daily_tokens=%s "
@@ -188,6 +158,7 @@ class AIResponseOrchestrator:
                         tenant_id=tenant_id,
                         channel_id=channel_id,
                     )
+                    tools_available = bool(available_tools)
                     logger.info(
                         "AI tools available (conversation_id=%s tenant_id=%s channel_id=%s count=%d)",
                         conversation.id,
@@ -195,26 +166,7 @@ class AIResponseOrchestrator:
                         channel_id,
                         len(available_tools),
                     )
-                    tool_names = list(action_map.keys())
-                    if debug_enabled and debug_id is not None:
-                        log_block(
-                            debug_id=debug_id,
-                            title="ENABLED_TOOLS",
-                            value={
-                                "count": len(available_tools),
-                                "names": tool_names,
-                                "tools": available_tools,
-                            },
-                        )
-
                     if available_tools:
-                        base_messages = [
-                            {"role": "system", "content": prompt},
-                            {"role": "system", "content": _SYSTEM_TOOLS_INSTRUCTION},
-                            {"role": "user", "content": self._extract_current_user_message(prompt)},
-                        ]
-                        if debug_enabled and debug_id is not None:
-                            log_block(debug_id=debug_id, title="MESSAGES_TO_PROVIDER::INITIAL", value=base_messages)
                         ai_payload = await self.call_ai_chat(
                             prompt=prompt,
                             current_user_message=self._extract_current_user_message(prompt),
@@ -223,6 +175,14 @@ class AIResponseOrchestrator:
                         )
                         response = str((ai_payload or {}).get("response") or "")
                         tool_calls = (ai_payload or {}).get("tool_calls") or []
+                        tool_call_attempted = bool(tool_calls)
+                        logger.info(
+                            "AI response parsed (conversation_id=%s provider=%s tool_calls=%d finish_reason=%s)",
+                            conversation.id,
+                            provider_name,
+                            len(tool_calls),
+                            (ai_payload or {}).get("finish_reason"),
+                        )
                         if tool_calls:
                             assistant_message = (ai_payload or {}).get("assistant_message") or {}
                             tool_messages: list[dict[str, Any]] = []
@@ -254,6 +214,8 @@ class AIResponseOrchestrator:
                                         action=action,
                                         arguments=arguments,
                                     )
+                                if not bool(result_payload.get("success")):
+                                    tool_failure_detected = True
                                 tool_messages.append(
                                     {
                                         "role": "tool",
@@ -268,12 +230,6 @@ class AIResponseOrchestrator:
                                     action_name,
                                     result_payload.get("success"),
                                 )
-                                if debug_enabled and debug_id is not None:
-                                    log_block(
-                                        debug_id=debug_id,
-                                        title=f"TOOL_RESULT::{action_name}",
-                                        value=result_payload,
-                                    )
 
                             if _MAX_TOOL_LOOP_ITERATIONS > 0:
                                 follow_up_messages = [
@@ -287,24 +243,30 @@ class AIResponseOrchestrator:
                                     },
                                     *tool_messages,
                                 ]
-                                if debug_enabled and debug_id is not None:
-                                    log_block(
-                                        debug_id=debug_id,
-                                        title="MESSAGES_TO_PROVIDER::FOLLOW_UP",
-                                        value=follow_up_messages,
-                                    )
                                 ai_payload = await AIService(provider_name=provider_name).generate_chat_with_metadata(
                                     follow_up_messages,
                                     tools=available_tools,
                                 )
                                 response = str((ai_payload or {}).get("response") or "")
-                    else:
-                        if debug_enabled and debug_id is not None:
-                            log_block(
-                                debug_id=debug_id,
-                                title="MESSAGES_TO_PROVIDER::PROMPT_ONLY",
-                                value={"prompt": prompt},
+                                logger.info(
+                                    "AI follow up after tools (conversation_id=%s finish_reason=%s tool_calls=%d)",
+                                    conversation.id,
+                                    (ai_payload or {}).get("finish_reason"),
+                                    len((ai_payload or {}).get("tool_calls") or []),
+                                )
+                        else:
+                            logger.info(
+                                "AI did not call tools (conversation_id=%s provider=%s tools_available=%d)",
+                                conversation.id,
+                                provider_name,
+                                len(action_map),
                             )
+                    else:
+                        logger.info(
+                            "AI WITHOUT TOOLS (conversation_id=%s provider=%s reason=no_tools_configured_for_channel)",
+                            conversation.id,
+                            provider_name,
+                        )
                         ai_payload = await self.call_ai(prompt, provider_name=provider_name)
                         response = str((ai_payload or {}).get("response") or "")
             except Exception:
@@ -337,35 +299,43 @@ class AIResponseOrchestrator:
             message_id=message_id,
             request_id=request_id,
         )
-        if debug_enabled and debug_id is not None:
-            log_block(
-                debug_id=debug_id,
-                title="AI_RESPONSE",
-                value={
-                    "response": response,
-                    "tool_calls": (ai_payload or {}).get("tool_calls") or [],
-                    "finish_reason": (ai_payload or {}).get("finish_reason"),
-                    "usage": {
-                        "prompt_eval_count": (ai_payload or {}).get("prompt_eval_count"),
-                        "eval_count": (ai_payload or {}).get("eval_count"),
-                    },
-                    "model": (ai_payload or {}).get("model") or settings.OLLAMA_MODEL,
-                    "provider": provider_name,
-                },
-            )
-            log_footer(debug_id=debug_id)
-
         if not response or not response.strip():
-            logger.warning("Empty AI response for conversation: %s - using fallback", conversation.id)
-            response = fallback_message
+            if tool_failure_detected:
+                tool_failure_message = (
+                    channel_settings.get("tool_failure_message")
+                    if isinstance(channel_settings, dict)
+                    else None
+                ) or "No pude obtener esa informacion en este momento. Podes intentar nuevamente en unos minutos."
+                logger.warning(
+                    "Empty AI response after tool failure for conversation: %s - using tool_failure_message",
+                    conversation.id,
+                )
+                response = tool_failure_message
+            else:
+                logger.warning("Empty AI response for conversation: %s - using fallback", conversation.id)
+                response = fallback_message
         elif is_out_of_scope(response):
-            unsupported = (
-                channel_settings.get("unsupported_content_message")
-                if isinstance(channel_settings, dict)
-                else None
-            ) or "No puedo ayudarte con eso."
-            logger.warning("Out-of-scope response for conversation: %s", conversation.id)
-            response = unsupported
+            if inbound_has_media:
+                unsupported = (
+                    channel_settings.get("unsupported_content_message")
+                    if isinstance(channel_settings, dict)
+                    else None
+                ) or "Por el momento no puedo procesar ese tipo de archivo."
+                logger.warning("Out-of-scope with inbound media for conversation: %s", conversation.id)
+                response = unsupported
+            elif tools_available or tool_call_attempted:
+                logger.warning(
+                    "Out-of-scope detector ignored because tools were available/attempted (conversation_id=%s)",
+                    conversation.id,
+                )
+            else:
+                out_of_scope_message = (
+                    channel_settings.get("out_of_scope_message")
+                    if isinstance(channel_settings, dict)
+                    else None
+                ) or "No puedo ayudarte con eso."
+                logger.warning("Out-of-scope response for conversation: %s", conversation.id)
+                response = out_of_scope_message
 
         bot_message_count: Optional[int] = None
         if contact_id is not None:
@@ -463,7 +433,7 @@ class AIResponseOrchestrator:
                 output_tokens=output_tokens,
             )
             if usage_event is None:
-                logger.warning(
+                logger.info(
                     "AI usage event not recorded due to empty counters (conversation_id=%s)",
                     conversation_id,
                 )

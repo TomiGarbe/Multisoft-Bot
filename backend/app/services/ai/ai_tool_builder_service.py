@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.models.bot_action import BotAction
+
+logger = logging.getLogger(__name__)
 
 
 class AIToolBuilderService:
@@ -31,7 +34,7 @@ class AIToolBuilderService:
         if action.trigger_prompt:
             description_parts.append(f"Cuando usar: {action.trigger_prompt.strip()}")
 
-        return {
+        tool_payload = {
             "type": "function",
             "function": {
                 "name": action.name,
@@ -43,3 +46,12 @@ class AIToolBuilderService:
                 },
             },
         }
+        logger.info(
+            "AI TOOL BUILT (name=%s method=%s url=%s description=%s schema=%s)",
+            action.name,
+            getattr(action.method, "value", None),
+            action.url,
+            tool_payload["function"]["description"],
+            tool_payload["function"]["parameters"],
+        )
+        return tool_payload

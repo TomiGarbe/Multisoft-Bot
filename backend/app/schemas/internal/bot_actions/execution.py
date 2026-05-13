@@ -13,3 +13,6 @@ class ActionExecutionResult(BaseModel):
     text: str | None = None
     duration_ms: int
     error: str | None = None
+    message: str | None = None
+    exception_type: str | None = None
+    safe_details: dict[str, Any] | None = None

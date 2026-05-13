@@ -52,4 +52,14 @@ class AIService:
         *,
         tools: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        uses_default_chat = (
+            self.provider.__class__.generate_chat_with_metadata
+            is AIInterface.generate_chat_with_metadata
+        )
+        if uses_default_chat:
+            logger.warning(
+                "AI provider does not implement native tool-calling chat endpoint (provider=%s). "
+                "Falling back to flattened prompt; tools may be ignored.",
+                self.provider.__class__.__name__,
+            )
         return await self.provider.generate_chat_with_metadata(messages, tools=tools)

@@ -18,6 +18,12 @@ def serialize_action_result_for_model(
         "status_code": result.status_code,
         "data": truncate_payload(sanitize_nested_secrets(result.data), max_bytes=max_bytes),
         "error": truncate_payload(result.error, max_bytes=max_bytes) if result.error else None,
+        "message": truncate_payload(result.message, max_bytes=max_bytes) if result.message else None,
+        "exception_type": result.exception_type,
+        "safe_details": truncate_payload(
+            sanitize_nested_secrets(result.safe_details),
+            max_bytes=max_bytes,
+        ) if result.safe_details else None,
     }
     encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
     if len(encoded) <= max_bytes:

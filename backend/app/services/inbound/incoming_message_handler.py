@@ -36,12 +36,13 @@ _processor = MessageProcessor()
 async def handle_incoming_message(db: Session, message: NormalizedMessage, tenant_id: uuid.UUID) -> None:
     # 1. Cortar si el mensaje proviene del propio bot (echo).
     if message.is_bot:
-        logger.info("Skipping bot echo: channel=%s id=%s", message.channel_id, message.external_message_id)
+        logger.warning("Skipping bot echo: channel=%s id=%s", message.channel_id, message.external_message_id)
         return
 
     # 2. Obtener o crear la conversación.
     conversation = message_service.get_or_create_conversation_with_tenant(db, message, tenant_id=tenant_id)
     if not conversation:
+        logger.warning("Failed to get or create conversation for message: %s", message.external_message_id)
         return
 
     # 3. Guardar el mensaje inbound SIEMPRE (dedup vía UNIQUE channel+provider_id).
@@ -55,12 +56,12 @@ async def handle_incoming_message(db: Session, message: NormalizedMessage, tenan
         db, inbound.channel_id,
     )
     if not channel_config:
-        logger.info("No active config for channel: %s", inbound.channel_id)
+        logger.warning("No active config for channel: %s", inbound.channel_id)
         return
 
     # 5. Gate IA: modo "ai" + config válida.
     if not should_use_ai(conversation, channel_config):
-        logger.info("AI disabled for conversation: %s", conversation.id)
+        logger.warning("AI disabled for conversation: %s", conversation.id)
         return
 
     # 6 + 7. Construir contexto y prompt.
@@ -79,6 +80,7 @@ async def handle_incoming_message(db: Session, message: NormalizedMessage, tenan
         channel_id=inbound.channel_id,
         message_id=inbound.id,
         request_id=inbound.provider_message_id,
+        inbound_has_media=bool(inbound.has_media),
     )
     if not ai_response:
         return

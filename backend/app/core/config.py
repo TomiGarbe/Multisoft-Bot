@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     ENV: str = Field(default="development", description="Environment: development, production, testing")
     DEBUG: bool = Field(default=False, description="Enable debug mode")
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
-    AI_DEBUG_LOGS: bool = Field(default=False, description="Enable detailed AI debug logs")
     
     # ========== APPLICATION INFO ==========
     PROJECT_NAME: str = "Multisoft Bot"
@@ -147,16 +146,6 @@ class Settings(BaseSettings):
             return v.lower() in ("true", "1", "yes", "on")
         return False
 
-    @field_validator("AI_DEBUG_LOGS", mode="before")
-    @classmethod
-    def parse_ai_debug_logs(cls, v) -> bool:
-        """Parse AI_DEBUG_LOGS as boolean from string"""
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, str):
-            return v.lower() in ("true", "1", "yes", "on")
-        return False
-    
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

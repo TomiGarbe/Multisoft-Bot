@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any
 
@@ -9,6 +10,8 @@ import httpx
 from app.services.bot_actions.errors import ActionExecutionError
 from app.schemas.internal.bot_actions.execution import ActionExecutionResult
 from app.utils.bot_actions_constants import MAX_RESPONSE_SIZE
+
+logger = logging.getLogger(__name__)
 
 
 class HttpClientService:
@@ -44,18 +47,82 @@ class HttpClientService:
                         continue
                     return self._normalize_response(response=response, duration_ms=duration_ms)
                 except httpx.TimeoutException as exc:
-                    last_error = ActionExecutionError("request_timeout", str(exc))
+                    logger.warning(
+                        "TOOL HTTP TIMEOUT (method=%s url=%s attempt=%s/%s error=%s)",
+                        method,
+                        url,
+                        attempt + 1,
+                        attempts,
+                        str(exc),
+                        exc_warning=True,
+                    )
+                    last_error = ActionExecutionError(
+                        "request_timeout",
+                        str(exc),
+                        exception_type=exc.__class__.__name__,
+                    )
                     if attempt >= attempts - 1:
                         break
                 except httpx.ConnectError as exc:
-                    last_error = ActionExecutionError("http_connection_error", str(exc))
+                    logger.warning(
+                        "TOOL HTTP CONNECTION ERROR (method=%s url=%s attempt=%s/%s error=%s)",
+                        method,
+                        url,
+                        attempt + 1,
+                        attempts,
+                        str(exc),
+                        exc_warning=True,
+                    )
+                    last_error = ActionExecutionError(
+                        "http_connection_error",
+                        str(exc),
+                        exception_type=exc.__class__.__name__,
+                    )
+                    if attempt >= attempts - 1:
+                        break
+                except httpx.DecodingError as exc:
+                    logger.warning(
+                        "TOOL HTTP DECODING ERROR (method=%s url=%s attempt=%s/%s error=%s)",
+                        method,
+                        url,
+                        attempt + 1,
+                        attempts,
+                        str(exc),
+                        exc_warning=True,
+                    )
+                    last_error = ActionExecutionError(
+                        "http_decoding_error",
+                        "Response decompression failed",
+                        exception_type=exc.__class__.__name__,
+                        safe_details={"raw_error": str(exc)},
+                    )
                     if attempt >= attempts - 1:
                         break
                 except ActionExecutionError as exc:
+                    logger.warning(
+                        "TOOL HTTP ACTION EXECUTION ERROR (method=%s url=%s error_code=%s message=%s)",
+                        method,
+                        url,
+                        exc.code,
+                        str(exc),
+                        exc_warning=True,
+                    )
                     last_error = exc
                     break
                 except Exception as exc:  # pragma: no cover
-                    last_error = ActionExecutionError("action_execution_failed", str(exc))
+                    logger.warning(
+                        "TOOL HTTP UNEXPECTED EXCEPTION (method=%s url=%s exception_class=%s message=%s)",
+                        method,
+                        url,
+                        exc.__class__.__name__,
+                        str(exc),
+                        exc_warning=True,
+                    )
+                    last_error = ActionExecutionError(
+                        "action_execution_failed",
+                        str(exc),
+                        exception_type=exc.__class__.__name__,
+                    )
                     break
 
         duration_ms = int((time.perf_counter() - started) * 1000)
@@ -63,6 +130,9 @@ class HttpClientService:
             success=False,
             duration_ms=duration_ms,
             error=last_error.code if last_error else "action_execution_failed",
+            message=(last_error.message if last_error else "Action execution failed"),
+            exception_type=(last_error.exception_type if last_error else None),
+            safe_details=(last_error.safe_details if last_error else None),
         )
 
     async def _send_request(
@@ -78,7 +148,7 @@ class HttpClientService:
         request_kwargs: dict[str, Any] = {
             "method": method,
             "url": url,
-            "headers": headers,
+            "headers": dict(headers or {}),
             "params": query_params,
         }
         if body is not None:
@@ -87,26 +157,37 @@ class HttpClientService:
             else:
                 request_kwargs["content"] = str(body)
 
-        async with client.stream(**request_kwargs) as response:
-            chunks: list[bytes] = []
-            total = 0
-            async for chunk in response.aiter_bytes():
-                total += len(chunk)
-                if total > MAX_RESPONSE_SIZE:
-                    raise ActionExecutionError("response_too_large", "Response exceeds max allowed size.")
-                chunks.append(chunk)
-            content = b"".join(chunks)
-            built = httpx.Response(
-                status_code=response.status_code,
-                headers=response.headers,
-                content=content,
-                request=response.request,
-            )
-            return built
+        try:
+            response = await client.request(**request_kwargs)
+        except httpx.DecodingError as exc:
+            response_headers = request_kwargs["headers"]
+            accept_encoding = str(response_headers.get("Accept-Encoding", "")).strip().lower()
+            if accept_encoding != "identity":
+                logger.warning(
+                    "HTTP DECODE ERROR - retrying with Accept-Encoding=identity (method=%s url=%s error=%s)",
+                    method,
+                    url,
+                    str(exc),
+                )
+                response_headers["Accept-Encoding"] = "identity"
+                response = await client.request(**request_kwargs)
+            else:
+                raise
+
+        if len(response.content) > MAX_RESPONSE_SIZE:
+            raise ActionExecutionError("response_too_large", "Response exceeds max allowed size.")
+        return response
 
     @staticmethod
     def _normalize_response(*, response: httpx.Response, duration_ms: int) -> ActionExecutionResult:
         headers = {k.lower(): v for k, v in response.headers.items()}
+        logger.info(
+            "HTTP response metadata (status=%s content_type=%s content_encoding=%s transfer_encoding=%s)",
+            response.status_code,
+            headers.get("content-type"),
+            headers.get("content-encoding"),
+            headers.get("transfer-encoding"),
+        )
         success = 200 <= response.status_code < 400
         data: Any = None
         text: str | None = None
@@ -115,17 +196,23 @@ class HttpClientService:
         if "application/json" in content_type:
             try:
                 data = response.json()
-            except json.JSONDecodeError as exc:
+            except (json.JSONDecodeError, ValueError) as exc:
                 text = response.text
-                return ActionExecutionResult(
-                    success=False,
-                    status_code=response.status_code,
-                    headers=headers,
-                    data=None,
-                    text=text,
-                    duration_ms=duration_ms,
-                    error=f"invalid_response: {exc}",
-                )
+                if success:
+                    data = text
+                else:
+                    return ActionExecutionResult(
+                        success=False,
+                        status_code=response.status_code,
+                        headers=headers,
+                        data=None,
+                        text=text,
+                        duration_ms=duration_ms,
+                        error="invalid_response",
+                        message="Failed to parse JSON response body.",
+                        exception_type=exc.__class__.__name__,
+                        safe_details={"parse_error": str(exc)},
+                    )
         else:
             text = response.text
 

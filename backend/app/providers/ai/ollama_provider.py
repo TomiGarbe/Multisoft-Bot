@@ -5,7 +5,6 @@ import json
 import httpx
 from app.interfaces.ai.ai_interface import AIInterface
 from app.core.config import settings
-from app.services.ai.debug_logger import is_ai_debug_enabled, log_block, make_debug_id, mask_sensitive
 
 logger = logging.getLogger(__name__)
 
@@ -53,25 +52,7 @@ class OllamaProvider(AIInterface):
         
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        debug_enabled = is_ai_debug_enabled()
-        debug_id = make_debug_id() if debug_enabled else None
-        if debug_enabled and debug_id is not None:
-            log_block(
-                debug_id=debug_id,
-                title="PROVIDER_REQUEST::GENERATE",
-                value={
-                    "endpoint": endpoint,
-                    "provider": "ollama",
-                    "payload": payload,
-                    "headers": mask_sensitive(headers),
-                    "options": {
-                        "temperature": None,
-                        "max_tokens": None,
-                        "response_format": None,
-                        "tool_calling": False,
-                    },
-                },
-            )
+        logger.info("Ollama generate request (model=%s)", self.model)
 
         try:
             async with httpx.AsyncClient() as client:
@@ -84,20 +65,13 @@ class OllamaProvider(AIInterface):
                 response.raise_for_status()
                 
                 data = response.json()
-                if debug_enabled and debug_id is not None:
-                    log_block(
-                        debug_id=debug_id,
-                        title="PROVIDER_RESPONSE::GENERATE_RAW",
-                        value=data,
-                    )
-
                 # Extract the generated text from response
                 generated_text = data.get("response", "").strip()
                 
                 if not generated_text:
                     raise ValueError("Empty response received from Ollama")
                 
-                logger.info("[OLLAMA] Generated response for prompt: %.50s...", prompt)
+                logger.info("Ollama generate response received (model=%s)", data.get("model") or self.model)
                 return {
                     "response": generated_text,
                     "prompt_eval_count": data.get("prompt_eval_count"),
@@ -132,44 +106,29 @@ class OllamaProvider(AIInterface):
         }
         if tools:
             payload["tools"] = tools
+        logger.info(
+            "Ollama chat request (model=%s tools_count=%d)",
+            self.model,
+            len(tools or []),
+        )
 
         headers = {"Content-Type": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        debug_enabled = is_ai_debug_enabled()
-        debug_id = make_debug_id() if debug_enabled else None
-        if debug_enabled and debug_id is not None:
-            log_block(
-                debug_id=debug_id,
-                title="PROVIDER_REQUEST::CHAT",
-                value={
-                    "endpoint": endpoint,
-                    "provider": "ollama",
-                    "payload": payload,
-                    "headers": mask_sensitive(headers),
-                    "options": {
-                        "temperature": None,
-                        "max_tokens": None,
-                        "response_format": None,
-                        "tool_calling": bool(tools),
-                        "tools_count": len(tools or []),
-                    },
-                },
-            )
-
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(endpoint, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-        if debug_enabled and debug_id is not None:
-            log_block(
-                debug_id=debug_id,
-                title="PROVIDER_RESPONSE::CHAT_RAW",
-                value=data,
-            )
-
         message = data.get("message") or {}
         tool_calls_raw = message.get("tool_calls") or []
+        logger.info(
+            "Ollama chat response received (model=%s done_reason=%s has_tool_calls=%s tool_calls_count=%d)",
+            data.get("model") or self.model,
+            data.get("done_reason"),
+            bool(tool_calls_raw),
+            len(tool_calls_raw),
+        )
+
         tool_calls: list[dict[str, Any]] = []
         for idx, call in enumerate(tool_calls_raw):
             function_payload = call.get("function") or {}
