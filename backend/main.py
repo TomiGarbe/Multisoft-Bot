@@ -7,6 +7,7 @@ from app.api.routes import (
     analytics,
     ai,
     api_keys,
+    attachments,
     auth,
     bot_actions,
     channel_bot_config_actions,
@@ -14,6 +15,7 @@ from app.api.routes import (
     channels,
     conversations,
     messages,
+    media_processing,
     permissions,
     realtime,
     roles,
@@ -55,6 +57,8 @@ app.include_router(channel_config.router, prefix=f"{settings.API_V1_STR}/channel
 app.include_router(channel_bot_config_actions.router, prefix=f"{settings.API_V1_STR}/channel-bot-configs")
 app.include_router(webhooks.router, prefix=f"{settings.API_V1_STR}/webhooks")
 app.include_router(messages.router, prefix=f"{settings.API_V1_STR}/messages")
+app.include_router(attachments.router, prefix=f"{settings.API_V1_STR}/attachments")
+app.include_router(media_processing.router, prefix=f"{settings.API_V1_STR}/media-processing")
 app.include_router(conversations.router, prefix=f"{settings.API_V1_STR}/conversations")
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai")
 app.include_router(analytics.router, prefix=f"{settings.API_V1_STR}/analytics")

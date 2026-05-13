@@ -1,6 +1,7 @@
 import logging
 import uuid
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
+from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 from fastapi.encoders import jsonable_encoder
@@ -11,8 +12,17 @@ from app.models.contact import Contact
 from app.models.conversation import Conversation, Message
 from app.providers.provider_factory import get_message_provider
 from app.repositories.message_repository import MessageRepository
+from app.schemas.internal.message_enums import AttachmentDownloadStatus, MessageType, StorageBackend
 from app.schemas.internal.normalized_message import NormalizedMessage
+from app.schemas.internal.attachment_persistence import AttachmentCreate
+from app.schemas.internal.outbound_media import OutboundAttachment, OutboundMediaMessage
 from app.schemas.message import MessageResponse, MessageSendRequest
+from app.services.attachment_service import AttachmentService
+from app.services.attachments.attachment_download_dispatcher import (
+    AttachmentDownloadJob,
+    attachment_download_dispatcher,
+)
+from app.services.message_persistence_service import MessagePersistenceService
 from app.services.realtime_service import event_bus
 
 logger = logging.getLogger(__name__)
@@ -68,6 +78,8 @@ class MessageService:
     ) -> None:
         self.db = db
         self.repository = MessageRepository(db)
+        self.attachment_service = AttachmentService(db)
+        self.message_persistence = MessagePersistenceService(db)
         self.provider_resolver = provider_resolver
 
     def ensure_message_id(self, message: object) -> str:
@@ -117,7 +129,7 @@ class MessageService:
             sender_contact_id=contact_id,
             direction="inbound",
             sender_type="contact",
-            message_type=normalized.message_type,
+            message_type=normalized.message_type.value,
             content_text=normalized.content,
             provider_message_id=external_message_id,
             status="received",
@@ -131,10 +143,8 @@ class MessageService:
             raw_payload=normalized.raw_payload,
             replied_to_message_id=normalized.replied_to_message_id,
         )
-        self.repository.create_message(message)
-        self.repository.touch_conversation_last_message(conversation)
-        self.repository.commit()
-        self.repository.refresh(message)
+        message = self.message_persistence.save_message(message, conversation)
+        self._persist_normalized_attachments(message, normalized)
         self._publish_new_message_event(message)
         return message
 
@@ -142,7 +152,7 @@ class MessageService:
         self,
         conversation: Conversation,
         content: str,
-        attachments: Optional[list] = None,
+        attachments: Optional[list[OutboundAttachment]] = None,
         raw_payload: Optional[dict] = None,
         replied_to_message_id: Optional[str] = None,
     ) -> Message:
@@ -156,7 +166,7 @@ class MessageService:
             channel_id=thread.channel_id,
             direction="outbound",
             sender_type="bot",
-            message_type="media" if attachments else "text",
+            message_type=MessageType.MEDIA.value if attachments else MessageType.TEXT.value,
             content_text=content,
             provider_message_id=str(uuid.uuid4()),
             status="pending",
@@ -164,9 +174,8 @@ class MessageService:
             raw_payload=raw_payload,
             replied_to_message_id=replied_to_message_id,
         )
-        self.repository.create_message(message)
-        self.repository.commit()
-        self.repository.refresh(message)
+        message = self.message_persistence.save_message(message, conversation)
+        self._persist_outbound_attachments(message, conversation.tenant_id, attachments)
         self._publish_new_message_event(message)
         return message
 
@@ -174,7 +183,7 @@ class MessageService:
         self,
         conversation: Conversation,
         message: Message,
-        attachments: Optional[list] = None,
+        attachments: Optional[list[OutboundAttachment]] = None,
         reply_to_id: Optional[str] = None,
     ) -> dict:
         thread = self.repository.get_thread_by_id_and_tenant(conversation.chat_thread_id, conversation.tenant_id)
@@ -200,12 +209,23 @@ class MessageService:
                 channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
             )
         elif attachments:
-            media_url = attachments[0].get("url", "")
+            resolved_attachments = self._resolve_outbound_attachments(
+                message_id=message.id,
+                tenant_id=conversation.tenant_id,
+                outbound_attachments=attachments,
+                channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
+            )
+            media_message = OutboundMediaMessage(attachments=resolved_attachments, fallback_text=content or None)
+            logger.info(
+                "outbound_media_dispatch provider=%s message_id=%s attachments_count=%s",
+                provider_name,
+                message.id,
+                len(attachments),
+            )
             result = provider.send_media(
                 str(channel.id),
                 to,
-                media_url,
-                content or None,
+                media_message,
                 channel_external_id=channel.external_id,
                 channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
             )
@@ -224,10 +244,90 @@ class MessageService:
             provider_message_id=result.get("provider_message_id"),
             status=result.get("status", "sent"),
         )
+        logger.info(
+            "outbound_dispatch_result provider=%s message_id=%s tenant_id=%s status=%s attachments_count=%s",
+            provider_name,
+            message.id,
+            conversation.tenant_id,
+            result.get("status"),
+            len(attachments or []),
+        )
         self.repository.touch_conversation_last_message(conversation)
         self.repository.commit()
         self.repository.refresh(message)
         return result
+
+    def _resolve_outbound_attachments(
+        self,
+        *,
+        message_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        outbound_attachments: list[OutboundAttachment],
+        channel_config: Optional[dict[str, Any]],
+    ) -> list[OutboundAttachment]:
+        persisted = self.attachment_service.list_by_message_id_and_tenant(message_id, tenant_id)
+        by_provider_media_id = {str(item.provider_media_id): item for item in persisted if item.provider_media_id}
+        unmatched = [item for item in persisted if not item.provider_media_id]
+        base_url = self._resolve_public_api_base_url(channel_config)
+
+        resolved: list[OutboundAttachment] = []
+        for item in outbound_attachments:
+            if item.provider_url:
+                resolved.append(item)
+                continue
+            if item.provider_media_id and str(item.provider_media_id) in by_provider_media_id:
+                db_attachment = by_provider_media_id[str(item.provider_media_id)]
+                provider_url = db_attachment.provider_url
+                if not provider_url and base_url:
+                    provider_url = self._build_internal_download_url(
+                        base_url=base_url,
+                        attachment_id=db_attachment.id,
+                        tenant_id=tenant_id,
+                        storage_key=db_attachment.storage_key,
+                    )
+                resolved.append(item.model_copy(update={"provider_url": provider_url}))
+                continue
+            if unmatched:
+                db_attachment = unmatched.pop(0)
+                provider_url = db_attachment.provider_url
+                if not provider_url and base_url:
+                    provider_url = self._build_internal_download_url(
+                        base_url=base_url,
+                        attachment_id=db_attachment.id,
+                        tenant_id=tenant_id,
+                        storage_key=db_attachment.storage_key,
+                    )
+                resolved.append(item.model_copy(update={"provider_url": provider_url}))
+                continue
+            resolved.append(item)
+        return resolved
+
+    @staticmethod
+    def _resolve_public_api_base_url(channel_config: Optional[dict[str, Any]]) -> Optional[str]:
+        if not isinstance(channel_config, dict):
+            return None
+        for key in ("public_api_base_url", "multimedia_public_base_url", "backend_public_base_url"):
+            value = channel_config.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.rstrip("/")
+        return None
+
+    def _build_internal_download_url(
+        self,
+        *,
+        base_url: str,
+        attachment_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        storage_key: Optional[str],
+    ) -> str:
+        access_ref = self.attachment_service.generate_access_reference(
+            attachment_id=attachment_id,
+            tenant_id=tenant_id,
+            storage_key=storage_key,
+            ttl_seconds=300,
+        )
+        query = urlencode({"access_ref": access_ref})
+        return f"{base_url}/api/v1/attachments/{attachment_id}/download?{query}"
 
     def create_inbound_message(
         self,
@@ -318,7 +418,11 @@ class MessageService:
         if not normalized.sender_external_id:
             return None
 
-        identity = self.repository.get_contact_identity(channel.type, normalized.sender_external_id)
+        identity = self.repository.get_contact_identity(
+            channel.type,
+            normalized.sender_external_id,
+            channel.tenant_id,
+        )
         if identity:
             return identity.contact_id
 
@@ -329,6 +433,7 @@ class MessageService:
         )
         self.repository.create_contact_identity(
             contact_id=contact.id,
+            tenant_id=channel.tenant_id,
             channel_type=channel.type,
             external_id=normalized.sender_external_id,
         )
@@ -365,7 +470,7 @@ class MessageService:
         if not channel:
             return None
 
-        identity = self.repository.get_contact_identity(channel.type, external_id)
+        identity = self.repository.get_contact_identity(channel.type, external_id, tenant_id)
         return identity.contact_id if identity else None
 
     def _to_response(self, message: Message) -> MessageResponse:
@@ -382,6 +487,97 @@ class MessageService:
             },
             tenant_id=message.tenant_id,
         )
+
+    def _persist_normalized_attachments(self, message: Message, normalized: NormalizedMessage) -> None:
+        if not normalized.attachments:
+            return
+
+        records: list[AttachmentCreate] = []
+        for item in normalized.attachments:
+            metadata_json = item.metadata.model_dump(mode="json") if item.metadata else {}
+            if item.base64_data:
+                metadata_json["base64_data"] = item.base64_data
+            if item.provider_url:
+                metadata_json["provider_url"] = item.provider_url
+            if item.provider_media_id:
+                metadata_json["provider_media_id"] = item.provider_media_id
+
+            has_source = bool(item.provider_url or item.provider_media_id or item.base64_data)
+            records.append(
+                AttachmentCreate(
+                    message_id=message.id,
+                    tenant_id=message.tenant_id,
+                    attachment_type=item.type,
+                    storage_backend=item.metadata.storage_backend,
+                    storage_key=None,
+                    provider_media_id=item.provider_media_id,
+                    provider_url=item.provider_url,
+                    mime_type=item.mime_type,
+                    filename=item.filename,
+                    extension=item.extension,
+                    size_bytes=item.size_bytes,
+                    checksum_sha256=item.metadata.checksum_sha256,
+                    download_status=(
+                        item.metadata.download_status
+                        if not has_source
+                        else AttachmentDownloadStatus.PENDING
+                    ),
+                    metadata_json=metadata_json,
+                    width=item.width,
+                    height=item.height,
+                    duration_ms=item.duration_ms,
+                    caption=item.caption,
+                    provider_timestamp=normalized.timestamp,
+                    file_data=None,
+                )
+            )
+
+        persisted = self.attachment_service.save_attachments_bulk(records)
+
+        self.repository.commit()
+        for attachment in persisted:
+            if attachment.download_status.value != "pending":
+                continue
+            attachment_download_dispatcher.enqueue(
+                AttachmentDownloadJob(
+                    attachment_id=attachment.id,
+                    tenant_id=message.tenant_id,
+                )
+            )
+
+    def _persist_outbound_attachments(
+        self,
+        message: Message,
+        tenant_id: uuid.UUID,
+        attachments: Optional[list[OutboundAttachment]],
+    ) -> None:
+        if not attachments:
+            return
+
+        records: list[AttachmentCreate] = []
+        for item in attachments:
+            metadata_json = dict(item.metadata or {})
+            if item.provider_media_id:
+                metadata_json["provider_media_id"] = item.provider_media_id
+            records.append(
+                AttachmentCreate(
+                    message_id=message.id,
+                    tenant_id=tenant_id,
+                    attachment_type=item.type,
+                    storage_backend=StorageBackend.PROVIDER,
+                    provider_media_id=item.provider_media_id,
+                    provider_url=item.provider_url,
+                    mime_type=item.mime_type,
+                    filename=item.filename,
+                    size_bytes=item.size_bytes,
+                    caption=item.caption,
+                    metadata_json=metadata_json or None,
+                    download_status=AttachmentDownloadStatus.NOT_REQUESTED,
+                )
+            )
+
+        self.attachment_service.save_attachments_bulk(records)
+        self.repository.commit()
 
 
 # Backward-compatible wrappers

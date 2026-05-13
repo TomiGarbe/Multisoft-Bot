@@ -8,7 +8,8 @@ from .auth import TenantUser, Role, Permission, RolePermission, UserPermission, 
 from .config import ChannelBotConfig
 from .channel import Channel
 from .contact import Contact, ContactIdentity
-from .conversation import ChatThread, Conversation, Message, MessageAttachment
+from .conversation import ChatThread, Conversation, Message, MessageAttachment, AttachmentBlob
+from .media_processing import AttachmentProcessingJob, ProcessedArtifact
 from .metrics import ContactUsage, AIUsageEvent
 from .audit import AuditLog
 from .api_key import ApiKey
@@ -33,6 +34,9 @@ __all__ = [
     "Conversation",
     "Message",
     "MessageAttachment",
+    "AttachmentBlob",
+    "AttachmentProcessingJob",
+    "ProcessedArtifact",
     "ContactUsage",
     "AIUsageEvent",
     "AuditLog",

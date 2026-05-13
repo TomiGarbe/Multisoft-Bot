@@ -18,6 +18,31 @@ from app.services.message_service import ensure_message_id
 logger = logging.getLogger(__name__)
 
 
+def _log_normalized_media_summary(normalized: NormalizedMessage, provider_name: str) -> None:
+    if not normalized.attachments:
+        return
+
+    logger.info(
+        "webhook_media_normalized provider=%s channel_id=%s message_id=%s attachments_count=%s",
+        provider_name,
+        normalized.channel_id,
+        normalized.external_message_id,
+        len(normalized.attachments),
+    )
+    for index, attachment in enumerate(normalized.attachments, start=1):
+        logger.info(
+            "webhook_media_attachment provider=%s channel_id=%s message_id=%s idx=%s type=%s mime=%s size_bytes=%s provider_media_id=%s",
+            provider_name,
+            normalized.channel_id,
+            normalized.external_message_id,
+            index,
+            attachment.type.value,
+            attachment.mime_type,
+            attachment.size_bytes,
+            attachment.provider_media_id,
+        )
+
+
 def validate_minimal_webhook_payload(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Invalid payload: expected JSON object")
@@ -73,6 +98,7 @@ async def process_webhook_payload(
     provider = get_message_provider(provider_name)
     normalized: NormalizedMessage = provider.normalize_incoming_payload(str(channel_id), payload)
     ensure_message_id(normalized)
+    _log_normalized_media_summary(normalized, provider_name)
 
     if normalized.is_status:
         logger.info("webhook_status_ignored channel_id=%s", normalized.channel_id)

@@ -7,7 +7,14 @@ import httpx
 from app.core.config import settings
 from app.core.utils import dict_get_any_case, normalize_phone, safe_timestamp, to_bool
 from app.interfaces.messaging.message_provider import MessageProvider
+from app.providers.messaging.attachment_normalization import (
+    normalize_attachments_from_payload,
+    resolve_message_type,
+)
+from app.schemas.internal.message_enums import MessageType
 from app.schemas.internal.normalized_message import NormalizedMessage
+from app.schemas.internal.outbound_media import OutboundMediaMessage
+from app.services.retry_policy import RetryPolicy, run_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +23,17 @@ class WhatsAppMultisoftProvider(MessageProvider):
     def normalize_incoming_payload(self, channel_id: str, payload: dict[str, Any]) -> NormalizedMessage:
         sender_id_raw = dict_get_any_case(payload, "from", "sender_id", "senderId")
         sender_id = normalize_phone(sender_id_raw) or (str(sender_id_raw) if sender_id_raw else None)
-        message_type = str(dict_get_any_case(payload, "type", default="text") or "text").lower()
+        message_type = resolve_message_type(dict_get_any_case(payload, "type", default=MessageType.TEXT.value))
         is_status = (
             to_bool(dict_get_any_case(payload, "is_status", "isStatus"), default=False)
-            or message_type == "status"
+            or str(dict_get_any_case(payload, "type", default="")).strip().lower() == "status"
         )
-        has_media = to_bool(dict_get_any_case(payload, "has_media", "hasMedia"), default=False)
-        media_url = dict_get_any_case(payload, "media_url", "mediaUrl")
-        if media_url:
-            has_media = True
+        attachments = normalize_attachments_from_payload(
+            payload,
+            provider="multisoft",
+            fallback_message_type=message_type,
+        )
+        has_media = bool(attachments)
 
         return NormalizedMessage(
             channel_id=channel_id,
@@ -48,7 +57,7 @@ class WhatsAppMultisoftProvider(MessageProvider):
             is_status=is_status,
             is_bot=to_bool(dict_get_any_case(payload, "is_bot", "from_me", "fromMe"), default=False),
             has_media=has_media,
-            media_url=media_url,
+            attachments=attachments,
             timestamp=safe_timestamp(dict_get_any_case(payload, "timestamp", "createdAt")),
             raw_payload=payload,
         )
@@ -93,21 +102,34 @@ class WhatsAppMultisoftProvider(MessageProvider):
         if reply_to_message_id:
             data["replyToMessageId"] = str(reply_to_message_id)
 
-        try:
+        policy = RetryPolicy(
+            max_attempts=max(1, settings.PROVIDER_HTTP_MAX_RETRIES + 1),
+            initial_backoff_seconds=settings.PROVIDER_HTTP_INITIAL_BACKOFF_SECONDS,
+            max_backoff_seconds=settings.PROVIDER_HTTP_MAX_BACKOFF_SECONDS,
+        )
+
+        def _do_request() -> httpx.Response:
             with httpx.Client(timeout=timeout) as client:
                 response = client.post(webhook_url, data=data)
                 response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            logger.exception(
-                "WhatsApp Multisoft HTTP error status=%s to=%s from=%s",
-                exc.response.status_code,
-                to_number,
-                from_number,
-            )
-            raise
-        except httpx.HTTPError:
-            logger.exception("WhatsApp Multisoft transport error to=%s from=%s", to_number, from_number)
-            raise
+                return response
+
+        def _is_retryable(exc: Exception) -> bool:
+            if isinstance(exc, httpx.TimeoutException):
+                return True
+            if isinstance(exc, httpx.NetworkError):
+                return True
+            if isinstance(exc, httpx.HTTPStatusError):
+                return exc.response.status_code >= 500 or exc.response.status_code == 429
+            return False
+
+        response = run_with_retries(
+            operation_name="whatsapp_multisoft_send_message",
+            operation=_do_request,
+            policy=policy,
+            is_retryable=_is_retryable,
+            context={"to": to_number, "from": from_number},
+        )
 
         provider_id = None
         try:
@@ -146,23 +168,93 @@ class WhatsAppMultisoftProvider(MessageProvider):
         self,
         channel: str,
         to: str,
-        media_url: str,
-        caption: str = None,
+        media_message: OutboundMediaMessage,
         *,
         channel_external_id: Optional[str] = None,
         channel_config: Optional[dict[str, Any]] = None,
     ) -> dict:
-        content = (caption or "").strip()
-        if not content:
-            content = media_url
-        return self.send_text(
-            channel,
-            to,
-            content,
-            reply_to_message_id=reply_to_id,
-            channel_external_id=channel_external_id,
-            channel_config=channel_config,
-        )
+        webhook_url = self._resolve_webhook_url(channel_config)
+        from_number = self._resolve_from_number(channel_external_id, channel_config)
+        media_webhook_url = webhook_url.rstrip("/") + "/media"
+        if isinstance(channel_config, dict):
+            explicit = channel_config.get("media_webhook_url")
+            if isinstance(explicit, str) and explicit.strip():
+                media_webhook_url = explicit.strip()
+
+        sent = 0
+        fallback_count = 0
+        raw_results: list[dict[str, Any]] = []
+        for attachment in media_message.attachments:
+            media_url = (attachment.provider_url or "").strip()
+            if not media_url:
+                fallback_count += 1
+                continue
+            payload = {
+                "number": str(to),
+                "from": str(from_number),
+                "mediaUrl": media_url,
+                "mediaType": attachment.type.value,
+                "caption": attachment.caption or media_message.fallback_text or "",
+                "mimeType": attachment.mime_type or "",
+                "filename": attachment.filename or "",
+            }
+            timeout = httpx.Timeout(settings.WHATSAPP_MULTISOFT_TIMEOUT_SECONDS)
+            policy = RetryPolicy(
+                max_attempts=max(1, settings.PROVIDER_HTTP_MAX_RETRIES + 1),
+                initial_backoff_seconds=settings.PROVIDER_HTTP_INITIAL_BACKOFF_SECONDS,
+                max_backoff_seconds=settings.PROVIDER_HTTP_MAX_BACKOFF_SECONDS,
+            )
+
+            def _do_request() -> httpx.Response:
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.post(media_webhook_url, json=payload)
+                    response.raise_for_status()
+                    return response
+
+            def _is_retryable(exc: Exception) -> bool:
+                if isinstance(exc, httpx.TimeoutException):
+                    return True
+                if isinstance(exc, httpx.NetworkError):
+                    return True
+                if isinstance(exc, httpx.HTTPStatusError):
+                    return exc.response.status_code >= 500 or exc.response.status_code == 429
+                return False
+
+            response = run_with_retries(
+                operation_name="whatsapp_multisoft_send_media",
+                operation=_do_request,
+                policy=policy,
+                is_retryable=_is_retryable,
+                context={"to": to, "from": from_number, "media_type": attachment.type.value},
+            )
+            raw_results.append(response.json() if response.content else {"status_code": response.status_code})
+            sent += 1
+
+        if sent == 0:
+            content = (media_message.fallback_text or "").strip() or "Adjunto multimedia"
+            result = self.send_text(
+                channel,
+                to,
+                content,
+                channel_external_id=channel_external_id,
+                channel_config=channel_config,
+            )
+            result["raw_response"] = {
+                "fallback": True,
+                "fallback_missing_media_urls": fallback_count,
+                "media_results": raw_results,
+            }
+            return result
+
+        return {
+            "status": "sent",
+            "provider_message_id": str(uuid.uuid4()),
+            "raw_response": {
+                "media_sent_count": sent,
+                "fallback_missing_media_urls": fallback_count,
+                "media_results": raw_results,
+            },
+        }
 
     def reply_to_message(
         self,
@@ -178,6 +270,7 @@ class WhatsAppMultisoftProvider(MessageProvider):
             channel,
             to,
             content,
+            reply_to_message_id=reply_to_id,
             channel_external_id=channel_external_id,
             channel_config=channel_config,
         )

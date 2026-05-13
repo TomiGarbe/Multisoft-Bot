@@ -37,13 +37,20 @@ class Contact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class ContactIdentity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "contact_identities"
 
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
     contact_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False
     )
     channel_type: Mapped[str] = mapped_column(String(50), nullable=False)
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    __table_args__ = (UniqueConstraint("channel_type", "external_id", name="uq_contact_identities_channel_external"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "channel_type", "external_id", name="uq_contact_identities_tenant_channel_external"),
+        Index("ix_contact_identities_tenant_channel_external", "tenant_id", "channel_type", "external_id"),
+    )
 
     # Relationships
+    tenant: Mapped["Tenant"] = relationship("Tenant")
     contact: Mapped["Contact"] = relationship("Contact", back_populates="contact_identities")

@@ -9,6 +9,7 @@ import {
 import { getChannels } from '@/services/channels';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getChannelConfigStatus } from '@/services/channelConfig';
+import { getAttachmentsByMessageId } from '@/services/attachments';
 import type { ChannelConfigValidationStatus } from '@/types/channelConfig';
 import type { Channel } from '@/types/channel';
 import { getChannelMeta } from '@/components/conversations/channelMeta';
@@ -174,9 +175,22 @@ export function useConversations() {
     setLoadingMessages(true);
 
     getMessages(selectedId)
-      .then((data) => {
+      .then(async (data) => {
+        const attachmentsByMessage = await Promise.allSettled(
+          data.map((message) => getAttachmentsByMessageId(message.id)),
+        );
+        const nextMessages = data.map((message, index) => {
+          const resolved = attachmentsByMessage[index];
+          if (resolved.status !== 'fulfilled') {
+            return message;
+          }
+          return {
+            ...message,
+            attachments: resolved.value.attachments,
+          };
+        });
         if (cancelled) return;
-        setMessages((prev) => ({ ...prev, [selectedId]: data }));
+        setMessages((prev) => ({ ...prev, [selectedId]: nextMessages }));
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(getApiErrorMessage(err, 'Error al cargar mensajes'));
@@ -196,7 +210,7 @@ export function useConversations() {
   }, []);
 
   const handleSend = useCallback(
-    async ({ text, files }: SendPayload) => {
+    async ({ text }: SendPayload) => {
       const trimmed = text.trim();
       if (!trimmed || !selectedId) return;
 
@@ -211,19 +225,6 @@ export function useConversations() {
         content: trimmed,
         createdAt: now,
         status: 'pending',
-        ...(files.length > 0
-          ? {
-              media: files.map((f) => ({
-                url: URL.createObjectURL(f),
-                type: f.type.startsWith('image/')
-                  ? ('image' as const)
-                  : f.type.startsWith('audio/')
-                  ? ('audio' as const)
-                  : ('file' as const),
-                name: f.name,
-              })),
-            }
-          : {}),
       };
 
       setMessages((prev) => ({

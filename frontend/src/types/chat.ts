@@ -1,9 +1,32 @@
-export type MediaType = 'image' | 'audio' | 'file';
+export type AttachmentType = 'image' | 'audio' | 'video' | 'document' | 'file';
 
-export interface MediaItem {
-  url: string;
-  type: MediaType;
-  name: string;
+export type AttachmentStatus =
+  | 'loading'
+  | 'available'
+  | 'processing'
+  | 'unavailable'
+  | 'failed';
+
+export interface Attachment {
+  id: string;
+  messageId: string;
+  type: AttachmentType;
+  status: AttachmentStatus;
+  mimeType?: string;
+  filename?: string;
+  extension?: string;
+  sizeBytes?: number;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  caption?: string;
+  streamUrl?: string;
+  downloadUrl?: string;
+}
+
+export interface MultimediaMessage {
+  messageId: string;
+  attachments: Attachment[];
 }
 
 export interface Conversation {
@@ -29,9 +52,10 @@ export interface Message {
   conversationId: string;
   direction: 'inbound' | 'outbound';
   senderType: 'contact' | 'bot' | 'agent';
+  messageType?: string;
   content: string;
   createdAt: string;
-  media?: MediaItem[];
+  attachments?: Attachment[];
   status?: MessageStatus;
 }
 

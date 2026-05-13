@@ -1,4 +1,16 @@
 from .normalized_message import NormalizedMessage
+from .normalized_message import NormalizedAttachment
+from .message_enums import (
+    AttachmentDownloadStatus,
+    AttachmentType,
+    MediaProcessingCapability,
+    MediaProcessingStatus,
+    MessageType,
+    ProcessedArtifactStorageBackend,
+    StorageBackend,
+)
+from .attachment_persistence import AttachmentCreate, AttachmentBlobCreate
+from .outbound_media import OutboundAttachment, OutboundMediaMessage
 from .bot_actions import (
     ActionAuthConfig,
     ActionAuthType,
@@ -16,6 +28,18 @@ from .bot_actions import (
 
 __all__ = [
     "NormalizedMessage",
+    "NormalizedAttachment",
+    "MessageType",
+    "AttachmentType",
+    "StorageBackend",
+    "AttachmentDownloadStatus",
+    "MediaProcessingCapability",
+    "MediaProcessingStatus",
+    "ProcessedArtifactStorageBackend",
+    "AttachmentCreate",
+    "AttachmentBlobCreate",
+    "OutboundAttachment",
+    "OutboundMediaMessage",
     "ActionAuthConfig",
     "ActionAuthType",
     "ActionResponseConfig",

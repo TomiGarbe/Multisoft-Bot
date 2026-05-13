@@ -43,6 +43,11 @@ class ChannelConfigService:
             "unsupported_content_message": (
                 "Por el momento no puedo escuchar audios, ver fotos o archivos, queres que te pase con un asesor?"
             ),
+            "media_processing": {
+                "transcription_enabled": True,
+                "ocr_enabled": True,
+                "document_extraction_enabled": True,
+            },
         }
 
     @staticmethod

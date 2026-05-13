@@ -58,6 +58,7 @@ function mapMessage(raw: ApiMessage): Message {
     conversationId: raw.conversation_id,
     direction: raw.direction,
     senderType: raw.sender_type,
+    messageType: raw.message_type,
     content: raw.content ?? '',
     createdAt: raw.created_at,
   };
@@ -75,9 +76,8 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
   return data.map(mapMessage);
 }
 
-export async function sendMessage(payload: SendMessagePayload): Promise<Message> {
-  const { data } = await api.post<ApiMessage>('/messages/send', payload);
-  return mapMessage(data);
+export async function sendMessage(payload: SendMessagePayload): Promise<void> {
+  await api.post('/messages/send', payload);
 }
 
 // Prepared for: PATCH /conversations/:id/mode

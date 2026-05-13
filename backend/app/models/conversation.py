@@ -1,7 +1,8 @@
-from sqlalchemy import String, ForeignKey, Boolean, Text, Integer, BigInteger, DateTime, UniqueConstraint, Index
+from sqlalchemy import String, ForeignKey, Boolean, Text, Integer, BigInteger, DateTime, UniqueConstraint, Index, Enum, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB, BYTEA
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.schemas.internal.message_enums import AttachmentDownloadStatus, AttachmentType, StorageBackend
 import uuid
 from datetime import datetime
 from typing import List, Optional, Any
@@ -124,12 +125,38 @@ class MessageAttachment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    attachment_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    attachment_type: Mapped[AttachmentType] = mapped_column(
+        Enum(AttachmentType, name="attachment_type_enum", native_enum=False),
+        nullable=False,
+    )
+    storage_backend: Mapped[StorageBackend] = mapped_column(
+        Enum(StorageBackend, name="storage_backend_enum", native_enum=False),
+        nullable=False,
+        default=StorageBackend.NONE,
+    )
+    storage_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    provider_media_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    provider_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     mime_type: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    extension: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    checksum_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    download_status: Mapped[AttachmentDownloadStatus] = mapped_column(
+        Enum(AttachmentDownloadStatus, name="attachment_download_status_enum", native_enum=False),
+        nullable=False,
+        default=AttachmentDownloadStatus.NOT_REQUESTED,
+    )
+    metadata_json: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+    duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    caption: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    provider_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Legacy columns kept for backward compatibility during transition.
+    file_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     file_extension: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     file_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    file_data: Mapped[bytes] = mapped_column(BYTEA, nullable=False)
+    file_data: Mapped[Optional[bytes]] = mapped_column(BYTEA, nullable=True)
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -138,3 +165,31 @@ class MessageAttachment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Relationships
     message: Mapped["Message"] = relationship("Message", back_populates="attachments")
     tenant: Mapped["Tenant"] = relationship("Tenant")
+    blob: Mapped[Optional["AttachmentBlob"]] = relationship(
+        "AttachmentBlob",
+        back_populates="attachment",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+    __table_args__ = (
+        Index("ix_message_attachments_message_id", "message_id"),
+        Index("ix_message_attachments_provider_media_id", "provider_media_id"),
+        Index("ix_message_attachments_checksum_sha256", "checksum_sha256"),
+        Index("ix_message_attachments_download_status", "download_status"),
+    )
+
+
+class AttachmentBlob(Base, UUIDPrimaryKeyMixin):
+    __tablename__ = "attachment_blobs"
+
+    attachment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("message_attachments.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    binary_data: Mapped[bytes] = mapped_column(BYTEA, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    attachment: Mapped["MessageAttachment"] = relationship("MessageAttachment", back_populates="blob")

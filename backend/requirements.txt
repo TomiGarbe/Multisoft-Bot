@@ -14,3 +14,6 @@ cryptography==45.0.7
 python-multipart==0.0.20
 httpx==0.28.1
 email-validator==2.2.0
+pytesseract==0.3.13
+Pillow==11.2.1
+pypdf==5.5.0

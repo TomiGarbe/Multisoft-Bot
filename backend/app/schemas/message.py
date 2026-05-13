@@ -4,11 +4,13 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.internal.outbound_media import OutboundAttachment
+
 
 class MessageSendRequest(BaseModel):
     conversation_id: uuid.UUID
     content: str = ""
-    attachments: list[dict] = Field(default_factory=list)
+    attachments: list[OutboundAttachment] = Field(default_factory=list)
     reply_to_id: Optional[str] = None
     reply_to_message_id: Optional[str] = None
 

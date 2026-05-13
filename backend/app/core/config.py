@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     def allowed_hosts_list(self) -> list[str]:
         """Parse ALLOWED_HOSTS string to list"""
         return [host.strip() for host in self.ALLOWED_HOSTS.split(",")]
+
+    @property
+    def attachment_allowed_mime_types_list(self) -> list[str]:
+        return [mime.strip().lower() for mime in self.ATTACHMENT_ALLOWED_MIME_TYPES.split(",") if mime.strip()]
     
     # ========== OLLAMA AI CONFIGURATION ==========
     OLLAMA_BASE_URL: str = Field(
@@ -102,6 +106,63 @@ class Settings(BaseSettings):
         default="",
         description="Comma-separated WhatsApp group IDs allowed for inbound group messages",
     )
+    ATTACHMENT_DOWNLOAD_TIMEOUT_SECONDS: float = Field(
+        default=20.0,
+        description="Timeout in seconds for attachment downloads",
+    )
+    ATTACHMENT_DOWNLOAD_MAX_RETRIES: int = Field(
+        default=2,
+        description="Maximum retry attempts for attachment download failures",
+    )
+    ATTACHMENT_DOWNLOAD_INITIAL_BACKOFF_SECONDS: float = Field(
+        default=0.5,
+        description="Initial backoff delay for attachment download retries",
+    )
+    ATTACHMENT_DOWNLOAD_MAX_BACKOFF_SECONDS: float = Field(
+        default=5.0,
+        description="Maximum backoff delay for attachment download retries",
+    )
+    PROVIDER_HTTP_MAX_RETRIES: int = Field(
+        default=2,
+        description="Maximum retry attempts for outbound provider HTTP calls",
+    )
+    PROVIDER_HTTP_INITIAL_BACKOFF_SECONDS: float = Field(
+        default=0.4,
+        description="Initial backoff delay for outbound provider HTTP retries",
+    )
+    PROVIDER_HTTP_MAX_BACKOFF_SECONDS: float = Field(
+        default=3.0,
+        description="Maximum backoff delay for outbound provider HTTP retries",
+    )
+    ATTACHMENT_ALLOWED_MIME_TYPES: str = Field(
+        default=(
+            "image/jpeg,image/png,image/webp,image/gif,"
+            "audio/mpeg,audio/mp4,audio/ogg,audio/wav,audio/webm,"
+            "video/mp4,video/webm,video/quicktime,"
+            "application/pdf,text/plain,"
+            "application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
+            "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+        description="Comma-separated list of allowed attachment MIME types",
+    )
+    ATTACHMENT_MAX_IMAGE_BYTES: int = Field(default=10 * 1024 * 1024, description="Max bytes for images")
+    ATTACHMENT_MAX_AUDIO_BYTES: int = Field(default=20 * 1024 * 1024, description="Max bytes for audio")
+    ATTACHMENT_MAX_VIDEO_BYTES: int = Field(default=50 * 1024 * 1024, description="Max bytes for video")
+    ATTACHMENT_MAX_DOCUMENT_BYTES: int = Field(default=25 * 1024 * 1024, description="Max bytes for documents")
+    MEDIA_TRANSCRIPTION_ENABLED: bool = Field(default=True, description="Enable transcription pipeline")
+    MEDIA_OCR_ENABLED: bool = Field(default=True, description="Enable OCR pipeline")
+    MEDIA_DOCUMENT_EXTRACTION_ENABLED: bool = Field(default=True, description="Enable document extraction pipeline")
+    MEDIA_MAX_AUDIO_DURATION_MS: int = Field(default=20 * 60 * 1000, description="Max audio duration for STT")
+    MEDIA_MAX_IMAGE_BYTES: int = Field(default=10 * 1024 * 1024, description="Max image bytes for OCR")
+    MEDIA_MAX_DOCUMENT_PAGES: int = Field(default=100, description="Max pages for document extraction")
+    MEDIA_PROCESSING_MAX_RETRIES: int = Field(default=2, description="Max retries for media AI jobs")
+    MEDIA_PROCESSING_INITIAL_BACKOFF_SECONDS: float = Field(default=0.8, description="Initial backoff for media jobs")
+    MEDIA_PROCESSING_MAX_BACKOFF_SECONDS: float = Field(default=8.0, description="Max backoff for media jobs")
+    MEDIA_STT_ENABLED: bool = Field(default=False, description="Enable STT provider calls")
+    MEDIA_STT_BASE_URL: str = Field(default="https://api.openai.com/v1", description="STT API base URL")
+    MEDIA_STT_API_KEY: Optional[str] = Field(default=None, description="STT API key")
+    MEDIA_STT_MODEL: str = Field(default="whisper-1", description="STT model name")
+    MEDIA_STT_TIMEOUT_SECONDS: float = Field(default=60.0, description="Timeout for STT calls")
 
     # ========== MODEL CONFIGURATION ==========
     model_config = SettingsConfigDict(

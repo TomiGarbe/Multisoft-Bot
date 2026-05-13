@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.channel import Channel
 from app.models.contact import Contact, ContactIdentity
-from app.models.conversation import ChatThread, Conversation, Message, MessageAttachment
+from app.models.conversation import ChatThread, Conversation, Message
 from app.models.metrics import ContactUsage
 from app.repositories.base_repository import BaseRepository
 
@@ -99,8 +99,9 @@ class MessageRepository(BaseRepository):
         stmt = select(ContactUsage).where(ContactUsage.conversation_id == conversation_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_contact_identity(self, channel_type: str, external_id: str) -> Optional[ContactIdentity]:
+    def get_contact_identity(self, channel_type: str, external_id: str, tenant_id: uuid.UUID) -> Optional[ContactIdentity]:
         stmt = select(ContactIdentity).where(
+            ContactIdentity.tenant_id == tenant_id,
             ContactIdentity.channel_type == channel_type,
             ContactIdentity.external_id == external_id,
         )
@@ -123,9 +124,16 @@ class MessageRepository(BaseRepository):
         self.db.flush()
         return contact
 
-    def create_contact_identity(self, contact_id: uuid.UUID, channel_type: str, external_id: str) -> ContactIdentity:
+    def create_contact_identity(
+        self,
+        contact_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        channel_type: str,
+        external_id: str,
+    ) -> ContactIdentity:
         identity = ContactIdentity(
             contact_id=contact_id,
+            tenant_id=tenant_id,
             channel_type=channel_type,
             external_id=external_id,
         )
@@ -170,38 +178,6 @@ class MessageRepository(BaseRepository):
 
     def touch_conversation_last_message(self, conversation: Conversation) -> None:
         conversation.last_message_at = datetime.now(timezone.utc)
-
-    def save_attachment(
-        self,
-        message_id: uuid.UUID,
-        tenant_id: uuid.UUID,
-        attachment_type: str,
-        file_data: bytes,
-        file_name: Optional[str] = None,
-        mime_type: Optional[str] = None,
-        file_extension: Optional[str] = None,
-        file_size_bytes: Optional[int] = None,
-        duration_seconds: Optional[int] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        metadata_jsonb: Optional[dict] = None,
-    ) -> MessageAttachment:
-        attachment = MessageAttachment(
-            message_id=message_id,
-            tenant_id=tenant_id,
-            attachment_type=attachment_type,
-            file_data=file_data,
-            file_name=file_name,
-            mime_type=mime_type,
-            file_extension=file_extension,
-            file_size_bytes=file_size_bytes,
-            duration_seconds=duration_seconds,
-            width=width,
-            height=height,
-            metadata_jsonb=metadata_jsonb,
-        )
-        self.db.add(attachment)
-        return attachment
 
     def list_messages(self, conversation_id: uuid.UUID, tenant_id: uuid.UUID) -> list[Message]:
         stmt = (
