@@ -1,7 +1,4 @@
-import logging
 from app.services.config_structure import section_entries, section_fields
-
-logger = logging.getLogger(__name__)
 
 
 class PromptBuilder:
@@ -20,9 +17,7 @@ class PromptBuilder:
             "current_message": current_message,
             "user_type": user_type,
         }
-        prompt = self.build_prompt(config=config, context=context)
-        logger.warning("Built prompt for user_type=%s: %s", user_type, prompt)
-        return prompt
+        return self.build_prompt(config=config, context=context)
 
     def build_prompt(self, config: dict, context: dict) -> str:
         user_type = context.get("user_type", "default")

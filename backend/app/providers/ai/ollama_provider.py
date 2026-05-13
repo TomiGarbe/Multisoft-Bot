@@ -5,6 +5,7 @@ import json
 import httpx
 from app.interfaces.ai.ai_interface import AIInterface
 from app.core.config import settings
+from app.services.ai.debug_logger import is_ai_debug_enabled, log_block, make_debug_id, mask_sensitive
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,25 @@ class OllamaProvider(AIInterface):
         
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        debug_enabled = is_ai_debug_enabled()
+        debug_id = make_debug_id() if debug_enabled else None
+        if debug_enabled and debug_id is not None:
+            log_block(
+                debug_id=debug_id,
+                title="PROVIDER_REQUEST::GENERATE",
+                value={
+                    "endpoint": endpoint,
+                    "provider": "ollama",
+                    "payload": payload,
+                    "headers": mask_sensitive(headers),
+                    "options": {
+                        "temperature": None,
+                        "max_tokens": None,
+                        "response_format": None,
+                        "tool_calling": False,
+                    },
+                },
+            )
 
         try:
             async with httpx.AsyncClient() as client:
@@ -64,6 +84,12 @@ class OllamaProvider(AIInterface):
                 response.raise_for_status()
                 
                 data = response.json()
+                if debug_enabled and debug_id is not None:
+                    log_block(
+                        debug_id=debug_id,
+                        title="PROVIDER_RESPONSE::GENERATE_RAW",
+                        value=data,
+                    )
 
                 # Extract the generated text from response
                 generated_text = data.get("response", "").strip()
@@ -110,11 +136,37 @@ class OllamaProvider(AIInterface):
         headers = {"Content-Type": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        debug_enabled = is_ai_debug_enabled()
+        debug_id = make_debug_id() if debug_enabled else None
+        if debug_enabled and debug_id is not None:
+            log_block(
+                debug_id=debug_id,
+                title="PROVIDER_REQUEST::CHAT",
+                value={
+                    "endpoint": endpoint,
+                    "provider": "ollama",
+                    "payload": payload,
+                    "headers": mask_sensitive(headers),
+                    "options": {
+                        "temperature": None,
+                        "max_tokens": None,
+                        "response_format": None,
+                        "tool_calling": bool(tools),
+                        "tools_count": len(tools or []),
+                    },
+                },
+            )
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(endpoint, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
+        if debug_enabled and debug_id is not None:
+            log_block(
+                debug_id=debug_id,
+                title="PROVIDER_RESPONSE::CHAT_RAW",
+                value=data,
+            )
 
         message = data.get("message") or {}
         tool_calls_raw = message.get("tool_calls") or []
@@ -149,6 +201,7 @@ class OllamaProvider(AIInterface):
                 "content": message.get("content"),
                 "tool_calls": tool_calls_raw,
             },
+            "finish_reason": data.get("done_reason"),
             "prompt_eval_count": data.get("prompt_eval_count"),
             "eval_count": data.get("eval_count"),
             "model": data.get("model") or self.model,

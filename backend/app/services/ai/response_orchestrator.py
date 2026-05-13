@@ -19,6 +19,14 @@ from app.core.config import settings
 from app.models.conversation import Conversation
 from app.repositories.ai.ai_log_repository import AILogRepository
 from app.services.ai.ai_service import AIService
+from app.services.ai.debug_logger import (
+    is_ai_debug_enabled,
+    log_block,
+    log_footer,
+    log_header,
+    make_debug_id,
+    split_prompt_sections,
+)
 from app.services.ai.ai_tool_execution_service import AIToolExecutionService
 from app.services.ai.ai_tool_registry_service import AIToolRegistryService
 from app.services.ai.out_of_scope_detector import is_out_of_scope
@@ -104,6 +112,8 @@ class AIResponseOrchestrator:
     ) -> Optional[str]:
         config = channel_config.config_jsonb or {}
         channel_settings = channel_config.settings_jsonb or {}
+        debug_enabled = is_ai_debug_enabled()
+        debug_id = make_debug_id() if debug_enabled else None
         provider_name = "ollama"
         if isinstance(channel_settings, dict):
             provider_name = str(channel_settings.get("ai_provider") or "ollama")
@@ -116,6 +126,36 @@ class AIResponseOrchestrator:
 
         response = None
         ai_payload: dict[str, Any] | None = None
+        tool_names: list[str] = []
+        if debug_enabled and debug_id is not None:
+            log_header(
+                debug_id=debug_id,
+                metadata={
+                    "tenant_id": str(tenant_id),
+                    "channel_id": str(channel_id),
+                    "conversation_id": str(conversation.id),
+                    "contact_id": str(contact_id) if contact_id else None,
+                    "request_id": request_id,
+                    "provider": provider_name,
+                    "channel_has_settings": isinstance(channel_settings, dict),
+                },
+            )
+            for section_name, section_text in split_prompt_sections(prompt).items():
+                log_block(debug_id=debug_id, title=f"PROMPT::{section_name}", value=section_text)
+            log_block(
+                debug_id=debug_id,
+                title="CHANNEL_CONFIG_APPLIED",
+                value={
+                    "behavior": config.get("behavior"),
+                    "identity": config.get("identity"),
+                    "tone": config.get("tone"),
+                    "rules": config.get("rules"),
+                    "objectives_count": len(section_entries(config, "objectives")),
+                    "data_collection_count": len(section_entries(config, "data_collection")),
+                    "channel_settings": channel_settings if isinstance(channel_settings, dict) else {},
+                },
+            )
+
         if should_use_ai(conversation, channel_config):
             try:
                 quota_service = QuotaService(db)
@@ -155,8 +195,26 @@ class AIResponseOrchestrator:
                         channel_id,
                         len(available_tools),
                     )
+                    tool_names = list(action_map.keys())
+                    if debug_enabled and debug_id is not None:
+                        log_block(
+                            debug_id=debug_id,
+                            title="ENABLED_TOOLS",
+                            value={
+                                "count": len(available_tools),
+                                "names": tool_names,
+                                "tools": available_tools,
+                            },
+                        )
 
                     if available_tools:
+                        base_messages = [
+                            {"role": "system", "content": prompt},
+                            {"role": "system", "content": _SYSTEM_TOOLS_INSTRUCTION},
+                            {"role": "user", "content": self._extract_current_user_message(prompt)},
+                        ]
+                        if debug_enabled and debug_id is not None:
+                            log_block(debug_id=debug_id, title="MESSAGES_TO_PROVIDER::INITIAL", value=base_messages)
                         ai_payload = await self.call_ai_chat(
                             prompt=prompt,
                             current_user_message=self._extract_current_user_message(prompt),
@@ -210,6 +268,12 @@ class AIResponseOrchestrator:
                                     action_name,
                                     result_payload.get("success"),
                                 )
+                                if debug_enabled and debug_id is not None:
+                                    log_block(
+                                        debug_id=debug_id,
+                                        title=f"TOOL_RESULT::{action_name}",
+                                        value=result_payload,
+                                    )
 
                             if _MAX_TOOL_LOOP_ITERATIONS > 0:
                                 follow_up_messages = [
@@ -223,12 +287,24 @@ class AIResponseOrchestrator:
                                     },
                                     *tool_messages,
                                 ]
+                                if debug_enabled and debug_id is not None:
+                                    log_block(
+                                        debug_id=debug_id,
+                                        title="MESSAGES_TO_PROVIDER::FOLLOW_UP",
+                                        value=follow_up_messages,
+                                    )
                                 ai_payload = await AIService(provider_name=provider_name).generate_chat_with_metadata(
                                     follow_up_messages,
                                     tools=available_tools,
                                 )
                                 response = str((ai_payload or {}).get("response") or "")
                     else:
+                        if debug_enabled and debug_id is not None:
+                            log_block(
+                                debug_id=debug_id,
+                                title="MESSAGES_TO_PROVIDER::PROMPT_ONLY",
+                                value={"prompt": prompt},
+                            )
                         ai_payload = await self.call_ai(prompt, provider_name=provider_name)
                         response = str((ai_payload or {}).get("response") or "")
             except Exception:
@@ -261,6 +337,23 @@ class AIResponseOrchestrator:
             message_id=message_id,
             request_id=request_id,
         )
+        if debug_enabled and debug_id is not None:
+            log_block(
+                debug_id=debug_id,
+                title="AI_RESPONSE",
+                value={
+                    "response": response,
+                    "tool_calls": (ai_payload or {}).get("tool_calls") or [],
+                    "finish_reason": (ai_payload or {}).get("finish_reason"),
+                    "usage": {
+                        "prompt_eval_count": (ai_payload or {}).get("prompt_eval_count"),
+                        "eval_count": (ai_payload or {}).get("eval_count"),
+                    },
+                    "model": (ai_payload or {}).get("model") or settings.OLLAMA_MODEL,
+                    "provider": provider_name,
+                },
+            )
+            log_footer(debug_id=debug_id)
 
         if not response or not response.strip():
             logger.warning("Empty AI response for conversation: %s - using fallback", conversation.id)
