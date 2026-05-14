@@ -1,5 +1,5 @@
 import api from './api';
-import type { Conversation, Message } from '@/types/chat';
+import type { Conversation, Message, OutboundAttachment } from '@/types/chat';
 
 // ─── Backend raw shapes ────────────────────────────────────────────────────────
 
@@ -30,6 +30,7 @@ interface ApiMessage {
 export interface SendMessagePayload {
   conversation_id: string;
   content: string;
+  attachments?: OutboundAttachment[];
 }
 
 // ─── Mappers ───────────────────────────────────────────────────────────────────

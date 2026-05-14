@@ -52,7 +52,7 @@ export default function ConversationsPage() {
   const showChatMobile = !showListOnMobile && hasSelectedConversation;
 
   return (
-    <AppLayout>
+    <AppLayout scrollMain={false}>
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         {error && (
           <div className="flex flex-shrink-0 items-center justify-between border-b border-red-200 bg-red-50 px-4 py-2">
@@ -68,9 +68,7 @@ export default function ConversationsPage() {
         )}
 
         <div className="chat-layout flex h-full min-h-0 flex-1 overflow-hidden">
-          <div
-            className={`${showSidebarMobile ? 'flex' : 'hidden'} h-full min-h-0 w-full md:flex md:w-auto`}
-          >
+          <div className={`${showSidebarMobile ? 'flex' : 'hidden'} h-full min-h-0 w-full md:flex md:w-auto`}>
             <ConversationsSidebar
               conversations={conversations}
               totalConversations={stats.total}
@@ -93,7 +91,7 @@ export default function ConversationsPage() {
             />
           </div>
 
-          <div className={`${showChatMobile ? 'flex' : 'hidden'} h-full min-h-0 flex-1 md:flex`}>
+          <div className={`${showChatMobile ? 'flex' : 'hidden'} h-full min-h-0 flex-1 overflow-hidden md:flex`}>
             <ConversationView
               conversation={selectedConversation}
               messages={messages[selectedId] ?? []}

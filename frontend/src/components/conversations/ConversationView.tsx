@@ -46,7 +46,7 @@ export default function ConversationView({
   }
 
   return (
-    <div className="chat flex min-h-0 flex-1 flex-col bg-gray-50">
+    <div className="chat flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-50">
       <div className="chat-header flex-shrink-0">
         <div className="border-b border-gray-200 bg-white px-3 py-2 md:hidden">
           <button
@@ -68,10 +68,10 @@ export default function ConversationView({
           onOpenConfig={onOpenConfig}
         />
       </div>
-      <div className="chat-messages flex-1 min-h-0 overflow-y-auto">
+      <div className="chat-messages min-h-0 flex-1 overflow-y-auto">
         <ConversationMessages messages={messages} loading={loading} onRetry={onRetry} />
       </div>
-      <div className="chat-input flex-shrink-0">
+      <div className="chat-input flex-shrink-0 border-t border-gray-200 bg-white">
         <MessageComposer onSend={onSend} />
       </div>
     </div>

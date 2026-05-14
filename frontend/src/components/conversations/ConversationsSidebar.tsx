@@ -101,7 +101,7 @@ export default function ConversationsSidebar({
   loading = false,
 }: Props) {
   return (
-    <div className="conversations-sidebar flex h-full w-full flex-shrink-0 flex-col border-r border-gray-200 bg-white md:w-80">
+    <div className="conversations-sidebar flex h-full min-h-0 w-full flex-shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white md:w-80">
       <div className="flex-shrink-0 border-b border-gray-100 px-5 py-4">
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -121,22 +121,24 @@ export default function ConversationsSidebar({
         </div>
       </div>
 
-      <ConversationsFilters
-        search={search}
-        onSearchChange={onSearchChange}
-        selectedChannel={selectedChannel}
-        onChannelChange={onChannelChange}
-        selectedStatus={selectedStatus}
-        onStatusChange={onStatusChange}
-        channelOptions={channelOptions}
-        onClearFilters={onClearFilters}
-        showChannelSelector={false}
-      />
+      <div className="flex-shrink-0 bg-white">
+        <ConversationsFilters
+          search={search}
+          onSearchChange={onSearchChange}
+          selectedChannel={selectedChannel}
+          onChannelChange={onChannelChange}
+          selectedStatus={selectedStatus}
+          onStatusChange={onStatusChange}
+          channelOptions={channelOptions}
+          onClearFilters={onClearFilters}
+          showChannelSelector={false}
+        />
+      </div>
 
       {loading ? (
         <SidebarSkeleton />
       ) : (
-        <div className="conversation-list flex-1 overflow-y-auto">
+        <div className="conversation-list min-h-0 flex-1 overflow-y-auto">
           {conversations.map((conv) => {
             const isSelected = conv.id === selectedId;
             const initials = getInitials(conv.contactName);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Conversation, Message, SendPayload } from '@/types/chat';
+import type { Attachment, Conversation, Message, SendPayload } from '@/types/chat';
 import {
   getConversations,
   getMessages,
@@ -205,14 +205,13 @@ export function useConversations() {
   }, [selectedId]);
 
   const selectConversation = useCallback((id: string) => {
-    setMessages((prev) => ({ ...prev, [id]: [] }));
     setSelectedId(id);
   }, []);
 
   const handleSend = useCallback(
-    async ({ text }: SendPayload) => {
+    async ({ text, attachments }: SendPayload) => {
       const trimmed = text.trim();
-      if (!trimmed || !selectedId) return;
+      if ((!trimmed && attachments.length === 0) || !selectedId) return;
 
       const tempId = `temp_${crypto.randomUUID()}`;
       const now = new Date().toISOString();
@@ -225,15 +224,25 @@ export function useConversations() {
         content: trimmed,
         createdAt: now,
         status: 'pending',
+        attachments: attachments.map<Attachment>((item, index) => ({
+          id: `${tempId}_att_${index}`,
+          messageId: tempId,
+          type: item.type,
+          status: 'processing',
+          mimeType: item.mime_type,
+          filename: item.filename,
+          sizeBytes: item.size_bytes,
+        })),
       };
 
       setMessages((prev) => ({
         ...prev,
         [selectedId]: [...(prev[selectedId] ?? []), optimistic],
       }));
+      const lastMessagePreview = trimmed || 'Adjunto multimedia';
       setConversations((prev) =>
         [...prev]
-          .map((c) => (c.id === selectedId ? { ...c, lastMessage: trimmed, lastMessageAt: now } : c))
+          .map((c) => (c.id === selectedId ? { ...c, lastMessage: lastMessagePreview, lastMessageAt: now } : c))
           .sort((a, b) => {
             const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
             const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
@@ -245,6 +254,7 @@ export function useConversations() {
         await sendMessage({
           conversation_id: selectedId,
           content: trimmed,
+          attachments,
         });
 
         setMessages((prev) => ({

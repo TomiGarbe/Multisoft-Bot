@@ -4,6 +4,7 @@ export type AttachmentStatus =
   | 'loading'
   | 'available'
   | 'processing'
+  | 'downloading'
   | 'unavailable'
   | 'failed';
 
@@ -24,9 +25,101 @@ export interface Attachment {
   downloadUrl?: string;
 }
 
+export type MediaProcessingCapability =
+  | 'transcription'
+  | 'ocr'
+  | 'metadata_extraction'
+  | 'embeddings'
+  | 'moderation'
+  | 'thumbnails'
+  | 'vision'
+  | 'document_extraction';
+
+export type MediaProcessingStatus =
+  | 'pending'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'partial'
+  | 'skipped';
+
+export interface AttachmentProcessingJob {
+  id: string;
+  attachmentId: string;
+  capability: MediaProcessingCapability;
+  status: MediaProcessingStatus;
+  lastErrorCode?: string;
+  lastErrorMessage?: string;
+}
+
+export interface AttachmentProcessingSnapshot {
+  attachmentId: string;
+  status: MediaProcessingStatus;
+  jobs: AttachmentProcessingJob[];
+}
+
+export interface ProcessedArtifact {
+  id: string;
+  attachmentId: string;
+  capability: MediaProcessingCapability;
+  payloadText?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  createdAt?: string;
+}
+
 export interface MultimediaMessage {
   messageId: string;
   attachments: Attachment[];
+}
+
+export type UploadState = 'pending' | 'uploading' | 'uploaded' | 'failed' | 'canceled';
+
+export interface UploadProgress {
+  loadedBytes: number;
+  totalBytes: number;
+  percent: number;
+}
+
+export type UploadErrorCode =
+  | 'size_exceeded'
+  | 'mime_invalid'
+  | 'upload_failed'
+  | 'timeout'
+  | 'file_corrupted'
+  | 'canceled'
+  | 'unknown';
+
+export interface UploadError {
+  code: UploadErrorCode;
+  message: string;
+  retryable: boolean;
+}
+
+export interface PendingAttachment {
+  localId: string;
+  file: File;
+  type: AttachmentType;
+  previewUrl?: string;
+  uploadState: UploadState;
+  progress?: UploadProgress;
+  error?: UploadError;
+  durationMs?: number;
+  uploaded?: OutboundAttachment;
+}
+
+export type AttachmentMetadataValue = string | number | boolean | null;
+
+export interface OutboundAttachment {
+  type: AttachmentType;
+  provider_url?: string;
+  provider_media_id?: string;
+  caption?: string;
+  mime_type?: string;
+  filename?: string;
+  size_bytes?: number;
+  metadata?: Record<string, AttachmentMetadataValue>;
 }
 
 export interface Conversation {
@@ -61,5 +154,5 @@ export interface Message {
 
 export interface SendPayload {
   text: string;
-  files: File[];
+  attachments: OutboundAttachment[];
 }
