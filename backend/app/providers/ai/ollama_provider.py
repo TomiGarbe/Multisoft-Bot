@@ -12,10 +12,21 @@ logger = logging.getLogger(__name__)
 class OllamaProvider(AIInterface):
     """Ollama AI Provider implementation"""
 
-    def __init__(self):
+    def __init__(self, *, model: str | None = None, timeout_seconds: float | None = None):
         self.base_url = settings.OLLAMA_BASE_URL
-        self.model = settings.OLLAMA_MODEL
+        self.model = model or settings.OLLAMA_MODEL
         self.token = settings.OLLAMA_TOKEN
+        self.timeout_seconds = timeout_seconds or settings.OLLAMA_TIMEOUT_SECONDS
+
+    def supports_vision(self) -> bool:
+        normalized_model = (self.model or "").strip().lower()
+        return any(token in normalized_model for token in ("vision", "vl", "llava", "qwen2.5vl", "gemma3"))
+
+    def supports_streaming(self) -> bool:
+        return False
+
+    def supports_tools(self) -> bool:
+        return True
 
     async def generate(self, prompt: str) -> str:
         data = await self.generate_with_metadata(prompt)
@@ -67,7 +78,7 @@ class OllamaProvider(AIInterface):
                     endpoint,
                     json=payload,
                     headers=headers,
-                    timeout=300.0  # 5 minutes timeout for AI generation
+                    timeout=self.timeout_seconds,
                 )
                 response.raise_for_status()
                 
@@ -149,7 +160,7 @@ class OllamaProvider(AIInterface):
         headers = {"Content-Type": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
             response = await client.post(endpoint, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()

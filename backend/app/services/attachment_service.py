@@ -87,6 +87,17 @@ class AttachmentService:
             limit=limit,
         )
 
+    def list_by_message_ids_and_tenant(
+        self,
+        *,
+        message_ids: Sequence[uuid.UUID],
+        tenant_id: uuid.UUID,
+    ) -> list[MessageAttachment]:
+        return self.repository.list_by_message_ids_and_tenant(
+            message_ids=message_ids,
+            tenant_id=tenant_id,
+        )
+
     def generate_access_reference(
         self,
         *,

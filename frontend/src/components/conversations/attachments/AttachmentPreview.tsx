@@ -13,7 +13,7 @@ function AttachmentPreviewBase({ attachment }: { attachment: Attachment }) {
       {attachment.type === 'audio' ? <AudioAttachment attachment={attachment} /> : null}
       {attachment.type === 'video' ? <VideoAttachment attachment={attachment} /> : null}
       {(attachment.type === 'document' || attachment.type === 'file') ? <DocumentAttachment attachment={attachment} /> : null}
-      <ProcessingArtifact attachment={attachment} />
+      {attachment.type !== 'audio' ? <ProcessingArtifact attachment={attachment} /> : null}
     </div>
   );
 }

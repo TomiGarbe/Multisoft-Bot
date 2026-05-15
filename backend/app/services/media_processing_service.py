@@ -22,6 +22,9 @@ class MediaProcessingService:
     def list_jobs_by_attachment(self, *, attachment_id: uuid.UUID, tenant_id: uuid.UUID):
         return self.repository.list_jobs_by_attachment(attachment_id=attachment_id, tenant_id=tenant_id)
 
+    def list_jobs_for_attachments(self, *, attachment_ids: list[uuid.UUID], tenant_id: uuid.UUID):
+        return self.repository.list_jobs_for_attachments(attachment_ids=attachment_ids, tenant_id=tenant_id)
+
     def get_job(self, *, job_id: uuid.UUID, tenant_id: uuid.UUID):
         return self.repository.get_job(job_id=job_id, tenant_id=tenant_id)
 

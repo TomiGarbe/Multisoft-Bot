@@ -109,16 +109,13 @@ export default function MessageComposer({ onSend }: Props) {
     setIsSending(true);
     try {
       const uploadResult = await uploadAllPending();
-      console.warn('[MULTIMEDIA][SEND_MESSAGE] composer_upload_result', {
-        success: uploadResult.success,
-        outboundCount: uploadResult.outbound.length,
-      });
       if (!uploadResult.success) return;
-      await onSend({ text: text.trim(), attachments: uploadResult.outbound });
-      clearAll();
+      const textToSend = text.trim();
       setText('');
+      clearAll();
       setShowRecorder(false);
       textareaRef.current?.focus();
+      await onSend({ text: textToSend, attachments: uploadResult.outbound });
     } finally {
       setIsSending(false);
     }

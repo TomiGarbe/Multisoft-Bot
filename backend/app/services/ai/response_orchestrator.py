@@ -11,6 +11,7 @@ Responsibilities:
 import logging
 import json
 import uuid
+import time
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from app.core.config import settings
 from app.models.conversation import Conversation
 from app.repositories.ai.ai_log_repository import AILogRepository
 from app.services.ai.ai_service import AIService
+from app.services.ai.provider_routing import AIProviderRoute, resolve_provider_route
+from app.services.ai.multimodal_payload_builder import AIMultimodalPayloadBuilder
 from app.services.ai.ai_tool_execution_service import AIToolExecutionService
 from app.services.ai.ai_tool_registry_service import AIToolRegistryService
 from app.services.ai.out_of_scope_detector import is_out_of_scope
@@ -76,39 +79,90 @@ class AIResponseOrchestrator:
             return None
         return prompt
 
-    async def call_ai(self, prompt: str, provider_name: str | None = None) -> dict[str, Any]:
+    async def call_ai(self, prompt: str, route: AIProviderRoute) -> dict[str, Any]:
+        normalized_prompt = self._normalize_prompt(prompt)
         logger.warning(
-            "[AI][PAYLOAD] provider=%s mode=generate prompt_chars=%s prompt_preview=%s",
-            provider_name or "default",
-            len(prompt or ""),
-            (prompt or "")[:180].replace("\n", "\\n"),
+            "[AI][PAYLOAD] provider=%s model=%s mode=generate prompt_chars=%s prompt_preview=%s",
+            route.provider,
+            route.model,
+            len(normalized_prompt or ""),
+            (normalized_prompt or "")[:180].replace("\n", "\\n"),
         )
-        ai_service = AIService(provider_name=provider_name)
-        return await ai_service.generate_with_metadata(prompt)
+        ai_service = AIService(route=route)
+        started = time.perf_counter()
+        payload = await ai_service.generate_with_metadata(normalized_prompt)
+        self._log_ai_usage_observability(
+            payload=payload,
+            provider=route.provider,
+            model=route.model,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            context_chars=len(normalized_prompt or ""),
+            images_included=0,
+            included_image_bytes=0,
+            approx_payload_bytes=len((normalized_prompt or "").encode("utf-8")),
+        )
+        return payload
 
     async def call_ai_chat(
         self,
         *,
+        db: Session,
+        tenant_id: uuid.UUID,
+        message_id: Optional[uuid.UUID],
         prompt: str,
         current_user_message: str,
-        provider_name: str | None,
+        route: AIProviderRoute,
         tools: list[dict[str, Any]] | None,
     ) -> dict[str, Any]:
-        ai_service = AIService(provider_name=provider_name)
+        ai_service = AIService(route=route)
+        user_content, multimodal_stats = AIMultimodalPayloadBuilder(db).build_user_content(
+            tenant_id=tenant_id,
+            message_id=message_id,
+            user_text=current_user_message,
+            supports_vision=route.capabilities.supports_vision,
+        )
+        normalized_prompt = self._normalize_prompt(prompt)
         messages = [
-            {"role": "system", "content": prompt},
+            {"role": "system", "content": normalized_prompt},
             {"role": "system", "content": _SYSTEM_TOOLS_INSTRUCTION},
-            {"role": "user", "content": current_user_message},
+            {"role": "user", "content": user_content},
         ]
+        approx_payload_bytes = len(json.dumps({"model": route.model, "messages": messages}, ensure_ascii=False).encode("utf-8"))
+        if approx_payload_bytes > settings.AI_MAX_MULTIMODAL_PAYLOAD_BYTES:
+            logger.warning(
+                "[AI][MULTIMODAL] payload_limit_exceeded provider=%s model=%s payload_bytes=%s max_bytes=%s",
+                route.provider,
+                route.model,
+                approx_payload_bytes,
+                settings.AI_MAX_MULTIMODAL_PAYLOAD_BYTES,
+            )
+            raise ValueError("multimodal_payload_too_large")
         logger.warning(
-            "[AI][PAYLOAD] provider=%s mode=chat messages=%s roles=%s tools_count=%s message_content_types=%s",
-            provider_name or "default",
+            "[AI][PAYLOAD] provider=%s model=%s mode=chat messages=%s roles=%s tools_count=%s message_content_types=%s images_included=%s images_skipped=%s vision_supported=%s approx_payload_bytes=%s",
+            route.provider,
+            route.model,
             len(messages),
             ",".join(str(item.get("role")) for item in messages),
             len(tools or []),
             ",".join(type(item.get("content")).__name__ for item in messages),
+            multimodal_stats.get("images_included", 0),
+            multimodal_stats.get("images_skipped", 0),
+            route.capabilities.supports_vision,
+            approx_payload_bytes,
         )
-        return await ai_service.generate_chat_with_metadata(messages, tools=tools)
+        started = time.perf_counter()
+        payload = await ai_service.generate_chat_with_metadata(messages, tools=tools)
+        self._log_ai_usage_observability(
+            payload=payload,
+            provider=route.provider,
+            model=route.model,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            context_chars=len(normalized_prompt or "") + len(current_user_message or ""),
+            images_included=int(multimodal_stats.get("images_included", 0)),
+            included_image_bytes=int(multimodal_stats.get("included_image_bytes", 0)),
+            approx_payload_bytes=approx_payload_bytes,
+        )
+        return payload
 
     async def generate_response(
         self,
@@ -125,15 +179,30 @@ class AIResponseOrchestrator:
     ) -> Optional[str]:
         config = channel_config.config_jsonb or {}
         channel_settings = channel_config.settings_jsonb or {}
-        provider_name = "ollama"
-        if isinstance(channel_settings, dict):
-            provider_name = str(channel_settings.get("ai_provider") or "ollama")
+        route = resolve_provider_route(channel_settings if isinstance(channel_settings, dict) else None)
+        provider_name = route.provider
+        if inbound_has_media and not route.capabilities.supports_vision:
+            logger.warning(
+                "[AI][MULTIMODAL] inbound_media_without_vision conversation_id=%s provider=%s model=%s",
+                conversation.id,
+                route.provider,
+                route.model,
+            )
+        logger.info(
+            "AI route resolved (conversation_id=%s provider=%s model=%s supports_tools=%s supports_vision=%s supports_streaming=%s)",
+            conversation.id,
+            route.provider,
+            route.model,
+            route.capabilities.supports_tools,
+            route.capabilities.supports_vision,
+            route.capabilities.supports_streaming,
+        )
         self._log_inbound_media_trace(
             db=db,
             tenant_id=tenant_id,
             message_id=message_id,
             conversation_id=conversation.id,
-            provider_name=provider_name,
+            route=route,
         )
 
         behavior = config.get("behavior")
@@ -188,11 +257,14 @@ class AIResponseOrchestrator:
                         channel_id,
                         len(available_tools),
                     )
-                    if available_tools:
+                    if available_tools and route.capabilities.supports_tools:
                         ai_payload = await self.call_ai_chat(
+                            db=db,
+                            tenant_id=tenant_id,
+                            message_id=message_id,
                             prompt=prompt,
                             current_user_message=self._extract_current_user_message(prompt),
-                            provider_name=provider_name,
+                            route=route,
                             tools=available_tools,
                         )
                         response = str((ai_payload or {}).get("response") or "")
@@ -254,10 +326,16 @@ class AIResponseOrchestrator:
                                 )
 
                             if _MAX_TOOL_LOOP_ITERATIONS > 0:
+                                follow_up_user_content, _ = AIMultimodalPayloadBuilder(db).build_user_content(
+                                    tenant_id=tenant_id,
+                                    message_id=message_id,
+                                    user_text=self._extract_current_user_message(prompt),
+                                    supports_vision=route.capabilities.supports_vision,
+                                )
                                 follow_up_messages = [
                                     {"role": "system", "content": prompt},
                                     {"role": "system", "content": _SYSTEM_TOOLS_INSTRUCTION},
-                                    {"role": "user", "content": self._extract_current_user_message(prompt)},
+                                    {"role": "user", "content": follow_up_user_content},
                                     {
                                         "role": "assistant",
                                         "content": assistant_message.get("content"),
@@ -265,7 +343,12 @@ class AIResponseOrchestrator:
                                     },
                                     *tool_messages,
                                 ]
-                                ai_payload = await AIService(provider_name=provider_name).generate_chat_with_metadata(
+                                follow_up_payload_bytes = len(
+                                    json.dumps({"model": route.model, "messages": follow_up_messages}, ensure_ascii=False).encode("utf-8")
+                                )
+                                if follow_up_payload_bytes > settings.AI_MAX_MULTIMODAL_PAYLOAD_BYTES:
+                                    raise ValueError("multimodal_payload_too_large")
+                                ai_payload = await AIService(route=route).generate_chat_with_metadata(
                                     follow_up_messages,
                                     tools=available_tools,
                                 )
@@ -283,13 +366,21 @@ class AIResponseOrchestrator:
                                 provider_name,
                                 len(action_map),
                             )
+                    elif available_tools and not route.capabilities.supports_tools:
+                        logger.warning(
+                            "AI provider does not support tools; falling back to prompt-only call (conversation_id=%s provider=%s)",
+                            conversation.id,
+                            provider_name,
+                        )
+                        ai_payload = await self.call_ai(prompt, route=route)
+                        response = str((ai_payload or {}).get("response") or "")
                     else:
                         logger.info(
                             "AI WITHOUT TOOLS (conversation_id=%s provider=%s reason=no_tools_configured_for_channel)",
                             conversation.id,
                             provider_name,
                         )
-                        ai_payload = await self.call_ai(prompt, provider_name=provider_name)
+                        ai_payload = await self.call_ai(prompt, route=route)
                         response = str((ai_payload or {}).get("response") or "")
             except Exception:
                 db.rollback()
@@ -307,7 +398,7 @@ class AIResponseOrchestrator:
             prompt=prompt,
             response=response,
             provider=provider_name,
-            model=(ai_payload or {}).get("model") or settings.OLLAMA_MODEL,
+            model=(ai_payload or {}).get("model") or route.model,
         )
         self._record_token_usage(
             db,
@@ -315,7 +406,7 @@ class AIResponseOrchestrator:
             channel_id=channel_id,
             contact_id=contact_id,
             ai_payload=ai_payload,
-            fallback_model=settings.OLLAMA_MODEL,
+            fallback_model=route.model,
             provider=provider_name,
             conversation_id=conversation.id,
             message_id=message_id,
@@ -399,7 +490,7 @@ class AIResponseOrchestrator:
         tenant_id: uuid.UUID,
         message_id: Optional[uuid.UUID],
         conversation_id: uuid.UUID,
-        provider_name: str,
+        route: AIProviderRoute,
     ) -> None:
         if not message_id:
             logger.warning(
@@ -408,13 +499,13 @@ class AIResponseOrchestrator:
             )
             return
         attachments = AttachmentService(db).list_by_message_id_and_tenant(message_id=message_id, tenant_id=tenant_id)
-        model_name = settings.OLLAMA_MODEL if provider_name == "ollama" else "unknown"
-        supports_multimodal = self._supports_multimodal(provider_name=provider_name, model_name=model_name)
+        model_name = route.model
+        supports_multimodal = route.capabilities.supports_vision
         logger.warning(
             "[AI][MULTIMEDIA] conversation_id=%s message_id=%s provider=%s model=%s attachments=%s multimodal_supported=%s",
             conversation_id,
             message_id,
-            provider_name,
+            route.provider,
             model_name,
             len(attachments),
             supports_multimodal,
@@ -432,14 +523,6 @@ class AIResponseOrchestrator:
             )
 
     @staticmethod
-    def _supports_multimodal(*, provider_name: str, model_name: str) -> bool:
-        normalized_provider = (provider_name or "").strip().lower()
-        normalized_model = (model_name or "").strip().lower()
-        if normalized_provider != "ollama":
-            return False
-        return any(token in normalized_model for token in ("vision", "vl", "llava", "qwen2.5vl", "gemma3"))
-
-    @staticmethod
     def _extract_current_user_message(prompt: str) -> str:
         marker = "[MENSAJE ACTUAL]"
         idx = prompt.rfind(marker)
@@ -451,6 +534,54 @@ class AIResponseOrchestrator:
         if user_idx < 0:
             return segment.replace(marker, "").strip()
         return segment[user_idx + len(user_marker):].strip()
+
+    @staticmethod
+    def _normalize_prompt(prompt: str) -> str:
+        value = prompt or ""
+        max_chars = max(1000, settings.AI_MAX_PROMPT_CHARS)
+        if len(value) <= max_chars:
+            return value
+        logger.warning(
+            "[AI][PAYLOAD] prompt_truncated original_chars=%s max_chars=%s",
+            len(value),
+            max_chars,
+        )
+        return value[-max_chars:]
+
+    @staticmethod
+    def _log_ai_usage_observability(
+        *,
+        payload: dict[str, Any] | None,
+        provider: str,
+        model: str,
+        duration_ms: int,
+        context_chars: int,
+        images_included: int,
+        included_image_bytes: int,
+        approx_payload_bytes: int,
+    ) -> None:
+        payload_data = payload or {}
+        input_tokens = payload_data.get("prompt_eval_count")
+        output_tokens = payload_data.get("eval_count")
+        total_tokens = None
+        try:
+            if input_tokens is not None or output_tokens is not None:
+                total_tokens = int(input_tokens or 0) + int(output_tokens or 0)
+        except Exception:
+            total_tokens = None
+        logger.info(
+            "[AI][METRICS] provider=%s model=%s duration_ms=%s prompt_tokens=%s completion_tokens=%s total_tokens=%s context_chars=%s images_included=%s included_image_bytes=%s approx_payload_bytes=%s",
+            provider,
+            model,
+            duration_ms,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            context_chars,
+            images_included,
+            included_image_bytes,
+            approx_payload_bytes,
+        )
 
     def _record_token_usage(
         self,

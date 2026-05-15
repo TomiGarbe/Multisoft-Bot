@@ -14,6 +14,7 @@ RUN apt-get update \
         poppler-utils \
         libmagic1 \
         file \
+    && ffmpeg -version >/dev/null \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

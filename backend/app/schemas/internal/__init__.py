@@ -11,6 +11,7 @@ from .message_enums import (
 )
 from .attachment_persistence import AttachmentCreate, AttachmentBlobCreate
 from .outbound_media import OutboundAttachment, OutboundMediaMessage
+from .transcription import WhisperSegment, WhisperTranscriptionResult
 from .bot_actions import (
     ActionAuthConfig,
     ActionAuthType,
@@ -40,6 +41,8 @@ __all__ = [
     "AttachmentBlobCreate",
     "OutboundAttachment",
     "OutboundMediaMessage",
+    "WhisperSegment",
+    "WhisperTranscriptionResult",
     "ActionAuthConfig",
     "ActionAuthType",
     "ActionResponseConfig",

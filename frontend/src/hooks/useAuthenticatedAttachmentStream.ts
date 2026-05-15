@@ -3,6 +3,7 @@ import { fetchAttachmentStreamBlob } from '@/services/attachments';
 
 const urlCache = new Map<string, string>();
 const inFlight = new Map<string, Promise<string>>();
+let cleanupRegistered = false;
 
 interface State {
   url: string | null;
@@ -10,15 +11,47 @@ interface State {
   error: boolean;
 }
 
+function isInternalAttachmentStreamUrl(candidate?: string): boolean {
+  if (!candidate) return false;
+  if (typeof window === 'undefined') return false;
+
+  try {
+    const direct = new URL(candidate, window.location.origin);
+    const path = direct.pathname.toLowerCase();
+    return path.includes('/attachments/') && (path.endsWith('/stream') || path.endsWith('/download'));
+  } catch {
+    return false;
+  }
+}
+
+function shouldUseDirectUrl(directUrl?: string): boolean {
+  if (!directUrl) return false;
+  return !isInternalAttachmentStreamUrl(directUrl);
+}
+
+function registerCacheCleanupOnce(): void {
+  if (cleanupRegistered || typeof window === 'undefined') return;
+  cleanupRegistered = true;
+  window.addEventListener('beforeunload', () => {
+    for (const value of urlCache.values()) {
+      URL.revokeObjectURL(value);
+    }
+    urlCache.clear();
+    inFlight.clear();
+  });
+}
+
 export function useAuthenticatedAttachmentStream(
   attachmentId: string,
   enabled: boolean,
   directUrl?: string,
 ): State {
+  const useDirect = shouldUseDirectUrl(directUrl);
+
   const [state, setState] = useState<State>(() => {
-    if (directUrl) {
+    if (useDirect) {
       return {
-        url: directUrl,
+        url: directUrl ?? null,
         loading: false,
         error: false,
       };
@@ -32,8 +65,10 @@ export function useAuthenticatedAttachmentStream(
   });
 
   useEffect(() => {
-    if (directUrl) {
-      setState({ url: directUrl, loading: false, error: false });
+    registerCacheCleanupOnce();
+
+    if (useDirect) {
+      setState({ url: directUrl ?? null, loading: false, error: false });
       return;
     }
 
@@ -49,11 +84,12 @@ export function useAuthenticatedAttachmentStream(
     }
 
     let active = true;
+    const controller = new AbortController();
     setState({ url: null, loading: true, error: false });
 
     const running =
       inFlight.get(attachmentId) ??
-      fetchAttachmentStreamBlob(attachmentId).then((blob) => {
+      fetchAttachmentStreamBlob(attachmentId, { signal: controller.signal }).then((blob) => {
         const nextUrl = URL.createObjectURL(blob);
         urlCache.set(attachmentId, nextUrl);
         return nextUrl;
@@ -75,8 +111,9 @@ export function useAuthenticatedAttachmentStream(
 
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [attachmentId, enabled, directUrl]);
+  }, [attachmentId, enabled, directUrl, useDirect]);
 
   return state;
 }

@@ -23,7 +23,7 @@ class AttachmentDownloadDispatcher:
         self._tasks: set[asyncio.Task[None]] = set()
 
     def enqueue(self, job: AttachmentDownloadJob) -> None:
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][DOWNLOAD] enqueue attachment_id=%s tenant_id=%s",
             job.attachment_id,
             job.tenant_id,
@@ -36,7 +36,7 @@ class AttachmentDownloadDispatcher:
         async with self._semaphore:
             db = SessionLocal()
             try:
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][DOWNLOAD] worker_start attachment_id=%s tenant_id=%s",
                     job.attachment_id,
                     job.tenant_id,
@@ -45,7 +45,7 @@ class AttachmentDownloadDispatcher:
                     attachment_id=job.attachment_id,
                     tenant_id=job.tenant_id,
                 )
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][DOWNLOAD] worker_done attachment_id=%s tenant_id=%s",
                     job.attachment_id,
                     job.tenant_id,

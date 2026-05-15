@@ -33,7 +33,7 @@ class MediaProcessingOrchestrator:
             logger.warning("[MULTIMEDIA][PROCESSING] attachment_missing attachment_id=%s tenant_id=%s", attachment_id, tenant_id)
             return None
         if attachment.download_status.value != "completed":
-            logger.warning(
+            logger.debug(
                 "[MULTIMEDIA][PROCESSING] waiting_download attachment_id=%s tenant_id=%s download_status=%s",
                 attachment.id,
                 attachment.tenant_id,
@@ -68,7 +68,7 @@ class MediaProcessingOrchestrator:
             if decision.enabled:
                 filtered_capabilities.append(capability)
             else:
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][PROCESSING] capability_disabled attachment_id=%s tenant_id=%s capability=%s reason=%s",
                     attachment_id,
                     tenant_id,
@@ -81,6 +81,12 @@ class MediaProcessingOrchestrator:
         jobs = []
         for capability in filtered_capabilities:
             if capability in existing_capabilities:
+                logger.debug(
+                    "[MULTIMEDIA][PROCESSING] duplicate_job_skipped attachment_id=%s tenant_id=%s capability=%s",
+                    attachment_id,
+                    tenant_id,
+                    capability.value,
+                )
                 continue
             job = self.processing_service.create_job(
                 AttachmentProcessingJobCreate(
@@ -95,7 +101,7 @@ class MediaProcessingOrchestrator:
         self.db.commit()
 
         for job in jobs:
-            logger.warning(
+            logger.info(
                 "[MULTIMEDIA][PROCESSING] queued job_id=%s tenant_id=%s attachment_id=%s capability=%s",
                 job.id,
                 tenant_id,
@@ -104,7 +110,7 @@ class MediaProcessingOrchestrator:
             )
             media_processing_dispatcher.enqueue(MediaProcessingJobDispatch(job_id=job.id, tenant_id=tenant_id))
 
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][PROCESSING] jobs_created attachment_id=%s tenant_id=%s jobs=%s capabilities=%s size_bytes=%s duration_ms=%s",
             attachment_id,
             tenant_id,

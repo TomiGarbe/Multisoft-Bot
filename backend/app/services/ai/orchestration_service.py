@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.ai import AITestRequest, AITestResponse
 from app.services.ai.ai_service import AIService
+from app.services.ai.provider_routing import resolve_provider_route
 from app.services.ai.prompt_builder import PromptBuilder
 from app.services.channel_config_service import ChannelConfigService
 from app.services.config_validation import get_config_validation_status
@@ -34,8 +35,14 @@ class AIOrchestrationService:
 
         config = channel_config.config_jsonb or {}
         settings_jsonb = channel_config.settings_jsonb or {}
-        provider_name = settings_jsonb.get("ai_provider") if isinstance(settings_jsonb, dict) else None
-        ai_service = AIService(provider_name=provider_name)
+        route = resolve_provider_route(settings_jsonb if isinstance(settings_jsonb, dict) else None)
+        ai_service = AIService(route=route)
+        logger.info(
+            "AI route resolved for test (channel_id=%s provider=%s model=%s)",
+            request.channel_id,
+            route.provider,
+            route.model,
+        )
         validation_status = get_config_validation_status(config)
         if not validation_status["is_valid"]:
             missing_fields = ", ".join(validation_status["missing_fields"]) or "unknown"

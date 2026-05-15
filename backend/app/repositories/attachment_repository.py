@@ -166,6 +166,21 @@ class AttachmentRepository(BaseRepository):
             stmt = stmt.limit(max(limit, 1))
         return list(self.db.execute(stmt).scalars().all())
 
+    def list_by_message_ids_and_tenant(
+        self,
+        *,
+        message_ids: Sequence[uuid.UUID],
+        tenant_id: uuid.UUID,
+    ) -> list[MessageAttachment]:
+        if not message_ids:
+            return []
+        stmt = select(MessageAttachment).where(
+            MessageAttachment.tenant_id == tenant_id,
+            MessageAttachment.message_id.in_(message_ids),
+        )
+        stmt = stmt.order_by(MessageAttachment.created_at.asc())
+        return list(self.db.execute(stmt).scalars().all())
+
     def update_download_state(
         self,
         *,

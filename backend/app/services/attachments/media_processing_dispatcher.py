@@ -23,7 +23,7 @@ class MediaProcessingDispatcher:
         self._tasks: set[asyncio.Task[None]] = set()
 
     def enqueue(self, job: MediaProcessingJobDispatch) -> None:
-        logger.warning(
+        logger.info(
             "[MULTIMEDIA][PROCESSING] enqueue job_id=%s tenant_id=%s",
             job.job_id,
             job.tenant_id,
@@ -36,13 +36,13 @@ class MediaProcessingDispatcher:
         async with self._semaphore:
             db = SessionLocal()
             try:
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][PROCESSING] worker_start job_id=%s tenant_id=%s",
                     job.job_id,
                     job.tenant_id,
                 )
                 MediaProcessingJobRunner(db).run(job_id=job.job_id, tenant_id=job.tenant_id)
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][PROCESSING] worker_done job_id=%s tenant_id=%s",
                     job.job_id,
                     job.tenant_id,

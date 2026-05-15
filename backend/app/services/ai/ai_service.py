@@ -3,6 +3,7 @@ from typing import Any, Callable, Optional
 
 from app.providers.provider_factory import get_ai_provider
 from app.interfaces.ai.ai_interface import AIInterface
+from app.services.ai.provider_routing import AIProviderRoute
 from app.services.conversation.guards import should_use_ai
 
 logger = logging.getLogger(__name__)
@@ -21,10 +22,22 @@ class AIService:
     def __init__(
         self,
         provider: AIInterface | None = None,
-        provider_resolver: Callable[[str | None], AIInterface] = get_ai_provider,
+        provider_resolver: Callable[..., AIInterface] = get_ai_provider,
         provider_name: str | None = None,
+        provider_model: str | None = None,
+        timeout_seconds: float | None = None,
+        route: AIProviderRoute | None = None,
     ):
-        self.provider: AIInterface = provider or provider_resolver(provider_name)
+        selected_provider_name = route.provider if route else provider_name
+        selected_model = route.model if route else provider_model
+        selected_timeout = route.timeout_seconds if route else timeout_seconds
+        self.provider: AIInterface = provider or provider_resolver(
+            selected_provider_name,
+            model=selected_model,
+            timeout_seconds=selected_timeout,
+        )
+        self.selected_provider_name = selected_provider_name
+        self.selected_model = selected_model
 
     async def generate_for_conversation(
         self,
@@ -63,3 +76,12 @@ class AIService:
                 self.provider.__class__.__name__,
             )
         return await self.provider.generate_chat_with_metadata(messages, tools=tools)
+
+    def supports_vision(self) -> bool:
+        return self.provider.supports_vision()
+
+    def supports_streaming(self) -> bool:
+        return self.provider.supports_streaming()
+
+    def supports_tools(self) -> bool:
+        return self.provider.supports_tools()

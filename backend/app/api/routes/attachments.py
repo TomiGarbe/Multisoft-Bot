@@ -46,7 +46,7 @@ async def upload_attachment(
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("messages.send")),
 ):
-    logger.warning(
+    logger.debug(
         "[MULTIMEDIA][UPLOAD] upload_start tenant_id=%s filename=%s attachment_type=%s content_type=%s has_auth=%s has_tenant_header=%s",
         current_tenant_id,
         file.filename,
@@ -93,7 +93,7 @@ async def upload_attachment(
 
     provider_media_id = str(uuid.uuid4())
     provider_url = f"data:{mime_type};base64,{base64_payload}"
-    logger.warning(
+    logger.info(
         "[MULTIMEDIA][UPLOAD] upload_completed tenant_id=%s mime=%s size_bytes=%s attachment_id=%s",
         current_tenant_id,
         mime_type,
@@ -162,7 +162,7 @@ async def download_attachment(
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("messages.read")),
 ):
-    logger.warning(
+    logger.debug(
         "[MULTIMEDIA][STREAM] download_request attachment_id=%s tenant_id=%s has_range=%s",
         attachment_id,
         current_tenant_id,
@@ -186,7 +186,7 @@ async def download_attachment(
         headers["Content-Range"] = (
             f"bytes {blob.descriptor.range_start}-{blob.descriptor.range_end}/{blob.descriptor.total_size}"
         )
-    logger.warning(
+    logger.debug(
         "[MULTIMEDIA][STREAM] download_response attachment_id=%s tenant_id=%s mime=%s size_bytes=%s status_code=%s is_partial=%s",
         attachment_id,
         current_tenant_id,
@@ -211,7 +211,7 @@ async def stream_attachment(
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
     _: None = Depends(require_permission("messages.read")),
 ):
-    logger.warning(
+    logger.debug(
         "[MULTIMEDIA][STREAM] stream_request attachment_id=%s tenant_id=%s has_range=%s",
         attachment_id,
         current_tenant_id,
@@ -238,7 +238,7 @@ async def stream_attachment(
             f"bytes {blob.descriptor.range_start}-{blob.descriptor.range_end}/{blob.descriptor.total_size}"
         )
 
-    logger.warning(
+    logger.debug(
         "[MULTIMEDIA][STREAM] stream_response attachment_id=%s tenant_id=%s mime=%s size_bytes=%s status_code=%s is_partial=%s",
         attachment_id,
         current_tenant_id,

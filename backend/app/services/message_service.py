@@ -1,4 +1,8 @@
 import logging
+import base64
+import binascii
+import hashlib
+import re
 import uuid
 from typing import Any, Callable, Optional
 from urllib.parse import urlencode
@@ -22,10 +26,12 @@ from app.services.attachments.attachment_download_dispatcher import (
     AttachmentDownloadJob,
     attachment_download_dispatcher,
 )
+from app.services.attachments.media_processing_orchestrator import MediaProcessingOrchestrator
 from app.services.message_persistence_service import MessagePersistenceService
 from app.services.realtime_service import event_bus
 
 logger = logging.getLogger(__name__)
+_DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;,]+)?(?:;charset=[^;,]+)?;base64,(?P<payload>.+)$", re.IGNORECASE)
 
 
 def _resolve_channel_provider_name(channel: Channel) -> str:
@@ -216,7 +222,7 @@ class MessageService:
                 channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
             )
             media_message = OutboundMediaMessage(attachments=resolved_attachments, fallback_text=content or None)
-            logger.warning(
+            logger.debug(
                 "[MULTIMEDIA][OUTBOUND] dispatch_start provider=%s message_id=%s tenant_id=%s attachments_count=%s",
                 provider_name,
                 message.id,
@@ -245,7 +251,7 @@ class MessageService:
             provider_message_id=result.get("provider_message_id"),
             status=result.get("status", "sent"),
         )
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][OUTBOUND] dispatch_result provider=%s message_id=%s tenant_id=%s status=%s attachments_count=%s",
             provider_name,
             message.id,
@@ -274,7 +280,7 @@ class MessageService:
         resolved: list[OutboundAttachment] = []
         for item in outbound_attachments:
             if item.provider_url:
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=provided_url type=%s provider_media_id=%s",
                     message_id,
                     item.type.value,
@@ -292,7 +298,7 @@ class MessageService:
                         tenant_id=tenant_id,
                         storage_key=db_attachment.storage_key,
                     )
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=provider_media_id type=%s provider_media_id=%s resolved_url=%s",
                     message_id,
                     item.type.value,
@@ -311,7 +317,7 @@ class MessageService:
                         tenant_id=tenant_id,
                         storage_key=db_attachment.storage_key,
                     )
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=unmatched_fallback type=%s resolved_url=%s",
                     message_id,
                     item.type.value,
@@ -319,7 +325,7 @@ class MessageService:
                 )
                 resolved.append(item.model_copy(update={"provider_url": provider_url}))
                 continue
-            logger.warning(
+            logger.debug(
                 "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=unresolved type=%s provider_media_id=%s",
                 message_id,
                 item.type.value,
@@ -372,7 +378,7 @@ class MessageService:
         data: MessageSendRequest,
         tenant_id: uuid.UUID,
     ) -> dict:
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][OUTBOUND] send_message_request tenant_id=%s conversation_id=%s content_len=%s attachments_count=%s attachments=%s",
             tenant_id,
             data.conversation_id,
@@ -408,7 +414,7 @@ class MessageService:
             reply_to_id=data.reply_to_message_id or data.reply_to_id,
         )
         persisted_attachments = self.attachment_service.list_by_message_id_and_tenant(message.id, tenant_id)
-        logger.warning(
+        logger.info(
             "[MULTIMEDIA][OUTBOUND] send_message_persisted tenant_id=%s message_id=%s message_type=%s has_media=%s persisted_attachments_count=%s",
             tenant_id,
             message.id,
@@ -546,7 +552,7 @@ class MessageService:
         if not normalized.attachments:
             return
 
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][PERSIST] inbound_attachments_start message_id=%s tenant_id=%s attachments_count=%s",
             message.id,
             message.tenant_id,
@@ -596,7 +602,7 @@ class MessageService:
 
         self.repository.commit()
         for attachment in persisted:
-            logger.warning(
+            logger.info(
                 "[MULTIMEDIA][PERSIST] attachment_saved attachment_id=%s message_id=%s type=%s backend=%s status=%s provider_media_id=%s has_provider_url=%s",
                 attachment.id,
                 message.id,
@@ -608,7 +614,7 @@ class MessageService:
             )
             if attachment.download_status.value != "pending":
                 continue
-            logger.warning(
+            logger.debug(
                 "[MULTIMEDIA][DOWNLOAD] queued attachment_id=%s tenant_id=%s",
                 attachment.id,
                 message.tenant_id,
@@ -629,37 +635,88 @@ class MessageService:
         if not attachments:
             return
 
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][OUTBOUND] persist_attachments_start message_id=%s tenant_id=%s attachments_count=%s",
             message.id,
             tenant_id,
             len(attachments),
         )
         records: list[AttachmentCreate] = []
+        inline_payloads_by_index: dict[int, bytes] = {}
+        inline_metadata_by_index: dict[int, dict[str, Any]] = {}
         for item in attachments:
+            index = len(records)
             metadata_json = dict(item.metadata or {})
             if item.provider_media_id:
                 metadata_json["provider_media_id"] = item.provider_media_id
+            inline_payload, inline_mime = self._extract_inline_data_url(item.provider_url)
+            provider_url: Optional[str] = item.provider_url
+            storage_backend = StorageBackend.PROVIDER
+            download_status = AttachmentDownloadStatus.NOT_REQUESTED
+            checksum_sha256: Optional[str] = None
+            size_bytes = item.size_bytes
+            mime_type = item.mime_type
+            if inline_payload is not None:
+                provider_url = None
+                storage_backend = StorageBackend.DB
+                download_status = AttachmentDownloadStatus.COMPLETED
+                checksum_sha256 = hashlib.sha256(inline_payload).hexdigest()
+                size_bytes = len(inline_payload)
+                mime_type = mime_type or inline_mime
+                metadata_json["inline_source"] = "data_url"
+                inline_payloads_by_index[index] = inline_payload
+                inline_metadata_by_index[index] = {
+                    "mime_type": mime_type,
+                    "size_bytes": size_bytes,
+                }
             records.append(
                 AttachmentCreate(
                     message_id=message.id,
                     tenant_id=tenant_id,
                     attachment_type=item.type,
-                    storage_backend=StorageBackend.PROVIDER,
+                    storage_backend=storage_backend,
                     provider_media_id=item.provider_media_id,
-                    provider_url=item.provider_url,
-                    mime_type=item.mime_type,
+                    provider_url=provider_url,
+                    mime_type=mime_type,
                     filename=item.filename,
-                    size_bytes=item.size_bytes,
+                    size_bytes=size_bytes,
+                    checksum_sha256=checksum_sha256,
                     caption=item.caption,
                     metadata_json=metadata_json or None,
-                    download_status=AttachmentDownloadStatus.NOT_REQUESTED,
+                    download_status=download_status,
                 )
             )
 
         persisted = self.attachment_service.save_attachments_bulk(records)
+        queued_for_processing: list[uuid.UUID] = []
+        for index, attachment in enumerate(persisted):
+            inline_payload = inline_payloads_by_index.get(index)
+            if inline_payload is None:
+                continue
+            storage_key = self.attachment_service.save_attachment_blob(
+                attachment_id=attachment.id,
+                tenant_id=tenant_id,
+                binary_data=inline_payload,
+            )
+            attachment.storage_key = storage_key
+            details = inline_metadata_by_index.get(index, {})
+            logger.debug(
+                "[MULTIMEDIA][OUTBOUND] inline_blob_saved attachment_id=%s message_id=%s mime=%s size_bytes=%s",
+                attachment.id,
+                message.id,
+                details.get("mime_type"),
+                details.get("size_bytes"),
+            )
+            queued_for_processing.append(attachment.id)
+
+        self.repository.commit()
+        for attachment_id in queued_for_processing:
+            MediaProcessingOrchestrator(self.db).orchestrate_for_attachment(
+                attachment_id=attachment_id,
+                tenant_id=tenant_id,
+            )
         for attachment in persisted:
-            logger.warning(
+            logger.info(
                 "[MULTIMEDIA][OUTBOUND] attachment_saved attachment_id=%s message_id=%s type=%s provider_media_id=%s has_provider_url=%s",
                 attachment.id,
                 message.id,
@@ -667,7 +724,28 @@ class MessageService:
                 attachment.provider_media_id,
                 bool(attachment.provider_url),
             )
-        self.repository.commit()
+            if str(attachment.download_status.value) == "completed":
+                logger.debug(
+                    "[MULTIMEDIA][OUTBOUND] inline_attachment_ready attachment_id=%s message_id=%s storage_key=%s",
+                    attachment.id,
+                    message.id,
+                    attachment.storage_key,
+                )
+
+    @staticmethod
+    def _extract_inline_data_url(provider_url: Optional[str]) -> tuple[Optional[bytes], Optional[str]]:
+        if not provider_url:
+            return (None, None)
+        match = _DATA_URL_RE.match(provider_url.strip())
+        if not match:
+            return (None, None)
+        payload = match.group("payload")
+        mime = (match.group("mime") or "application/octet-stream").strip().lower()
+        try:
+            return (base64.b64decode(payload, validate=True), mime)
+        except (binascii.Error, ValueError):
+            logger.warning("[MULTIMEDIA][OUTBOUND] inline_data_url_invalid_base64")
+            raise ValueError("invalid_inline_base64_attachment")
 
 
 # Backward-compatible wrappers

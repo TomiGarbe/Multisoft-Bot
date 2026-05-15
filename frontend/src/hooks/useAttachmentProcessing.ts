@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import { getAttachmentArtifacts, getAttachmentProcessingStatus } from '@/services/mediaProcessing';
 import type { Attachment, AttachmentProcessingSnapshot, ProcessedArtifact } from '@/types/chat';
 
@@ -23,9 +24,14 @@ function isPollingNeeded(status: Attachment['status'], snapshot: AttachmentProce
 }
 
 async function fetchState(attachmentId: string): Promise<State> {
-  const status = await getAttachmentProcessingStatus(attachmentId).catch(() => null);
+  const status = await getAttachmentProcessingStatus(attachmentId).catch((error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      notFoundUntil.set(attachmentId, Date.now() + RETRY_AFTER_NOT_FOUND_MS);
+      return null;
+    }
+    throw error;
+  });
   if (!status) {
-    notFoundUntil.set(attachmentId, Date.now() + RETRY_AFTER_NOT_FOUND_MS);
     return {
       loading: false,
       error: null,

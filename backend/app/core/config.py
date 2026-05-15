@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     @property
     def attachment_allowed_mime_types_list(self) -> list[str]:
         return [mime.strip().lower() for mime in self.ATTACHMENT_ALLOWED_MIME_TYPES.split(",") if mime.strip()]
+
+    @property
+    def ai_vision_allowed_mime_types_list(self) -> list[str]:
+        return [mime.strip().lower() for mime in self.AI_VISION_ALLOWED_MIME_TYPES.split(",") if mime.strip()]
     
     # ========== OLLAMA AI CONFIGURATION ==========
     OLLAMA_BASE_URL: str = Field(
@@ -87,6 +91,64 @@ class Settings(BaseSettings):
     OLLAMA_TOKEN: Optional[str] = Field(
         default=None,
         description="Optional authentication token for Ollama API"
+    )
+    OLLAMA_TIMEOUT_SECONDS: float = Field(
+        default=300.0,
+        description="Timeout in seconds for Ollama requests",
+    )
+    AI_PROVIDER: str = Field(
+        default="ollama",
+        description="Default AI provider (ollama, deepseek, mock)",
+    )
+
+    # ========== DEEPSEEK AI CONFIGURATION ==========
+    DEEPSEEK_BASE_URL: str = Field(
+        default="https://api.deepseek.com",
+        description="Base URL for DeepSeek API",
+    )
+    DEEPSEEK_API_KEY: Optional[str] = Field(
+        default=None,
+        description="API key for DeepSeek API",
+    )
+    DEEPSEEK_MODEL: str = Field(
+        default="deepseek-chat",
+        description="DeepSeek model to use for chat generation",
+    )
+    DEEPSEEK_TIMEOUT_SECONDS: float = Field(
+        default=60.0,
+        description="Timeout in seconds for DeepSeek requests",
+    )
+    DEEPSEEK_MAX_RETRIES: int = Field(
+        default=2,
+        description="Maximum retry attempts for retryable DeepSeek failures",
+    )
+    DEEPSEEK_INITIAL_BACKOFF_SECONDS: float = Field(
+        default=0.5,
+        description="Initial backoff for DeepSeek retries",
+    )
+    DEEPSEEK_MAX_BACKOFF_SECONDS: float = Field(
+        default=3.0,
+        description="Maximum backoff for DeepSeek retries",
+    )
+    AI_VISION_MAX_IMAGES_PER_REQUEST: int = Field(
+        default=3,
+        description="Maximum number of images to include in a single multimodal AI request",
+    )
+    AI_VISION_MAX_IMAGE_BYTES: int = Field(
+        default=3 * 1024 * 1024,
+        description="Maximum bytes allowed per image included in multimodal AI requests",
+    )
+    AI_VISION_ALLOWED_MIME_TYPES: str = Field(
+        default="image/jpeg,image/png,image/webp",
+        description="Comma-separated list of MIME types allowed for multimodal AI image inputs",
+    )
+    AI_MAX_PROMPT_CHARS: int = Field(
+        default=32000,
+        description="Maximum prompt characters for AI text payloads before truncation",
+    )
+    AI_MAX_MULTIMODAL_PAYLOAD_BYTES: int = Field(
+        default=5 * 1024 * 1024,
+        description="Maximum approximate JSON payload size for multimodal AI requests",
     )
 
     # ========== WHATSAPP MULTISOFT ==========
@@ -161,6 +223,18 @@ class Settings(BaseSettings):
     MEDIA_STT_API_KEY: Optional[str] = Field(default=None, description="STT API key")
     MEDIA_STT_MODEL: str = Field(default="whisper-1", description="STT model name")
     MEDIA_STT_TIMEOUT_SECONDS: float = Field(default=60.0, description="Timeout for STT calls")
+    WHISPER_MODEL: str = Field(default="small", description="Local faster-whisper model name")
+    WHISPER_DEVICE: str = Field(default="cpu", description="Execution device for faster-whisper (cpu/cuda)")
+    WHISPER_COMPUTE_TYPE: str = Field(default="int8", description="CTranslate2 compute type for faster-whisper")
+    WHISPER_LANGUAGE: Optional[str] = Field(default=None, description="Optional language hint for transcription")
+    WHISPER_TRANSCRIPTION_TIMEOUT_SECONDS: float = Field(
+        default=180.0,
+        description="Timeout in seconds for a single faster-whisper transcription",
+    )
+    WHISPER_FFMPEG_TIMEOUT_SECONDS: float = Field(
+        default=45.0,
+        description="Timeout in seconds for ffmpeg audio conversion",
+    )
 
     # ========== MODEL CONFIGURATION ==========
     model_config = SettingsConfigDict(

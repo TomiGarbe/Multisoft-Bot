@@ -49,7 +49,7 @@ class MediaProcessingJobRunner:
 
         self.processing_service.mark_job_processing(job=job)
         self.db.commit()
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][PROCESSING] started job_id=%s tenant_id=%s attachment_id=%s capability=%s",
             job.id,
             tenant_id,
@@ -70,7 +70,7 @@ class MediaProcessingJobRunner:
                 self.processing_service.mark_job_skipped(job=job, reason="not_implemented_yet")
             else:
                 self.processing_service.replace_artifact(artifact)
-                logger.warning(
+                logger.debug(
                     "[MULTIMEDIA][PROCESSING] artifact_generated job_id=%s attachment_id=%s capability=%s backend=%s",
                     job.id,
                     job.attachment_id,
@@ -79,14 +79,13 @@ class MediaProcessingJobRunner:
                 )
                 self.processing_service.mark_job_completed(
                     job=job,
-                    metadata_json={
-                        "completed_at_iso": datetime.now(timezone.utc).isoformat(),
-                        "duration_ms": int((time.perf_counter() - started_at) * 1000),
-                        "estimated_cost_usd": 0.0,
-                    },
+                    metadata_json=self._build_completion_metadata(
+                        artifact=artifact,
+                        started_at=started_at,
+                    ),
                 )
             self.db.commit()
-            logger.warning(
+            logger.info(
                 "[MULTIMEDIA][PROCESSING] completed job_id=%s capability=%s duration_ms=%s",
                 job.id,
                 job.capability.value,
@@ -110,6 +109,21 @@ class MediaProcessingJobRunner:
                 job.capability.value,
                 exc,
             )
+
+    def _build_completion_metadata(self, *, artifact: ProcessedArtifactCreate, started_at: float) -> dict:
+        metadata = {
+                        "completed_at_iso": datetime.now(timezone.utc).isoformat(),
+                        "duration_ms": int((time.perf_counter() - started_at) * 1000),
+                        "estimated_cost_usd": 0.0,
+                    }
+        payload_json = artifact.payload_json or {}
+        artifact_meta = artifact.metadata_json or {}
+        if artifact.capability == MediaProcessingCapability.TRANSCRIPTION:
+            metadata["transcription_language"] = payload_json.get("language") or artifact_meta.get("detected_language")
+            metadata["transcription_duration_seconds"] = payload_json.get("duration_seconds")
+            metadata["transcription_segment_count"] = len(payload_json.get("segments") or [])
+            metadata["audio_size_bytes"] = artifact_meta.get("audio_size_bytes")
+        return metadata
 
     def _process_capability(self, *, job_capability: MediaProcessingCapability, attachment) -> ProcessedArtifactCreate | None:
         if job_capability == MediaProcessingCapability.METADATA_EXTRACTION:

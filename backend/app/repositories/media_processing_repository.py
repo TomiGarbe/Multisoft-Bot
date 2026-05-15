@@ -10,7 +10,10 @@ from sqlalchemy.orm import Session
 from app.models.media_processing import AttachmentProcessingJob, ProcessedArtifact
 from app.repositories.base_repository import BaseRepository
 from app.schemas.internal.media_processing import AttachmentProcessingJobCreate, ProcessedArtifactCreate
-from app.schemas.internal.message_enums import MediaProcessingStatus
+from app.schemas.internal.message_enums import MediaProcessingCapability, MediaProcessingStatus
+
+
+_VALID_CAPABILITIES = tuple(item.value for item in MediaProcessingCapability)
 
 
 class MediaProcessingRepository(BaseRepository):
@@ -34,6 +37,22 @@ class MediaProcessingRepository(BaseRepository):
         stmt = select(AttachmentProcessingJob).where(
             AttachmentProcessingJob.attachment_id == attachment_id,
             AttachmentProcessingJob.tenant_id == tenant_id,
+            AttachmentProcessingJob.capability.in_(_VALID_CAPABILITIES),
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def list_jobs_for_attachments(
+        self,
+        *,
+        attachment_ids: Sequence[uuid.UUID],
+        tenant_id: uuid.UUID,
+    ) -> list[AttachmentProcessingJob]:
+        if not attachment_ids:
+            return []
+        stmt = select(AttachmentProcessingJob).where(
+            AttachmentProcessingJob.tenant_id == tenant_id,
+            AttachmentProcessingJob.attachment_id.in_(attachment_ids),
+            AttachmentProcessingJob.capability.in_(_VALID_CAPABILITIES),
         )
         return list(self.db.execute(stmt).scalars().all())
 
@@ -41,6 +60,7 @@ class MediaProcessingRepository(BaseRepository):
         stmt = select(AttachmentProcessingJob).where(
             AttachmentProcessingJob.id == job_id,
             AttachmentProcessingJob.tenant_id == tenant_id,
+            AttachmentProcessingJob.capability.in_(_VALID_CAPABILITIES),
         )
         return self.db.execute(stmt).scalar_one_or_none()
 
@@ -110,6 +130,7 @@ class MediaProcessingRepository(BaseRepository):
         stmt = select(ProcessedArtifact).where(
             ProcessedArtifact.attachment_id == attachment_id,
             ProcessedArtifact.tenant_id == tenant_id,
+            ProcessedArtifact.capability.in_(_VALID_CAPABILITIES),
         )
         return list(self.db.execute(stmt).scalars().all())
 
@@ -124,6 +145,7 @@ class MediaProcessingRepository(BaseRepository):
             ProcessedArtifact.attachment_id == attachment_id,
             ProcessedArtifact.tenant_id == tenant_id,
             ProcessedArtifact.capability.in_(capabilities),
+            ProcessedArtifact.capability.in_(_VALID_CAPABILITIES),
         )
         return list(self.db.execute(stmt).scalars().all())
 
@@ -138,5 +160,6 @@ class MediaProcessingRepository(BaseRepository):
         stmt = select(ProcessedArtifact).where(
             ProcessedArtifact.tenant_id == tenant_id,
             ProcessedArtifact.attachment_id.in_(attachment_ids),
+            ProcessedArtifact.capability.in_(_VALID_CAPABILITIES),
         )
         return list(self.db.execute(stmt).scalars().all())

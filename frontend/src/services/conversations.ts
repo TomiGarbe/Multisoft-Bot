@@ -78,25 +78,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
 }
 
 export async function sendMessage(payload: SendMessagePayload): Promise<void> {
-  console.warn('[MULTIMEDIA][SEND_MESSAGE] request_prepare', {
-    conversationId: payload.conversation_id,
-    contentLength: payload.content.length,
-    attachmentsCount: payload.attachments?.length ?? 0,
-    attachments: (payload.attachments ?? []).map((item, index) => ({
-      index,
-      type: item.type,
-      filename: item.filename,
-      mimeType: item.mime_type,
-      sizeBytes: item.size_bytes,
-      providerMediaId: item.provider_media_id,
-      hasProviderUrl: Boolean(item.provider_url),
-    })),
-  });
   await api.post('/messages/send', payload);
-  console.warn('[MULTIMEDIA][SEND_MESSAGE] request_success', {
-    conversationId: payload.conversation_id,
-    attachmentsCount: payload.attachments?.length ?? 0,
-  });
 }
 
 // Prepared for: PATCH /conversations/:id/mode

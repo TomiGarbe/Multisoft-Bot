@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
-import uuid
+import os
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app.core.config import settings
 from app.interfaces.media import MediaProcessingError
@@ -10,6 +12,8 @@ from app.providers.media_processing import get_media_processing_provider
 from app.schemas.internal.media_processing import ProcessedArtifactCreate
 from app.schemas.internal.message_enums import MediaProcessingCapability, ProcessedArtifactStorageBackend
 from app.services.attachment_service import AttachmentService
+from app.services.transcription_errors import TranscriptionError
+from app.services.whisper_transcription_service import WhisperTranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +22,7 @@ class MediaProcessingRuntimeService:
     def __init__(self, attachment_service: AttachmentService) -> None:
         self.attachment_service = attachment_service
         self.provider = get_media_processing_provider()
+        self.whisper_service = WhisperTranscriptionService()
 
     def process_capability(self, *, attachment, capability: MediaProcessingCapability) -> ProcessedArtifactCreate:
         payload = self.attachment_service.load_attachment_blob(
@@ -32,18 +37,27 @@ class MediaProcessingRuntimeService:
         self._validate_limits(attachment=attachment, payload=binary_data, capability=capability)
 
         if capability == MediaProcessingCapability.TRANSCRIPTION:
-            logger.warning(
+            logger.debug(
                 "[MULTIMEDIA][PROCESSING] transcription_started attachment_id=%s mime=%s",
                 attachment.id,
                 attachment.mime_type,
             )
-            result = self.provider.transcribe_audio(payload=binary_data, mime_type=attachment.mime_type, filename=attachment.filename)
+            result = self._transcribe_audio_with_whisper(
+                payload=binary_data,
+                filename=attachment.filename,
+                mime_type=attachment.mime_type,
+            )
             payload_text = str(result.get("text") or "") or None
-            logger.warning("[MULTIMEDIA][PROCESSING] transcription_completed attachment_id=%s", attachment.id)
+            logger.info(
+                "[MULTIMEDIA][PROCESSING] transcription_completed attachment_id=%s language=%s segments=%s",
+                attachment.id,
+                result.get("language"),
+                len(result.get("segments") or []),
+            )
             return self._artifact(attachment, capability, result, payload_text)
 
         if capability == MediaProcessingCapability.DOCUMENT_EXTRACTION:
-            logger.warning(
+            logger.debug(
                 "[MULTIMEDIA][PROCESSING] extraction_started attachment_id=%s mime=%s",
                 attachment.id,
                 attachment.mime_type,
@@ -54,28 +68,80 @@ class MediaProcessingRuntimeService:
                 filename=attachment.filename,
             )
             payload_text = str(result.get("text") or "") or None
-            logger.warning("[MULTIMEDIA][PROCESSING] extraction_completed attachment_id=%s", attachment.id)
+            logger.debug("[MULTIMEDIA][PROCESSING] extraction_completed attachment_id=%s", attachment.id)
             return self._artifact(attachment, capability, result, payload_text)
 
         raise MediaProcessingError("unsupported_capability", capability.value, retryable=False)
 
+    def _transcribe_audio_with_whisper(
+        self,
+        *,
+        payload: bytes,
+        filename: str | None,
+        mime_type: str | None,
+    ) -> dict:
+        suffix = self._resolve_audio_suffix(filename=filename, mime_type=mime_type)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                temp_file.write(payload)
+                temp_path = Path(temp_file.name)
+            result = self.whisper_service.transcribe_file(audio_path=temp_path)
+            return {
+                "text": result.text,
+                "language": result.detected_language,
+                "duration_seconds": result.duration_seconds,
+                "segments": [segment.model_dump(mode="json") for segment in result.segments],
+                "provider_response": {
+                    "metadata": result.metadata,
+                },
+            }
+        except TranscriptionError as exc:
+            raise MediaProcessingError(exc.code, exc.message, retryable=exc.retryable) from exc
+        finally:
+            if temp_path is not None:
+                try:
+                    os.unlink(temp_path)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    logger.warning("[MULTIMEDIA][PROCESSING] temp_audio_cleanup_failed path=%s", temp_path)
+
     def _validate_limits(self, *, attachment, payload: bytes, capability: MediaProcessingCapability) -> None:
+        if not payload:
+            raise MediaProcessingError("blob_empty", "attachment blob is empty", retryable=False)
         if capability == MediaProcessingCapability.TRANSCRIPTION:
+            if attachment.size_bytes and attachment.size_bytes > settings.ATTACHMENT_MAX_AUDIO_BYTES:
+                raise MediaProcessingError("audio_size_exceeded", str(attachment.size_bytes), retryable=False)
             if attachment.duration_ms and attachment.duration_ms > settings.MEDIA_MAX_AUDIO_DURATION_MS:
                 raise MediaProcessingError("audio_duration_exceeded", str(attachment.duration_ms), retryable=False)
+            normalized_mime = (attachment.mime_type or "").split(";")[0].strip().lower()
+            if normalized_mime and not (normalized_mime.startswith("audio/") or normalized_mime.startswith("video/")):
+                raise MediaProcessingError("audio_mime_invalid", normalized_mime, retryable=False)
         if capability == MediaProcessingCapability.DOCUMENT_EXTRACTION:
             if attachment.size_bytes and attachment.size_bytes > settings.ATTACHMENT_MAX_DOCUMENT_BYTES:
                 raise MediaProcessingError("document_size_exceeded", str(attachment.size_bytes), retryable=False)
 
     def _artifact(self, attachment, capability: MediaProcessingCapability, result: dict, payload_text: str | None) -> ProcessedArtifactCreate:
         metadata = {
-            "provider": "local_media_processing",
+            "provider": "whisper_transcription" if capability == MediaProcessingCapability.TRANSCRIPTION else "local_media_processing",
             "generated_at_iso": datetime.now(timezone.utc).isoformat(),
             "mime_type": attachment.mime_type,
             "filename": attachment.filename,
         }
+        if capability == MediaProcessingCapability.TRANSCRIPTION:
+            metadata["audio_size_bytes"] = attachment.size_bytes
         if capability == MediaProcessingCapability.TRANSCRIPTION and result.get("language"):
             metadata["detected_language"] = result.get("language")
+        if capability == MediaProcessingCapability.TRANSCRIPTION and result.get("duration_seconds") is not None:
+            metadata["audio_duration_seconds"] = result.get("duration_seconds")
+        if capability == MediaProcessingCapability.TRANSCRIPTION and isinstance(result.get("segments"), list):
+            metadata["segment_count"] = len(result.get("segments") or [])
+        provider_metadata = ((result.get("provider_response") or {}).get("metadata") or {})
+        if capability == MediaProcessingCapability.TRANSCRIPTION and isinstance(provider_metadata, dict):
+            metadata["transcription_model"] = provider_metadata.get("model")
+            metadata["transcription_device"] = provider_metadata.get("device")
+            metadata["transcription_compute_type"] = provider_metadata.get("compute_type")
         if capability == MediaProcessingCapability.DOCUMENT_EXTRACTION and isinstance(result.get("pages"), list):
             metadata["page_count"] = len(result.get("pages") or [])
             if metadata["page_count"] > settings.MEDIA_MAX_DOCUMENT_PAGES:
@@ -92,3 +158,26 @@ class MediaProcessingRuntimeService:
             size_bytes=len(payload_text.encode("utf-8")) if payload_text else None,
             metadata_json=metadata,
         )
+
+    @staticmethod
+    def _resolve_audio_suffix(*, filename: str | None, mime_type: str | None) -> str:
+        if filename and "." in filename:
+            suffix = "." + filename.rsplit(".", 1)[-1].lower()
+            if suffix in {".mp3", ".wav", ".ogg", ".opus", ".webm", ".m4a", ".mp4", ".mov"}:
+                return suffix
+        by_mime = {
+            "audio/mpeg": ".mp3",
+            "audio/mp3": ".mp3",
+            "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
+            "audio/ogg": ".ogg",
+            "audio/opus": ".opus",
+            "audio/webm": ".webm",
+            "audio/mp4": ".m4a",
+            "audio/x-m4a": ".m4a",
+            "video/mp4": ".mp4",
+            "video/quicktime": ".mov",
+            "video/webm": ".webm",
+        }
+        normalized = (mime_type or "").split(";")[0].strip().lower()
+        return by_mime.get(normalized, ".bin")

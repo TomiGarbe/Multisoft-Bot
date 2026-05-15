@@ -46,3 +46,12 @@ class AIInterface(ABC):
         """
         prompt = "\n".join(str(message.get("content") or "") for message in messages if message.get("content"))
         return await self.generate_with_metadata(prompt)
+
+    def supports_vision(self) -> bool:
+        return False
+
+    def supports_streaming(self) -> bool:
+        return False
+
+    def supports_tools(self) -> bool:
+        return False

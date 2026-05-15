@@ -295,11 +295,40 @@ export function useConversations() {
           content: trimmed,
           attachments,
         });
-
+        const serverMessages = await getMessages(selectedId);
+        const knownIds = new Set((messages[selectedId] ?? []).map((item) => item.id));
+        const candidate = [...serverMessages]
+          .reverse()
+          .find((item) => item.direction === 'outbound' && item.content === trimmed && !knownIds.has(item.id));
+        if (!candidate) {
+          setMessages((prev) => ({
+            ...prev,
+            [selectedId]: (prev[selectedId] ?? []).map((m) =>
+              m.id === tempId ? { ...m, status: 'sent' as const } : m,
+            ),
+          }));
+          return;
+        }
+        let nextAttachments: Attachment[] = [];
+        if (shouldFetchAttachments(candidate)) {
+          try {
+            const response = await getAttachmentsByMessageId(candidate.id);
+            nextAttachments = response.attachments;
+            attachmentCache.set(candidate.id, nextAttachments);
+          } catch {
+            nextAttachments = [];
+          }
+        }
         setMessages((prev) => ({
           ...prev,
           [selectedId]: (prev[selectedId] ?? []).map((m) =>
-            m.id === tempId ? { ...m, status: 'sent' as const } : m,
+            m.id === tempId
+              ? {
+                  ...candidate,
+                  attachments: nextAttachments,
+                  status: 'sent' as const,
+                }
+              : m,
           ),
         }));
       } catch (err: unknown) {
@@ -312,7 +341,7 @@ export function useConversations() {
         setError(getApiErrorMessage(err, 'Error al enviar mensaje'));
       }
     },
-    [selectedId],
+    [selectedId, messages],
   );
 
   const retryMessage = useCallback(

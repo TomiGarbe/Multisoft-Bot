@@ -17,7 +17,7 @@ class DatabaseStorageProvider(StorageProvider):
         self.repository = repository
 
     def save(self, request: StorageSaveRequest) -> str:
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][STORAGE] blob_save attachment_id=%s tenant_id=%s payload_bytes=%s backend=%s",
             request.attachment_id,
             request.tenant_id,
@@ -39,7 +39,7 @@ class DatabaseStorageProvider(StorageProvider):
         storage_key: Optional[str] = None,
         byte_range: Optional[tuple[int, int]] = None,
     ) -> Optional[StorageObject]:
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][STORAGE] blob_load attachment_id=%s tenant_id=%s has_range=%s backend=%s",
             attachment_id,
             tenant_id,

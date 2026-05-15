@@ -4,17 +4,55 @@ import type { Attachment } from '@/types/chat';
 import { useAttachmentProcessing } from '@/hooks/useAttachmentProcessing';
 
 export default function ProcessingArtifact({ attachment }: { attachment: Attachment }) {
-  const { loading, transcription, extracted } = useAttachmentProcessing(attachment);
+  const { loading, error, status, transcription, extracted } = useAttachmentProcessing(attachment);
   const [open, setOpen] = useState(false);
+  const transcriptionJob = useMemo(
+    () => status?.jobs.find((job) => job.capability === 'transcription'),
+    [status],
+  );
+
+  const isAudioLike = attachment.type === 'audio' || attachment.type === 'video';
+  const isTranscriptionProcessing =
+    isAudioLike &&
+    !transcription &&
+    (status?.status === 'pending' ||
+      status?.status === 'queued' ||
+      status?.status === 'processing' ||
+      transcriptionJob?.status === 'pending' ||
+      transcriptionJob?.status === 'queued' ||
+      transcriptionJob?.status === 'processing');
+  const isTranscriptionFailed = isAudioLike && !transcription && transcriptionJob?.status === 'failed';
+  const failedReason = transcriptionJob?.lastErrorCode || transcriptionJob?.lastErrorMessage;
 
   const sections = useMemo(
     () =>
       [
-        transcription ? { key: 'transcription', title: 'Transcripcion disponible', text: transcription.payloadText ?? '' } : null,
+        transcription ? { key: 'transcription', title: 'Transcripcion', text: transcription.payloadText ?? '' } : null,
         extracted ? { key: 'extracted', title: 'Texto extraido', text: extracted.payloadText ?? '' } : null,
       ].filter(Boolean) as { key: string; title: string; text: string }[],
     [transcription, extracted],
   );
+
+  if (isAudioLike && isTranscriptionProcessing) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        Transcribiendo audio...
+      </div>
+    );
+  }
+
+  if (isAudioLike && isTranscriptionFailed) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        No se pudo transcribir el audio.
+        {failedReason ? <span className="ml-1 text-red-600">({failedReason})</span> : null}
+      </div>
+    );
+  }
+
+  if (error && attachment.status === 'processing') {
+    return <p className="text-[11px] text-red-600">No se pudo consultar el estado de procesamiento.</p>;
+  }
 
   if (loading && attachment.status === 'processing') {
     return <p className="text-[11px] text-amber-700">Cargando resultados de procesamiento...</p>;

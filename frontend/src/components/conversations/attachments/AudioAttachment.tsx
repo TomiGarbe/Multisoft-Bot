@@ -4,6 +4,7 @@ import type { Attachment } from '@/types/chat';
 import AttachmentStatusHint from './AttachmentStatusHint';
 import { formatMediaTime } from './attachmentUtils';
 import { useAuthenticatedAttachmentStream } from '@/hooks/useAuthenticatedAttachmentStream';
+import { useAttachmentProcessing } from '@/hooks/useAttachmentProcessing';
 
 export default function AudioAttachment({ attachment }: { attachment: Attachment }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -15,9 +16,36 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
   const [duration, setDuration] = useState(0);
 
   const label = useMemo(() => `${formatMediaTime(currentTime)} / ${formatMediaTime(duration)}`, [currentTime, duration]);
+  const { loading, error, status, transcription } = useAttachmentProcessing(attachment);
+  const transcriptionJob = useMemo(
+    () => status?.jobs.find((job) => job.capability === 'transcription'),
+    [status],
+  );
+  const isTranscriptionProcessing =
+    !transcription &&
+    (status?.status === 'pending' ||
+      status?.status === 'queued' ||
+      status?.status === 'processing' ||
+      transcriptionJob?.status === 'pending' ||
+      transcriptionJob?.status === 'queued' ||
+      transcriptionJob?.status === 'processing');
+  const isTranscriptionFailed = !transcription && transcriptionJob?.status === 'failed';
+  const failedReason = transcriptionJob?.lastErrorCode || transcriptionJob?.lastErrorMessage;
 
-  const { url } = useAuthenticatedAttachmentStream(attachment.id, attachment.status === 'available', attachment.streamUrl);
-  if (attachment.status !== 'available' || !url) return <AttachmentStatusHint attachment={attachment} />;
+  const { url, loading: streamLoading, error: streamError } = useAuthenticatedAttachmentStream(
+    attachment.id,
+    attachment.status === 'available',
+    attachment.streamUrl,
+  );
+  if (attachment.status !== 'available') return <AttachmentStatusHint attachment={attachment} />;
+  if (!url) {
+    if (streamLoading) return <AttachmentStatusHint attachment={attachment} />;
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-[11px] text-red-700">
+        {streamError ? 'No se pudo cargar el audio protegido' : 'No se encontró el audio'}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -76,7 +104,30 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
       </div>
       {isLoading ? <p className="mt-1 text-[11px] text-gray-500">Cargando audio...</p> : null}
       {isBuffering ? <p className="mt-1 text-[11px] text-amber-600">Cargando audio...</p> : null}
-      {hasError ? <p className="mt-1 text-[11px] text-red-600">No se pudo reproducir el audio</p> : null}
+      {streamError || hasError ? <p className="mt-1 text-[11px] text-red-600">No se pudo reproducir el audio</p> : null}
+      {isTranscriptionProcessing ? (
+        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          Transcribiendo audio...
+        </div>
+      ) : null}
+      {isTranscriptionFailed ? (
+        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          No se pudo transcribir el audio.
+          {failedReason ? <span className="ml-1 text-red-600">({failedReason})</span> : null}
+        </div>
+      ) : null}
+      {transcription?.payloadText ? (
+        <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-2">
+          <p className="mb-1 text-[11px] font-semibold text-gray-700">Transcripcion</p>
+          <p className="max-h-44 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700">{transcription.payloadText}</p>
+        </div>
+      ) : null}
+      {error && attachment.status === 'processing' ? (
+        <p className="mt-1 text-[11px] text-red-600">No se pudo consultar el estado de transcripcion.</p>
+      ) : null}
+      {loading && attachment.status === 'processing' ? (
+        <p className="mt-1 text-[11px] text-amber-700">Cargando estado de transcripcion...</p>
+      ) : null}
     </div>
   );
 }

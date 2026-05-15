@@ -141,7 +141,7 @@ class MultimediaService:
             total_size=total_size if total_size > 0 else None,
             is_partial=parsed_range is not None,
         )
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][STREAM] blob_ready attachment_id=%s tenant_id=%s as_download=%s mime=%s size_bytes=%s is_partial=%s range_start=%s range_end=%s",
             attachment_id,
             tenant_id,

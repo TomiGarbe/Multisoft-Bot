@@ -14,6 +14,7 @@ interface ApiProcessingJobDTO {
   status: MediaProcessingStatus;
   last_error_code?: string | null;
   last_error_message?: string | null;
+  metadata_json?: Record<string, unknown> | null;
 }
 
 interface ApiProcessingStatusDTO {
@@ -26,9 +27,11 @@ interface ApiProcessedArtifactDTO {
   id: string;
   attachment_id: string;
   capability: MediaProcessingCapability;
+  payload_json?: Record<string, unknown> | null;
   payload_text?: string | null;
   content_type?: string | null;
   size_bytes?: number | null;
+  metadata_json?: Record<string, unknown> | null;
   created_at?: string | null;
 }
 
@@ -40,6 +43,7 @@ function mapJob(raw: ApiProcessingJobDTO): AttachmentProcessingJob {
     status: raw.status,
     lastErrorCode: raw.last_error_code ?? undefined,
     lastErrorMessage: raw.last_error_message ?? undefined,
+    metadataJson: raw.metadata_json ?? undefined,
   };
 }
 
@@ -48,15 +52,17 @@ function mapArtifact(raw: ApiProcessedArtifactDTO): ProcessedArtifact {
     id: raw.id,
     attachmentId: raw.attachment_id,
     capability: raw.capability,
+    payloadJson: raw.payload_json ?? undefined,
     payloadText: raw.payload_text ?? undefined,
     contentType: raw.content_type ?? undefined,
     sizeBytes: raw.size_bytes ?? undefined,
+    metadataJson: raw.metadata_json ?? undefined,
     createdAt: raw.created_at ?? undefined,
   };
 }
 
 export async function getAttachmentProcessingStatus(attachmentId: string): Promise<AttachmentProcessingSnapshot> {
-  const { data } = await api.get<ApiProcessingStatusDTO>(`/attachments/${attachmentId}/status`);
+  const { data } = await api.get<ApiProcessingStatusDTO>(`/media-processing/attachments/${attachmentId}/status`);
   return {
     attachmentId: data.attachment_id,
     status: data.status,
@@ -65,6 +71,6 @@ export async function getAttachmentProcessingStatus(attachmentId: string): Promi
 }
 
 export async function getAttachmentArtifacts(attachmentId: string): Promise<ProcessedArtifact[]> {
-  const { data } = await api.get<ApiProcessedArtifactDTO[]>(`/attachments/${attachmentId}/artifacts`);
+  const { data } = await api.get<ApiProcessedArtifactDTO[]>(`/media-processing/attachments/${attachmentId}/artifacts`);
   return data.map(mapArtifact);
 }

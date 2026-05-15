@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 import logging
+import shutil
 
 from app.api.routes import (
     analytics,
@@ -89,6 +90,12 @@ async def reset_tenant_timezone_context(request, call_next):
 
 @app.on_event("startup")
 def bootstrap_security() -> None:
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        logger.info("ffmpeg available at %s", ffmpeg_path)
+    else:
+        logger.warning("ffmpeg missing in PATH")
+
     if not settings.SECURITY_BOOTSTRAP_ENABLED:
         logger.info("Security bootstrap is disabled by configuration.")
         return

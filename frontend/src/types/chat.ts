@@ -50,6 +50,7 @@ export interface AttachmentProcessingJob {
   status: MediaProcessingStatus;
   lastErrorCode?: string;
   lastErrorMessage?: string;
+  metadataJson?: Record<string, unknown>;
 }
 
 export interface AttachmentProcessingSnapshot {
@@ -63,8 +64,10 @@ export interface ProcessedArtifact {
   attachmentId: string;
   capability: MediaProcessingCapability;
   payloadText?: string;
+  payloadJson?: Record<string, unknown>;
   contentType?: string;
   sizeBytes?: number;
+  metadataJson?: Record<string, unknown>;
   createdAt?: string;
 }
 
