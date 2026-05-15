@@ -181,7 +181,7 @@ def _build_effective_payload_for_current(
             is_current=True,
         )
         if str(candidate.get("effective_text") or "").strip():
-            logger.warning(
+            logger.info(
                 "[AI][TRANSCRIPTION] included_after_wait message_id=%s wait_ms=%s",
                 current_message.id,
                 int((time.monotonic() - start) * 1000),
@@ -283,7 +283,7 @@ def _build_effective_payload_for_message(
                             "chars": len(normalized),
                         }
                     )
-                    logger.warning(
+                    logger.info(
                         "[AI][TRANSCRIPTION] included message_id=%s attachment_id=%s chars=%s truncated=%s",
                         message_id,
                         attachment.id,
@@ -345,7 +345,7 @@ def _log_transcription_skip(*, message_id: str, attachment: Any, jobs_by_attachm
         )
         return
     if transcription_job.status in {MediaProcessingStatus.PENDING, MediaProcessingStatus.QUEUED, MediaProcessingStatus.PROCESSING}:
-        logger.warning(
+        logger.info(
             "[AI][TRANSCRIPTION] pending message_id=%s attachment_id=%s status=%s current=%s",
             message_id,
             attachment.id,
@@ -361,7 +361,7 @@ def _log_transcription_skip(*, message_id: str, attachment: Any, jobs_by_attachm
             transcription_job.last_error_code,
         )
         return
-    logger.warning(
+    logger.info(
         "[AI][TRANSCRIPTION] skipped message_id=%s attachment_id=%s reason=no_text status=%s",
         message_id,
         attachment.id,
@@ -384,7 +384,7 @@ def _log_current_message_media_state(*, db: Session, current_message: Message) -
         tenant_id=current_message.tenant_id,
     )
     attachment_types = sorted({str(item.attachment_type.value) for item in attachments})
-    logger.warning(
+    logger.info(
         "[AI][CONTEXT] message_id=%s conversation_id=%s has_media=%s attachments=%s types=%s",
         current_message.id,
         current_message.conversation_id,
@@ -408,7 +408,7 @@ def _log_current_message_media_state(*, db: Session, current_message: Message) -
             capabilities=capabilities,
         )
         artifacts_by_cap = {item.capability: item for item in artifacts}
-        logger.warning(
+        logger.debug(
             "[AI][ATTACHMENT] message_id=%s attachment_id=%s type=%s mime=%s status=%s backend=%s has_blob=%s has_provider_url=%s has_provider_media_id=%s",
             current_message.id,
             attachment.id,
@@ -430,7 +430,7 @@ def _log_current_message_media_state(*, db: Session, current_message: Message) -
 
 def _log_artifact_inclusion(attachment_id: uuid.UUID, artifact_name: str, artifact: Any) -> None:
     has_text = bool((getattr(artifact, "payload_text", None) or "").strip())
-    logger.warning(
+    logger.debug(
         "[AI][ARTIFACT] attachment_id=%s artifact=%s exists=%s has_text=%s included_in_prompt=%s",
         attachment_id,
         artifact_name,
@@ -449,7 +449,7 @@ def _log_context_summary(
 ) -> None:
     attachments_count = len(current_payload.get("attachments") or [])
     derived_count = len(current_payload.get("derived_content") or [])
-    logger.warning(
+    logger.info(
         "[AI][CONTEXT] assembled conversation_id=%s message_id=%s history_messages=%s current_message_chars=%s attachments=%s derived_entries=%s",
         conversation.id,
         current_message.id,

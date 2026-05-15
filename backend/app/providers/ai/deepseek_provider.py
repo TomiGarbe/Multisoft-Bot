@@ -107,8 +107,6 @@ class DeepSeekProvider(AIInterface):
             arguments = function_payload.get("arguments")
             if isinstance(arguments, str):
                 try:
-                    import json
-
                     arguments = json.loads(arguments)
                 except Exception:
                     arguments = {}

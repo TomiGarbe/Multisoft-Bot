@@ -17,6 +17,11 @@ class OllamaProvider(AIInterface):
         self.model = model or settings.OLLAMA_MODEL
         self.token = settings.OLLAMA_TOKEN
         self.timeout_seconds = timeout_seconds or settings.OLLAMA_TIMEOUT_SECONDS
+        logger.info(
+            "Ollama provider initialized as compatibility fallback (model=%s base_url=%s)",
+            self.model,
+            self.base_url,
+        )
 
     def supports_vision(self) -> bool:
         normalized_model = (self.model or "").strip().lower()
@@ -56,7 +61,7 @@ class OllamaProvider(AIInterface):
             "prompt": prompt,
             "stream": False
         }
-        logger.warning(
+        logger.info(
             "[AI][OLLAMA][PAYLOAD] endpoint=/api/generate model=%s prompt_chars=%s stream=%s multimedia_included=%s",
             self.model,
             len(prompt or ""),
@@ -143,7 +148,7 @@ class OllamaProvider(AIInterface):
                     "has_tool_calls": bool(message.get("tool_calls")),
                 }
             )
-        logger.warning(
+        logger.info(
             "[AI][OLLAMA][PAYLOAD] endpoint=/api/chat model=%s messages=%s tools=%s multimedia_entries=%s summary=%s",
             self.model,
             len(messages),

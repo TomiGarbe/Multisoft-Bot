@@ -34,6 +34,27 @@ from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
 
+
+class _UvicornAccessNoiseFilter(logging.Filter):
+    """Suppress high-frequency media-processing polling access logs."""
+
+    _BASE_PATH_TOKEN = "/api/v1/media-processing/attachments/"
+    _SUFFIXES = ("/status", "/artifacts")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            message = record.getMessage()
+        except Exception:
+            return True
+        if self._BASE_PATH_TOKEN not in message:
+            return True
+        if any(suffix in message for suffix in self._SUFFIXES):
+            return False
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_UvicornAccessNoiseFilter())
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,

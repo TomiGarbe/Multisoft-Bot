@@ -6,6 +6,7 @@ from typing import Any
 from app.core.config import settings
 
 _SUPPORTED_PROVIDERS = {"ollama", "deepseek", "mock"}
+_PRIMARY_PROVIDER = "deepseek"
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class AIProviderRoute:
 
 def resolve_provider_route(channel_settings: dict[str, Any] | None = None) -> AIProviderRoute:
     settings_jsonb = channel_settings if isinstance(channel_settings, dict) else {}
-    provider_candidate = str(settings_jsonb.get("ai_provider") or settings.AI_PROVIDER or "ollama").strip().lower()
+    provider_candidate = str(settings_jsonb.get("ai_provider") or settings.AI_PROVIDER or _PRIMARY_PROVIDER).strip().lower()
     if provider_candidate not in _SUPPORTED_PROVIDERS:
         raise ValueError(
             f"Unsupported AI provider: {provider_candidate}. "

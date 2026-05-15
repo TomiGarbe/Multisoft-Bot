@@ -18,9 +18,15 @@ const RETRY_AFTER_NOT_FOUND_MS = 60000;
 const notFoundUntil = new Map<string, number>();
 
 function isPollingNeeded(status: Attachment['status'], snapshot: AttachmentProcessingSnapshot | null): boolean {
-  if (status === 'processing' || status === 'loading' || status === 'downloading') return true;
-  if (!snapshot) return false;
-  return snapshot.status === 'pending' || snapshot.status === 'queued' || snapshot.status === 'processing';
+  if (snapshot) {
+    return snapshot.status === 'pending' || snapshot.status === 'processing';
+  }
+  return status === 'processing';
+}
+
+function shouldFetchInitialState(attachmentId: string, status: Attachment['status']): boolean {
+  if (stateCache.has(attachmentId)) return true;
+  return status === 'processing';
 }
 
 async function fetchState(attachmentId: string): Promise<State> {
@@ -70,6 +76,17 @@ export function useAttachmentProcessing(attachment: Attachment) {
       setState({ loading: false, error: null, status: null, artifacts: [] });
       return;
     }
+    if (!shouldFetchInitialState(attachment.id, attachment.status)) {
+      setState(
+        stateCache.get(attachment.id) ?? {
+          loading: false,
+          error: null,
+          status: null,
+          artifacts: [],
+        },
+      );
+      return;
+    }
     if (notFoundUntil.get(attachment.id) && Date.now() < (notFoundUntil.get(attachment.id) ?? 0)) {
       setState({ loading: false, error: null, status: null, artifacts: [] });
       return;
@@ -97,7 +114,7 @@ export function useAttachmentProcessing(attachment: Attachment) {
     return () => {
       active = false;
     };
-  }, [attachment.id, isBackendAttachmentId]);
+  }, [attachment.id, attachment.status, isBackendAttachmentId]);
 
   useEffect(() => {
     if (!isBackendAttachmentId) return;

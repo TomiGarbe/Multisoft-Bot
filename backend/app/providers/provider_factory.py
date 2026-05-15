@@ -8,6 +8,8 @@ from app.providers.ai.mock_provider import MockAIProvider
 from app.interfaces.ai.ai_interface import AIInterface
 from app.core.config import settings
 
+_PRIMARY_PROVIDER = "deepseek"
+
 def get_message_provider(provider_name: str):
     normalized = normalize_provider_value(provider_name)
 
@@ -29,7 +31,7 @@ def get_ai_provider(
     model: str | None = None,
     timeout_seconds: float | None = None,
 ) -> AIInterface:
-    normalized = (provider_name or settings.AI_PROVIDER or "ollama").strip().lower()
+    normalized = (provider_name or settings.AI_PROVIDER or _PRIMARY_PROVIDER).strip().lower()
     if normalized == "mock":
         return MockAIProvider()
     if normalized == "deepseek":

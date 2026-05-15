@@ -81,7 +81,7 @@ class AIResponseOrchestrator:
 
     async def call_ai(self, prompt: str, route: AIProviderRoute) -> dict[str, Any]:
         normalized_prompt = self._normalize_prompt(prompt)
-        logger.warning(
+        logger.info(
             "[AI][PAYLOAD] provider=%s model=%s mode=generate prompt_chars=%s prompt_preview=%s",
             route.provider,
             route.model,
@@ -137,7 +137,7 @@ class AIResponseOrchestrator:
                 settings.AI_MAX_MULTIMODAL_PAYLOAD_BYTES,
             )
             raise ValueError("multimodal_payload_too_large")
-        logger.warning(
+        logger.info(
             "[AI][PAYLOAD] provider=%s model=%s mode=chat messages=%s roles=%s tools_count=%s message_content_types=%s images_included=%s images_skipped=%s vision_supported=%s approx_payload_bytes=%s",
             route.provider,
             route.model,
@@ -501,7 +501,7 @@ class AIResponseOrchestrator:
         attachments = AttachmentService(db).list_by_message_id_and_tenant(message_id=message_id, tenant_id=tenant_id)
         model_name = route.model
         supports_multimodal = route.capabilities.supports_vision
-        logger.warning(
+        logger.info(
             "[AI][MULTIMEDIA] conversation_id=%s message_id=%s provider=%s model=%s attachments=%s multimodal_supported=%s",
             conversation_id,
             message_id,
@@ -514,7 +514,7 @@ class AIResponseOrchestrator:
             skip_reason = "context_text_only_pipeline"
             if attachment.attachment_type.value == "audio" and not supports_multimodal:
                 skip_reason = "model_not_multimodal"
-            logger.warning(
+            logger.debug(
                 "[AI][MULTIMEDIA] attachment_id=%s type=%s skipped=%s reason=%s",
                 attachment.id,
                 attachment.attachment_type.value,

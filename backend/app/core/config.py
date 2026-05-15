@@ -97,7 +97,7 @@ class Settings(BaseSettings):
         description="Timeout in seconds for Ollama requests",
     )
     AI_PROVIDER: str = Field(
-        default="ollama",
+        default="deepseek",
         description="Default AI provider (ollama, deepseek, mock)",
     )
 
