@@ -77,8 +77,8 @@ class AttachmentDownloader:
         )
         self.db.commit()
 
-        logger.info(
-            "attachment_download_start attachment_id=%s tenant_id=%s provider_media_id=%s mime=%s",
+        logger.warning(
+            "[MULTIMEDIA][DOWNLOAD] start attachment_id=%s tenant_id=%s provider_media_id=%s mime=%s",
             attachment.id,
             attachment.tenant_id,
             attachment.provider_media_id,
@@ -115,13 +115,14 @@ class AttachmentDownloader:
             attachment.storage_key = storage_key
             self.db.commit()
             elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-            logger.info(
-                "attachment_download_done attachment_id=%s provider_media_id=%s mime=%s size=%s duration_ms=%s",
+            logger.warning(
+                "[MULTIMEDIA][DOWNLOAD] completed attachment_id=%s provider_media_id=%s mime=%s size_bytes=%s duration_ms=%s backend=%s",
                 attachment.id,
                 attachment.provider_media_id,
                 mime,
                 len(resolved.binary_data),
                 elapsed_ms,
+                StorageBackend.DB.value,
             )
             MediaProcessingOrchestrator(self.db).orchestrate_for_attachment(
                 attachment_id=attachment.id,
@@ -143,7 +144,7 @@ class AttachmentDownloader:
             )
             self.db.commit()
             logger.warning(
-                "attachment_download_failed attachment_id=%s provider_media_id=%s error=%s",
+                "[MULTIMEDIA][DOWNLOAD] failed attachment_id=%s provider_media_id=%s error=%s",
                 attachment.id,
                 attachment.provider_media_id,
                 exc,
@@ -151,18 +152,26 @@ class AttachmentDownloader:
 
     def _resolve_media(self, attachment: Any, metadata: dict[str, Any]) -> ResolvedMedia:
         if attachment.provider_url:
+            logger.warning(
+                "[MULTIMEDIA][DOWNLOAD] source_selected attachment_id=%s source=provider_url",
+                attachment.id,
+            )
             return self._download_from_url(str(attachment.provider_url))
 
         base64_data = metadata.get("base64_data")
         if base64_data:
+            logger.warning(
+                "[MULTIMEDIA][DOWNLOAD] source_selected attachment_id=%s source=base64_data",
+                attachment.id,
+            )
             return self._decode_base64(str(base64_data))
 
         provider_media_id = str(attachment.provider_media_id or "").strip()
         if provider_media_id:
             provider_name = str(metadata.get("provider") or "").strip().lower()
             resolver = self._resolver_factory(provider_name)
-            logger.info(
-                "attachment_media_resolver_selected attachment_id=%s provider=%s resolver=%s provider_media_id=%s",
+            logger.warning(
+                "[MULTIMEDIA][DOWNLOAD] source_selected attachment_id=%s source=provider_media_id provider=%s resolver=%s provider_media_id=%s",
                 attachment.id,
                 provider_name or "unknown",
                 resolver.__class__.__name__,
@@ -198,6 +207,7 @@ class AttachmentDownloader:
 
     def _download_from_url(self, url: str) -> ResolvedMedia:
         if not self._is_valid_url(url):
+            logger.warning("[MULTIMEDIA][DOWNLOAD] invalid_url url=%s", url)
             raise AttachmentDownloadError("invalid_url")
 
         def _fetch() -> ResolvedMedia:
@@ -230,6 +240,7 @@ class AttachmentDownloader:
         try:
             decoded = base64.b64decode(payload, validate=True)
         except Exception as exc:
+            logger.warning("[MULTIMEDIA][DOWNLOAD] invalid_base64 error=%s", exc)
             raise AttachmentDownloadError(f"invalid_base64: {exc}") from exc
         return ResolvedMedia(binary_data=decoded, mime_type=header_mime, source="base64_data")
 
@@ -257,6 +268,7 @@ class AttachmentDownloader:
 
     def _validate_mime(self, mime_type: str) -> None:
         if mime_type not in self._allowed_mimes:
+            logger.warning("[MULTIMEDIA][DOWNLOAD] mime_not_allowed mime=%s", mime_type)
             raise AttachmentDownloadError(f"mime_not_allowed:{mime_type}")
 
     def _validate_size(self, attachment: Any, size: int) -> None:
@@ -270,6 +282,12 @@ class AttachmentDownloader:
         }
         max_size = limits.get(atype, settings.ATTACHMENT_MAX_DOCUMENT_BYTES)
         if size > max_size:
+            logger.warning(
+                "[MULTIMEDIA][DOWNLOAD] size_exceeded attachment_type=%s size_bytes=%s max_bytes=%s",
+                atype.value if hasattr(atype, "value") else atype,
+                size,
+                max_size,
+            )
             raise AttachmentDownloadError(f"size_exceeded:{size}>{max_size}")
 
     def _is_valid_url(self, url: str) -> bool:

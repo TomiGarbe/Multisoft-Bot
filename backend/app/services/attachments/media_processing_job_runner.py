@@ -37,7 +37,7 @@ class MediaProcessingJobRunner:
     def run(self, *, job_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         job = self.processing_service.get_job(job_id=job_id, tenant_id=tenant_id)
         if job is None:
-            logger.warning("media_processing_job_missing job_id=%s tenant_id=%s", job_id, tenant_id)
+            logger.warning("[MULTIMEDIA][PROCESSING] job_missing job_id=%s tenant_id=%s", job_id, tenant_id)
             return
         attachment = self.attachment_service.get_by_id_and_tenant(job.attachment_id, tenant_id)
         if attachment is None:
@@ -49,6 +49,13 @@ class MediaProcessingJobRunner:
 
         self.processing_service.mark_job_processing(job=job)
         self.db.commit()
+        logger.warning(
+            "[MULTIMEDIA][PROCESSING] started job_id=%s tenant_id=%s attachment_id=%s capability=%s",
+            job.id,
+            tenant_id,
+            job.attachment_id,
+            job.capability.value,
+        )
         started_at = time.perf_counter()
 
         try:
@@ -63,6 +70,13 @@ class MediaProcessingJobRunner:
                 self.processing_service.mark_job_skipped(job=job, reason="not_implemented_yet")
             else:
                 self.processing_service.replace_artifact(artifact)
+                logger.warning(
+                    "[MULTIMEDIA][PROCESSING] artifact_generated job_id=%s attachment_id=%s capability=%s backend=%s",
+                    job.id,
+                    job.attachment_id,
+                    job.capability.value,
+                    artifact.storage_backend.value,
+                )
                 self.processing_service.mark_job_completed(
                     job=job,
                     metadata_json={
@@ -72,8 +86,8 @@ class MediaProcessingJobRunner:
                     },
                 )
             self.db.commit()
-            logger.info(
-                "media_processing_job_completed job_id=%s capability=%s duration_ms=%s",
+            logger.warning(
+                "[MULTIMEDIA][PROCESSING] completed job_id=%s capability=%s duration_ms=%s",
                 job.id,
                 job.capability.value,
                 int((time.perf_counter() - started_at) * 1000),
@@ -90,7 +104,12 @@ class MediaProcessingJobRunner:
                 retry_count=job.retry_count + 1,
             )
             self.db.commit()
-            logger.warning("media_processing_job_failed job_id=%s capability=%s error=%s", job.id, job.capability.value, exc)
+            logger.warning(
+                "[MULTIMEDIA][PROCESSING] failed job_id=%s capability=%s error=%s",
+                job.id,
+                job.capability.value,
+                exc,
+            )
 
     def _process_capability(self, *, job_capability: MediaProcessingCapability, attachment) -> ProcessedArtifactCreate | None:
         if job_capability == MediaProcessingCapability.METADATA_EXTRACTION:
@@ -116,7 +135,6 @@ class MediaProcessingJobRunner:
             )
         if job_capability in {
             MediaProcessingCapability.TRANSCRIPTION,
-            MediaProcessingCapability.OCR,
             MediaProcessingCapability.DOCUMENT_EXTRACTION,
         }:
             return self.runtime_service.process_capability(attachment=attachment, capability=job_capability)

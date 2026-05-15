@@ -216,10 +216,11 @@ class MessageService:
                 channel_config=channel.config_jsonb if isinstance(channel.config_jsonb, dict) else None,
             )
             media_message = OutboundMediaMessage(attachments=resolved_attachments, fallback_text=content or None)
-            logger.info(
-                "outbound_media_dispatch provider=%s message_id=%s attachments_count=%s",
+            logger.warning(
+                "[MULTIMEDIA][OUTBOUND] dispatch_start provider=%s message_id=%s tenant_id=%s attachments_count=%s",
                 provider_name,
                 message.id,
+                conversation.tenant_id,
                 len(attachments),
             )
             result = provider.send_media(
@@ -244,8 +245,8 @@ class MessageService:
             provider_message_id=result.get("provider_message_id"),
             status=result.get("status", "sent"),
         )
-        logger.info(
-            "outbound_dispatch_result provider=%s message_id=%s tenant_id=%s status=%s attachments_count=%s",
+        logger.warning(
+            "[MULTIMEDIA][OUTBOUND] dispatch_result provider=%s message_id=%s tenant_id=%s status=%s attachments_count=%s",
             provider_name,
             message.id,
             conversation.tenant_id,
@@ -273,6 +274,12 @@ class MessageService:
         resolved: list[OutboundAttachment] = []
         for item in outbound_attachments:
             if item.provider_url:
+                logger.warning(
+                    "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=provided_url type=%s provider_media_id=%s",
+                    message_id,
+                    item.type.value,
+                    item.provider_media_id,
+                )
                 resolved.append(item)
                 continue
             if item.provider_media_id and str(item.provider_media_id) in by_provider_media_id:
@@ -285,6 +292,13 @@ class MessageService:
                         tenant_id=tenant_id,
                         storage_key=db_attachment.storage_key,
                     )
+                logger.warning(
+                    "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=provider_media_id type=%s provider_media_id=%s resolved_url=%s",
+                    message_id,
+                    item.type.value,
+                    item.provider_media_id,
+                    bool(provider_url),
+                )
                 resolved.append(item.model_copy(update={"provider_url": provider_url}))
                 continue
             if unmatched:
@@ -297,8 +311,20 @@ class MessageService:
                         tenant_id=tenant_id,
                         storage_key=db_attachment.storage_key,
                     )
+                logger.warning(
+                    "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=unmatched_fallback type=%s resolved_url=%s",
+                    message_id,
+                    item.type.value,
+                    bool(provider_url),
+                )
                 resolved.append(item.model_copy(update={"provider_url": provider_url}))
                 continue
+            logger.warning(
+                "[MULTIMEDIA][OUTBOUND] resolve_attachment message_id=%s strategy=unresolved type=%s provider_media_id=%s",
+                message_id,
+                item.type.value,
+                item.provider_media_id,
+            )
             resolved.append(item)
         return resolved
 
@@ -346,6 +372,24 @@ class MessageService:
         data: MessageSendRequest,
         tenant_id: uuid.UUID,
     ) -> dict:
+        logger.warning(
+            "[MULTIMEDIA][OUTBOUND] send_message_request tenant_id=%s conversation_id=%s content_len=%s attachments_count=%s attachments=%s",
+            tenant_id,
+            data.conversation_id,
+            len(data.content or ""),
+            len(data.attachments or []),
+            [
+                {
+                    "type": item.type.value,
+                    "filename": item.filename,
+                    "mime_type": item.mime_type,
+                    "size_bytes": item.size_bytes,
+                    "provider_media_id": item.provider_media_id,
+                    "has_provider_url": bool(item.provider_url),
+                }
+                for item in (data.attachments or [])
+            ],
+        )
         conversation = self.repository.get_conversation_by_id_and_tenant(data.conversation_id, tenant_id)
         if not conversation:
             raise ValueError(f"Conversation not found: {data.conversation_id}")
@@ -357,12 +401,22 @@ class MessageService:
             raw_payload=data.model_dump(mode="json"),
             replied_to_message_id=data.reply_to_message_id or data.reply_to_id,
         )
-        return self.dispatch_to_channel(
+        dispatch_result = self.dispatch_to_channel(
             conversation,
             message,
             attachments=data.attachments,
             reply_to_id=data.reply_to_message_id or data.reply_to_id,
         )
+        persisted_attachments = self.attachment_service.list_by_message_id_and_tenant(message.id, tenant_id)
+        logger.warning(
+            "[MULTIMEDIA][OUTBOUND] send_message_persisted tenant_id=%s message_id=%s message_type=%s has_media=%s persisted_attachments_count=%s",
+            tenant_id,
+            message.id,
+            message.message_type,
+            message.has_media,
+            len(persisted_attachments),
+        )
+        return dispatch_result
 
     def list_messages(
         self,
@@ -492,6 +546,12 @@ class MessageService:
         if not normalized.attachments:
             return
 
+        logger.warning(
+            "[MULTIMEDIA][PERSIST] inbound_attachments_start message_id=%s tenant_id=%s attachments_count=%s",
+            message.id,
+            message.tenant_id,
+            len(normalized.attachments),
+        )
         records: list[AttachmentCreate] = []
         for item in normalized.attachments:
             metadata_json = item.metadata.model_dump(mode="json") if item.metadata else {}
@@ -536,8 +596,23 @@ class MessageService:
 
         self.repository.commit()
         for attachment in persisted:
+            logger.warning(
+                "[MULTIMEDIA][PERSIST] attachment_saved attachment_id=%s message_id=%s type=%s backend=%s status=%s provider_media_id=%s has_provider_url=%s",
+                attachment.id,
+                message.id,
+                attachment.attachment_type.value,
+                attachment.storage_backend.value,
+                attachment.download_status.value,
+                attachment.provider_media_id,
+                bool(attachment.provider_url),
+            )
             if attachment.download_status.value != "pending":
                 continue
+            logger.warning(
+                "[MULTIMEDIA][DOWNLOAD] queued attachment_id=%s tenant_id=%s",
+                attachment.id,
+                message.tenant_id,
+            )
             attachment_download_dispatcher.enqueue(
                 AttachmentDownloadJob(
                     attachment_id=attachment.id,
@@ -554,6 +629,12 @@ class MessageService:
         if not attachments:
             return
 
+        logger.warning(
+            "[MULTIMEDIA][OUTBOUND] persist_attachments_start message_id=%s tenant_id=%s attachments_count=%s",
+            message.id,
+            tenant_id,
+            len(attachments),
+        )
         records: list[AttachmentCreate] = []
         for item in attachments:
             metadata_json = dict(item.metadata or {})
@@ -576,7 +657,16 @@ class MessageService:
                 )
             )
 
-        self.attachment_service.save_attachments_bulk(records)
+        persisted = self.attachment_service.save_attachments_bulk(records)
+        for attachment in persisted:
+            logger.warning(
+                "[MULTIMEDIA][OUTBOUND] attachment_saved attachment_id=%s message_id=%s type=%s provider_media_id=%s has_provider_url=%s",
+                attachment.id,
+                message.id,
+                attachment.attachment_type.value,
+                attachment.provider_media_id,
+                bool(attachment.provider_url),
+            )
         self.repository.commit()
 
 

@@ -27,7 +27,6 @@ export interface Attachment {
 
 export type MediaProcessingCapability =
   | 'transcription'
-  | 'ocr'
   | 'metadata_extraction'
   | 'embeddings'
   | 'moderation'

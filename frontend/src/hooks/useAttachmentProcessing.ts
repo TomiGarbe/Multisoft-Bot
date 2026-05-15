@@ -11,7 +11,10 @@ interface State {
 
 const stateCache = new Map<string, State>();
 const inFlight = new Map<string, Promise<State>>();
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 7000;
+const RETRY_AFTER_NOT_FOUND_MS = 60000;
+
+const notFoundUntil = new Map<string, number>();
 
 function isPollingNeeded(status: Attachment['status'], snapshot: AttachmentProcessingSnapshot | null): boolean {
   if (status === 'processing' || status === 'loading' || status === 'downloading') return true;
@@ -20,10 +23,19 @@ function isPollingNeeded(status: Attachment['status'], snapshot: AttachmentProce
 }
 
 async function fetchState(attachmentId: string): Promise<State> {
-  const [status, artifacts] = await Promise.all([
-    getAttachmentProcessingStatus(attachmentId).catch(() => null),
-    getAttachmentArtifacts(attachmentId).catch(() => []),
-  ]);
+  const status = await getAttachmentProcessingStatus(attachmentId).catch(() => null);
+  if (!status) {
+    notFoundUntil.set(attachmentId, Date.now() + RETRY_AFTER_NOT_FOUND_MS);
+    return {
+      loading: false,
+      error: null,
+      status: null,
+      artifacts: [],
+    };
+  }
+  const shouldReadArtifacts =
+    status.status === 'completed' || status.status === 'partial' || status.status === 'processing';
+  const artifacts = shouldReadArtifacts ? await getAttachmentArtifacts(attachmentId).catch(() => []) : [];
   return {
     loading: false,
     error: null,
@@ -49,6 +61,10 @@ export function useAttachmentProcessing(attachment: Attachment) {
 
   useEffect(() => {
     if (!isBackendAttachmentId) {
+      setState({ loading: false, error: null, status: null, artifacts: [] });
+      return;
+    }
+    if (notFoundUntil.get(attachment.id) && Date.now() < (notFoundUntil.get(attachment.id) ?? 0)) {
       setState({ loading: false, error: null, status: null, artifacts: [] });
       return;
     }
@@ -79,6 +95,7 @@ export function useAttachmentProcessing(attachment: Attachment) {
 
   useEffect(() => {
     if (!isBackendAttachmentId) return;
+    if (notFoundUntil.get(attachment.id) && Date.now() < (notFoundUntil.get(attachment.id) ?? 0)) return;
     if (!isPollingNeeded(attachment.status, state.status)) return;
     let active = true;
     let polling = false;
@@ -110,9 +127,8 @@ export function useAttachmentProcessing(attachment: Attachment) {
 
   const derived = useMemo(() => {
     const transcription = state.artifacts.find((item) => item.capability === 'transcription' && item.payloadText);
-    const ocr = state.artifacts.find((item) => item.capability === 'ocr' && item.payloadText);
     const extracted = state.artifacts.find((item) => item.capability === 'document_extraction' && item.payloadText);
-    return { transcription, ocr, extracted };
+    return { transcription, extracted };
   }, [state.artifacts]);
 
   return {

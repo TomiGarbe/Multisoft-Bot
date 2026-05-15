@@ -3,6 +3,7 @@ import { Pause, Play } from 'lucide-react';
 import type { Attachment } from '@/types/chat';
 import AttachmentStatusHint from './AttachmentStatusHint';
 import { formatMediaTime } from './attachmentUtils';
+import { useAuthenticatedAttachmentStream } from '@/hooks/useAuthenticatedAttachmentStream';
 
 export default function AudioAttachment({ attachment }: { attachment: Attachment }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -15,7 +16,8 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
 
   const label = useMemo(() => `${formatMediaTime(currentTime)} / ${formatMediaTime(duration)}`, [currentTime, duration]);
 
-  if (attachment.status !== 'available' || !attachment.streamUrl) return <AttachmentStatusHint attachment={attachment} />;
+  const { url } = useAuthenticatedAttachmentStream(attachment.id, attachment.status === 'available', attachment.streamUrl);
+  if (attachment.status !== 'available' || !url) return <AttachmentStatusHint attachment={attachment} />;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -38,7 +40,7 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
           setHasError(true);
         }}
       >
-        <source src={attachment.streamUrl} type={attachment.mimeType ?? undefined} />
+        <source src={url} type={attachment.mimeType ?? undefined} />
       </audio>
 
       <div className="flex items-center gap-2">

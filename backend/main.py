@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 import logging
@@ -37,6 +39,17 @@ app = FastAPI(
     description=settings.DESCRIPTION,
 )
 configure_datetime_encoder()
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request, exc: RequestValidationError):
+    logger.warning(
+        "[MULTIMEDIA][UPLOAD] validation_error path=%s method=%s errors=%s",
+        request.url.path,
+        request.method,
+        exc.errors(),
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 # CORS middleware
 app.add_middleware(

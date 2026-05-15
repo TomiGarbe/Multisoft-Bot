@@ -139,13 +139,11 @@ class MediaProcessingQueryService:
         for attachment in attachments:
             artifact_by_capability = artifacts_by_attachment.get(attachment.id, {})
             transcription = artifact_by_capability.get(MediaProcessingCapability.TRANSCRIPTION)
-            ocr = artifact_by_capability.get(MediaProcessingCapability.OCR)
             extraction = artifact_by_capability.get(MediaProcessingCapability.DOCUMENT_EXTRACTION)
             items.append(
                 AttachmentDerivedContentDTO(
                     attachment_id=attachment.id,
                     transcription_text=self._truncate_text(transcription.payload_text if transcription else None, truncate_text_chars),
-                    ocr_text=self._truncate_text(ocr.payload_text if ocr else None, truncate_text_chars),
                     extracted_text=self._truncate_text(extraction.payload_text if extraction else None, truncate_text_chars),
                     metadata_json={
                         "attachment_type": attachment.attachment_type.value,

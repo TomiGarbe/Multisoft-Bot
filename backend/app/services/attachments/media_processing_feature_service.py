@@ -49,7 +49,6 @@ class MediaProcessingFeatureService:
     def _env_enabled(self, capability: MediaProcessingCapability) -> bool:
         mapping = {
             MediaProcessingCapability.TRANSCRIPTION: settings.MEDIA_TRANSCRIPTION_ENABLED,
-            MediaProcessingCapability.OCR: settings.MEDIA_OCR_ENABLED,
             MediaProcessingCapability.DOCUMENT_EXTRACTION: settings.MEDIA_DOCUMENT_EXTRACTION_ENABLED,
         }
         return mapping.get(capability, True)
@@ -74,7 +73,6 @@ class MediaProcessingFeatureService:
     def _read_capability_flag(container: dict[str, Any], capability: MediaProcessingCapability) -> bool:
         mapping = {
             MediaProcessingCapability.TRANSCRIPTION: "transcription_enabled",
-            MediaProcessingCapability.OCR: "ocr_enabled",
             MediaProcessingCapability.DOCUMENT_EXTRACTION: "document_extraction_enabled",
         }
         key = mapping.get(capability)

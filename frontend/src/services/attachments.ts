@@ -26,6 +26,7 @@ interface ApiAttachmentMetadata {
   duration_ms: number | null;
   caption: string | null;
   download_status: ApiDownloadStatus;
+  provider_url: string | null;
 }
 
 interface ApiAttachmentDTO {
@@ -80,7 +81,12 @@ function toAttachmentType(value: ApiAttachmentType): AttachmentType {
   return value;
 }
 
-function toAttachmentStatus(downloadStatus: ApiDownloadStatus, blobAvailable: boolean): AttachmentStatus {
+function toAttachmentStatus(
+  downloadStatus: ApiDownloadStatus,
+  blobAvailable: boolean,
+  providerUrl?: string | null,
+): AttachmentStatus {
+  if (providerUrl && providerUrl.trim().length > 0) return 'available';
   if (blobAvailable) return 'available';
   if (downloadStatus === 'failed') return 'failed';
   if (downloadStatus === 'downloading') return 'downloading';
@@ -98,12 +104,35 @@ export function getAttachmentDownloadUrl(attachmentId: string): string {
   return `${api.defaults.baseURL}/attachments/${attachmentId}/download`;
 }
 
+export async function fetchAttachmentStreamBlob(
+  attachmentId: string,
+  options?: { signal?: AbortSignal },
+): Promise<Blob> {
+  const { data } = await api.get<Blob>(`/attachments/${attachmentId}/stream`, {
+    responseType: 'blob',
+    signal: options?.signal,
+  });
+  return data;
+}
+
+export async function fetchAttachmentDownloadBlob(
+  attachmentId: string,
+  options?: { signal?: AbortSignal },
+): Promise<Blob> {
+  const { data } = await api.get<Blob>(`/attachments/${attachmentId}/download`, {
+    responseType: 'blob',
+    signal: options?.signal,
+  });
+  return data;
+}
+
 function mapAttachment(raw: ApiAttachmentDTO): Attachment {
+  const providerUrl = raw.metadata.provider_url ?? undefined;
   return {
     id: raw.metadata.id,
     messageId: raw.metadata.message_id,
     type: toAttachmentType(raw.metadata.attachment_type),
-    status: toAttachmentStatus(raw.metadata.download_status, raw.blob_available),
+    status: toAttachmentStatus(raw.metadata.download_status, raw.blob_available, providerUrl),
     mimeType: raw.metadata.mime_type ?? undefined,
     filename: raw.metadata.filename ?? undefined,
     extension: raw.metadata.extension ?? undefined,
@@ -112,7 +141,7 @@ function mapAttachment(raw: ApiAttachmentDTO): Attachment {
     height: raw.metadata.height ?? undefined,
     durationMs: raw.metadata.duration_ms ?? undefined,
     caption: raw.metadata.caption ?? undefined,
-    streamUrl: raw.blob_available ? getAttachmentStreamUrl(raw.metadata.id) : undefined,
+    streamUrl: raw.blob_available ? getAttachmentStreamUrl(raw.metadata.id) : providerUrl,
     downloadUrl: getAttachmentDownloadUrl(raw.metadata.id),
   };
 }
@@ -129,6 +158,13 @@ function toUploadAttachmentType(value: AttachmentType): 'image' | 'audio' | 'vid
   return value;
 }
 
+function resolveUploadEndpoint(): string {
+  const configured = (process.env.NEXT_PUBLIC_ATTACHMENTS_UPLOAD_PATH || '').trim();
+  if (!configured) return '/attachments/upload';
+  if (configured.startsWith('http://') || configured.startsWith('https://')) return configured;
+  return configured.startsWith('/') ? configured : `/${configured}`;
+}
+
 export async function uploadAttachmentFile(
   file: File,
   type: AttachmentType,
@@ -141,12 +177,32 @@ export async function uploadAttachmentFile(
   form.append('file', file);
   form.append('attachment_type', toUploadAttachmentType(type));
 
-  const endpoint = process.env.NEXT_PUBLIC_ATTACHMENTS_UPLOAD_PATH || '/attachments/upload';
+  const endpoint = resolveUploadEndpoint();
+  const formEntries = Array.from(form.entries()).map(([key, value]) => {
+    if (value instanceof File) {
+      return `${key}=File(name=${value.name}, type=${value.type || 'application/octet-stream'}, size=${value.size})`;
+    }
+    return `${key}=${String(value)}`;
+  });
+  console.warn('[MULTIMEDIA][UPLOAD] request_prepare', {
+    endpoint,
+    baseURL: api.defaults.baseURL,
+    file: {
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+    },
+    formEntries,
+  });
+
   try {
     const { data } = await api.post<unknown>(endpoint, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       signal: options?.signal,
       timeout: 60000,
+      headers: {
+        // Let the browser build multipart/form-data with boundary.
+        'Content-Type': undefined,
+      },
       onUploadProgress: (event: AxiosProgressEvent) => {
         const total = event.total ?? file.size;
         const loaded = event.loaded ?? 0;
@@ -154,6 +210,7 @@ export async function uploadAttachmentFile(
         options?.onProgress?.({ loadedBytes: loaded, totalBytes: total, percent });
       },
     });
+    console.warn('[MULTIMEDIA][UPLOAD] request_success', { endpoint, fileName: file.name, type });
     const payload = parseUploadResponse(data);
     const providerUrl = payload.provider_url ?? payload.providerUrl ?? payload.url ?? undefined;
     const providerMediaId = payload.provider_media_id ?? payload.providerMediaId ?? payload.media_id ?? undefined;
@@ -169,9 +226,24 @@ export async function uploadAttachmentFile(
     };
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
+      const statusCode = error.response?.status;
       const detail = error.response?.data?.detail;
+      const requestContentType = error.config?.headers?.['Content-Type'] ?? error.config?.headers?.['content-type'];
+      console.warn('[MULTIMEDIA][UPLOAD] request_error', {
+        endpoint,
+        statusCode,
+        requestContentType,
+        detail,
+      });
       if (typeof detail === 'string') {
         throw new Error(detail);
+      }
+      if (Array.isArray(detail) && detail.length > 0) {
+        const first = detail[0] as { loc?: unknown; msg?: unknown; type?: unknown };
+        const loc = Array.isArray(first?.loc) ? first.loc.join('.') : 'unknown';
+        const msg = typeof first?.msg === 'string' ? first.msg : 'Validation error';
+        const typ = typeof first?.type === 'string' ? first.type : 'validation_error';
+        throw new Error(`${loc} | ${msg} | ${typ}`);
       }
     }
     throw error;

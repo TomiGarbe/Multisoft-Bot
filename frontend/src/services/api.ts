@@ -12,6 +12,11 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  const isFormDataPayload = typeof FormData !== 'undefined' && config.data instanceof FormData;
+  if (isFormDataPayload && config.headers) {
+    delete (config.headers as Record<string, string>)['Content-Type'];
+  }
+
   if (typeof window === 'undefined') {
     return config;
   }
@@ -72,10 +77,12 @@ export function getApiErrorMessage(error: unknown, fallback = 'Unexpected error'
   }
 
   if (Array.isArray(detail) && detail.length > 0) {
-    const first = detail[0];
-    if (typeof first?.msg === 'string') {
-      return first.msg;
-    }
+    const first = detail[0] as { loc?: unknown; msg?: unknown; type?: unknown };
+    const loc = Array.isArray(first?.loc) ? first.loc.join('.') : '';
+    const msg = typeof first?.msg === 'string' ? first.msg : '';
+    const type = typeof first?.type === 'string' ? first.type : '';
+    const parts = [loc, msg, type].filter(Boolean);
+    if (parts.length > 0) return parts.join(' | ');
   }
 
   return error.message || fallback;

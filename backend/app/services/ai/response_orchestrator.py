@@ -31,6 +31,7 @@ from app.services.conversation.context_builder import build_conversation_context
 from app.services.conversation.guards import should_use_ai
 from app.services.conversation.mode_service import disable_ai
 from app.services.config_structure import section_entries
+from app.services.attachment_service import AttachmentService
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,12 @@ class AIResponseOrchestrator:
         return prompt
 
     async def call_ai(self, prompt: str, provider_name: str | None = None) -> dict[str, Any]:
+        logger.warning(
+            "[AI][PAYLOAD] provider=%s mode=generate prompt_chars=%s prompt_preview=%s",
+            provider_name or "default",
+            len(prompt or ""),
+            (prompt or "")[:180].replace("\n", "\\n"),
+        )
         ai_service = AIService(provider_name=provider_name)
         return await ai_service.generate_with_metadata(prompt)
 
@@ -93,6 +100,14 @@ class AIResponseOrchestrator:
             {"role": "system", "content": _SYSTEM_TOOLS_INSTRUCTION},
             {"role": "user", "content": current_user_message},
         ]
+        logger.warning(
+            "[AI][PAYLOAD] provider=%s mode=chat messages=%s roles=%s tools_count=%s message_content_types=%s",
+            provider_name or "default",
+            len(messages),
+            ",".join(str(item.get("role")) for item in messages),
+            len(tools or []),
+            ",".join(type(item.get("content")).__name__ for item in messages),
+        )
         return await ai_service.generate_chat_with_metadata(messages, tools=tools)
 
     async def generate_response(
@@ -113,6 +128,13 @@ class AIResponseOrchestrator:
         provider_name = "ollama"
         if isinstance(channel_settings, dict):
             provider_name = str(channel_settings.get("ai_provider") or "ollama")
+        self._log_inbound_media_trace(
+            db=db,
+            tenant_id=tenant_id,
+            message_id=message_id,
+            conversation_id=conversation.id,
+            provider_name=provider_name,
+        )
 
         behavior = config.get("behavior")
         fallback_message = (
@@ -369,6 +391,53 @@ class AIResponseOrchestrator:
 
         logger.info("Response ready for conversation: %s", conversation.id)
         return response
+
+    def _log_inbound_media_trace(
+        self,
+        *,
+        db: Session,
+        tenant_id: uuid.UUID,
+        message_id: Optional[uuid.UUID],
+        conversation_id: uuid.UUID,
+        provider_name: str,
+    ) -> None:
+        if not message_id:
+            logger.warning(
+                "[AI][MULTIMEDIA] conversation_id=%s message_id=none attachments=unknown reason=no_message_id",
+                conversation_id,
+            )
+            return
+        attachments = AttachmentService(db).list_by_message_id_and_tenant(message_id=message_id, tenant_id=tenant_id)
+        model_name = settings.OLLAMA_MODEL if provider_name == "ollama" else "unknown"
+        supports_multimodal = self._supports_multimodal(provider_name=provider_name, model_name=model_name)
+        logger.warning(
+            "[AI][MULTIMEDIA] conversation_id=%s message_id=%s provider=%s model=%s attachments=%s multimodal_supported=%s",
+            conversation_id,
+            message_id,
+            provider_name,
+            model_name,
+            len(attachments),
+            supports_multimodal,
+        )
+        for attachment in attachments:
+            skip_reason = "context_text_only_pipeline"
+            if attachment.attachment_type.value == "audio" and not supports_multimodal:
+                skip_reason = "model_not_multimodal"
+            logger.warning(
+                "[AI][MULTIMEDIA] attachment_id=%s type=%s skipped=%s reason=%s",
+                attachment.id,
+                attachment.attachment_type.value,
+                True,
+                skip_reason,
+            )
+
+    @staticmethod
+    def _supports_multimodal(*, provider_name: str, model_name: str) -> bool:
+        normalized_provider = (provider_name or "").strip().lower()
+        normalized_model = (model_name or "").strip().lower()
+        if normalized_provider != "ollama":
+            return False
+        return any(token in normalized_model for token in ("vision", "vl", "llava", "qwen2.5vl", "gemma3"))
 
     @staticmethod
     def _extract_current_user_message(prompt: str) -> str:

@@ -22,16 +22,18 @@ def _log_normalized_media_summary(normalized: NormalizedMessage, provider_name: 
     if not normalized.attachments:
         return
 
-    logger.info(
-        "webhook_media_normalized provider=%s channel_id=%s message_id=%s attachments_count=%s",
+    attachment_types = ",".join(item.type.value for item in normalized.attachments)
+    logger.warning(
+        "[MULTIMEDIA][INBOUND] message_id=%s provider=%s channel_id=%s attachments=%s types=%s",
+        normalized.external_message_id,
         provider_name,
         normalized.channel_id,
-        normalized.external_message_id,
         len(normalized.attachments),
+        attachment_types,
     )
     for index, attachment in enumerate(normalized.attachments, start=1):
-        logger.info(
-            "webhook_media_attachment provider=%s channel_id=%s message_id=%s idx=%s type=%s mime=%s size_bytes=%s provider_media_id=%s",
+        logger.warning(
+            "[MULTIMEDIA][INBOUND][ATTACHMENT] provider=%s channel_id=%s message_id=%s idx=%s type=%s mime=%s size_bytes=%s provider_media_id=%s has_provider_url=%s has_base64=%s",
             provider_name,
             normalized.channel_id,
             normalized.external_message_id,
@@ -40,6 +42,8 @@ def _log_normalized_media_summary(normalized: NormalizedMessage, provider_name: 
             attachment.mime_type,
             attachment.size_bytes,
             attachment.provider_media_id,
+            bool(attachment.provider_url),
+            bool(attachment.base64_data),
         )
 
 

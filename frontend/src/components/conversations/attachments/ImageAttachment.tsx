@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Attachment } from '@/types/chat';
 import AttachmentStatusHint from './AttachmentStatusHint';
+import { useAuthenticatedAttachmentStream } from '@/hooks/useAuthenticatedAttachmentStream';
 
 export default function ImageAttachment({ attachment }: { attachment: Attachment }) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const enabled = attachment.status === 'available';
+  const { url, loading, error } = useAuthenticatedAttachmentStream(attachment.id, enabled, attachment.streamUrl);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -17,7 +18,7 @@ export default function ImageAttachment({ attachment }: { attachment: Attachment
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open]);
 
-  if (attachment.status !== 'available' || !attachment.streamUrl) return <AttachmentStatusHint attachment={attachment} />;
+  if (attachment.status !== 'available') return <AttachmentStatusHint attachment={attachment} />;
 
   return (
     <>
@@ -27,24 +28,19 @@ export default function ImageAttachment({ attachment }: { attachment: Attachment
         className="group relative overflow-hidden rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         aria-label="Ampliar imagen"
       >
-        {isLoading ? (
+        {loading ? (
           <div className="h-48 w-64 animate-pulse rounded-2xl bg-gray-200" />
         ) : null}
-        {loadError ? (
+        {error || !url ? (
           <div className="flex h-40 w-64 items-center justify-center rounded-2xl bg-red-50 text-xs text-red-700">
             Imagen no disponible
           </div>
         ) : (
           <img
-            src={attachment.streamUrl}
+            src={url}
             alt={attachment.filename ?? 'Imagen adjunta'}
             className="max-h-72 w-full max-w-sm rounded-2xl object-cover shadow-sm transition group-hover:opacity-90"
             loading="lazy"
-            onLoad={() => setIsLoading(false)}
-            onError={() => {
-              setIsLoading(false);
-              setLoadError(true);
-            }}
           />
         )}
       </button>
@@ -65,7 +61,7 @@ export default function ImageAttachment({ attachment }: { attachment: Attachment
             <X className="h-5 w-5" />
           </button>
           <img
-            src={attachment.streamUrl}
+            src={url ?? ''}
             alt={attachment.filename ?? 'Imagen ampliada'}
             className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
           />

@@ -4,17 +4,16 @@ import type { Attachment } from '@/types/chat';
 import { useAttachmentProcessing } from '@/hooks/useAttachmentProcessing';
 
 export default function ProcessingArtifact({ attachment }: { attachment: Attachment }) {
-  const { loading, transcription, ocr, extracted } = useAttachmentProcessing(attachment);
+  const { loading, transcription, extracted } = useAttachmentProcessing(attachment);
   const [open, setOpen] = useState(false);
 
   const sections = useMemo(
     () =>
       [
         transcription ? { key: 'transcription', title: 'Transcripcion disponible', text: transcription.payloadText ?? '' } : null,
-        ocr ? { key: 'ocr', title: 'OCR disponible', text: ocr.payloadText ?? '' } : null,
         extracted ? { key: 'extracted', title: 'Texto extraido', text: extracted.payloadText ?? '' } : null,
       ].filter(Boolean) as { key: string; title: string; text: string }[],
-    [transcription, ocr, extracted],
+    [transcription, extracted],
   );
 
   if (loading && attachment.status === 'processing') {

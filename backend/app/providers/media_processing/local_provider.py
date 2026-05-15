@@ -4,8 +4,6 @@ from io import BytesIO
 from typing import Any
 
 import httpx
-import pytesseract
-from PIL import Image
 from pypdf import PdfReader
 
 from app.core.config import settings
@@ -48,38 +46,6 @@ class LocalMediaProcessingProvider(MediaProcessingProvider):
             "language": body.get("language"),
             "segments": body.get("segments") if isinstance(body.get("segments"), list) else [],
             "provider_response": body,
-        }
-
-    def extract_ocr(self, *, payload: bytes, mime_type: str | None, filename: str | None) -> dict[str, Any]:
-        try:
-            image = Image.open(BytesIO(payload))
-            ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
-            tokens: list[str] = []
-            confidences: list[float] = []
-            for idx, token in enumerate(ocr_data.get("text", [])):
-                cleaned = str(token or "").strip()
-                if not cleaned:
-                    continue
-                tokens.append(cleaned)
-                conf_raw = ocr_data.get("conf", [])[idx] if idx < len(ocr_data.get("conf", [])) else "-1"
-                try:
-                    conf = float(conf_raw)
-                except (TypeError, ValueError):
-                    conf = -1.0
-                if conf >= 0:
-                    confidences.append(conf)
-        except pytesseract.TesseractNotFoundError as exc:
-            raise MediaProcessingError("ocr_engine_missing", "tesseract binary not installed", retryable=False) from exc
-        except Exception as exc:
-            raise MediaProcessingError("ocr_failed", str(exc), retryable=False) from exc
-
-        confidence = (sum(confidences) / len(confidences)) if confidences else None
-        return {
-            "full_text": " ".join(tokens).strip() or None,
-            "pages": [{"page": 1, "token_count": len(tokens)}],
-            "confidence": confidence,
-            "filename": filename,
-            "mime_type": mime_type,
         }
 
     def extract_document_text(self, *, payload: bytes, mime_type: str | None, filename: str | None) -> dict[str, Any]:

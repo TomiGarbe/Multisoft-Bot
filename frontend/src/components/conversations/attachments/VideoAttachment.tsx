@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import type { Attachment } from '@/types/chat';
 import AttachmentStatusHint from './AttachmentStatusHint';
+import { useAuthenticatedAttachmentStream } from '@/hooks/useAuthenticatedAttachmentStream';
 
 export default function VideoAttachment({ attachment }: { attachment: Attachment }) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const { url } = useAuthenticatedAttachmentStream(attachment.id, attachment.status === 'available', attachment.streamUrl);
 
-  if (attachment.status !== 'available' || !attachment.streamUrl) return <AttachmentStatusHint attachment={attachment} />;
+  if (attachment.status !== 'available' || !url) return <AttachmentStatusHint attachment={attachment} />;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-black shadow-sm">
@@ -22,7 +24,7 @@ export default function VideoAttachment({ attachment }: { attachment: Attachment
           setHasError(true);
         }}
       >
-        <source src={attachment.streamUrl} type={attachment.mimeType ?? undefined} />
+        <source src={url} type={attachment.mimeType ?? undefined} />
       </video>
       {isLoading ? <p className="px-3 py-1 text-xs text-gray-300">Cargando video...</p> : null}
       {hasError ? <p className="px-3 py-1 text-xs text-red-300">No se pudo reproducir el video</p> : null}

@@ -3,12 +3,19 @@ import { Download, ExternalLink, RefreshCcw } from 'lucide-react';
 import type { Attachment } from '@/types/chat';
 import AttachmentStatusHint from './AttachmentStatusHint';
 import { formatBytes, getDocumentIcon } from './attachmentUtils';
+import { fetchAttachmentDownloadBlob } from '@/services/attachments';
+import { useAuthenticatedAttachmentStream } from '@/hooks/useAuthenticatedAttachmentStream';
 
 export default function DocumentAttachment({ attachment }: { attachment: Attachment }) {
   const [downloadState, setDownloadState] = useState<'idle' | 'downloading' | 'failed'>('idle');
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const downloadControllerRef = useRef<AbortController | null>(null);
   const Icon = useMemo(() => getDocumentIcon(attachment), [attachment]);
+  const { url: streamObjectUrl } = useAuthenticatedAttachmentStream(
+    attachment.id,
+    attachment.status === 'available',
+    attachment.streamUrl,
+  );
 
   useEffect(() => {
     return () => {
@@ -17,16 +24,13 @@ export default function DocumentAttachment({ attachment }: { attachment: Attachm
   }, []);
 
   const handleDownload = async () => {
-    if (!attachment.downloadUrl) return;
     downloadControllerRef.current?.abort();
     const controller = new AbortController();
     downloadControllerRef.current = controller;
     setDownloadState('downloading');
     setDownloadError(null);
     try {
-      const response = await fetch(attachment.downloadUrl, { signal: controller.signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
+      const blob = await fetchAttachmentDownloadBlob(attachment.id, { signal: controller.signal });
       const localUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = localUrl;
@@ -43,7 +47,7 @@ export default function DocumentAttachment({ attachment }: { attachment: Attachm
     }
   };
 
-  if (!attachment.downloadUrl && !attachment.streamUrl) return <AttachmentStatusHint attachment={attachment} />;
+  if (attachment.status !== 'available') return <AttachmentStatusHint attachment={attachment} />;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -69,9 +73,9 @@ export default function DocumentAttachment({ attachment }: { attachment: Attachm
           <Download className="h-3.5 w-3.5" />
           Descargar
         </button>
-        {attachment.streamUrl ? (
+        {streamObjectUrl ? (
           <a
-            href={attachment.streamUrl}
+            href={streamObjectUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"

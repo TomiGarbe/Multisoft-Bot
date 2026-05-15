@@ -19,12 +19,6 @@ class TranscriptionResult(BaseModel):
     language: Optional[str] = None
 
 
-class OCRResult(BaseModel):
-    full_text: Optional[str] = None
-    pages: list[dict[str, Any]] = Field(default_factory=list)
-    confidence: Optional[float] = None
-
-
 class DocumentExtractionResult(BaseModel):
     text: Optional[str] = None
     pages: list[dict[str, Any]] = Field(default_factory=list)

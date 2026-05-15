@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -9,6 +10,8 @@ from app.providers.media_processing import get_media_processing_provider
 from app.schemas.internal.media_processing import ProcessedArtifactCreate
 from app.schemas.internal.message_enums import MediaProcessingCapability, ProcessedArtifactStorageBackend
 from app.services.attachment_service import AttachmentService
+
+logger = logging.getLogger(__name__)
 
 
 class MediaProcessingRuntimeService:
@@ -29,22 +32,29 @@ class MediaProcessingRuntimeService:
         self._validate_limits(attachment=attachment, payload=binary_data, capability=capability)
 
         if capability == MediaProcessingCapability.TRANSCRIPTION:
+            logger.warning(
+                "[MULTIMEDIA][PROCESSING] transcription_started attachment_id=%s mime=%s",
+                attachment.id,
+                attachment.mime_type,
+            )
             result = self.provider.transcribe_audio(payload=binary_data, mime_type=attachment.mime_type, filename=attachment.filename)
             payload_text = str(result.get("text") or "") or None
-            return self._artifact(attachment, capability, result, payload_text)
-
-        if capability == MediaProcessingCapability.OCR:
-            result = self.provider.extract_ocr(payload=binary_data, mime_type=attachment.mime_type, filename=attachment.filename)
-            payload_text = str(result.get("full_text") or "") or None
+            logger.warning("[MULTIMEDIA][PROCESSING] transcription_completed attachment_id=%s", attachment.id)
             return self._artifact(attachment, capability, result, payload_text)
 
         if capability == MediaProcessingCapability.DOCUMENT_EXTRACTION:
+            logger.warning(
+                "[MULTIMEDIA][PROCESSING] extraction_started attachment_id=%s mime=%s",
+                attachment.id,
+                attachment.mime_type,
+            )
             result = self.provider.extract_document_text(
                 payload=binary_data,
                 mime_type=attachment.mime_type,
                 filename=attachment.filename,
             )
             payload_text = str(result.get("text") or "") or None
+            logger.warning("[MULTIMEDIA][PROCESSING] extraction_completed attachment_id=%s", attachment.id)
             return self._artifact(attachment, capability, result, payload_text)
 
         raise MediaProcessingError("unsupported_capability", capability.value, retryable=False)
@@ -53,9 +63,6 @@ class MediaProcessingRuntimeService:
         if capability == MediaProcessingCapability.TRANSCRIPTION:
             if attachment.duration_ms and attachment.duration_ms > settings.MEDIA_MAX_AUDIO_DURATION_MS:
                 raise MediaProcessingError("audio_duration_exceeded", str(attachment.duration_ms), retryable=False)
-        if capability == MediaProcessingCapability.OCR:
-            if len(payload) > settings.MEDIA_MAX_IMAGE_BYTES:
-                raise MediaProcessingError("image_size_exceeded", str(len(payload)), retryable=False)
         if capability == MediaProcessingCapability.DOCUMENT_EXTRACTION:
             if attachment.size_bytes and attachment.size_bytes > settings.ATTACHMENT_MAX_DOCUMENT_BYTES:
                 raise MediaProcessingError("document_size_exceeded", str(attachment.size_bytes), retryable=False)
@@ -69,8 +76,6 @@ class MediaProcessingRuntimeService:
         }
         if capability == MediaProcessingCapability.TRANSCRIPTION and result.get("language"):
             metadata["detected_language"] = result.get("language")
-        if capability == MediaProcessingCapability.OCR and result.get("confidence") is not None:
-            metadata["confidence"] = result.get("confidence")
         if capability == MediaProcessingCapability.DOCUMENT_EXTRACTION and isinstance(result.get("pages"), list):
             metadata["page_count"] = len(result.get("pages") or [])
             if metadata["page_count"] > settings.MEDIA_MAX_DOCUMENT_PAGES:

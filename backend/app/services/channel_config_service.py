@@ -45,7 +45,6 @@ class ChannelConfigService:
             ),
             "media_processing": {
                 "transcription_enabled": True,
-                "ocr_enabled": True,
                 "document_extraction_enabled": True,
             },
         }

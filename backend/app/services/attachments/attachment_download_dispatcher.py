@@ -23,6 +23,11 @@ class AttachmentDownloadDispatcher:
         self._tasks: set[asyncio.Task[None]] = set()
 
     def enqueue(self, job: AttachmentDownloadJob) -> None:
+        logger.warning(
+            "[MULTIMEDIA][DOWNLOAD] enqueue attachment_id=%s tenant_id=%s",
+            job.attachment_id,
+            job.tenant_id,
+        )
         task = asyncio.create_task(self._run_job(job))
         self._tasks.add(task)
         task.add_done_callback(self._on_task_done)
@@ -31,9 +36,19 @@ class AttachmentDownloadDispatcher:
         async with self._semaphore:
             db = SessionLocal()
             try:
+                logger.warning(
+                    "[MULTIMEDIA][DOWNLOAD] worker_start attachment_id=%s tenant_id=%s",
+                    job.attachment_id,
+                    job.tenant_id,
+                )
                 AttachmentDownloader(db).process_attachment(
                     attachment_id=job.attachment_id,
                     tenant_id=job.tenant_id,
+                )
+                logger.warning(
+                    "[MULTIMEDIA][DOWNLOAD] worker_done attachment_id=%s tenant_id=%s",
+                    job.attachment_id,
+                    job.tenant_id,
                 )
             except Exception:
                 db.rollback()

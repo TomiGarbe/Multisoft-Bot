@@ -54,6 +54,5 @@ class AttachmentProcessingStatusDTO(BaseModel):
 class AttachmentDerivedContentDTO(BaseModel):
     attachment_id: uuid.UUID
     transcription_text: Optional[str] = None
-    ocr_text: Optional[str] = None
     extracted_text: Optional[str] = None
     metadata_json: Optional[dict[str, Any]] = None

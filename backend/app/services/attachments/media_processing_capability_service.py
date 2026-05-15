@@ -13,14 +13,12 @@ class MediaProcessingCapabilityService:
                 MediaProcessingCapability.EMBEDDINGS,
             ],
             AttachmentType.IMAGE: [
-                MediaProcessingCapability.OCR,
                 MediaProcessingCapability.VISION,
                 MediaProcessingCapability.MODERATION,
                 MediaProcessingCapability.THUMBNAILS,
                 MediaProcessingCapability.EMBEDDINGS,
             ],
             AttachmentType.DOCUMENT: [
-                MediaProcessingCapability.OCR,
                 MediaProcessingCapability.DOCUMENT_EXTRACTION,
                 MediaProcessingCapability.EMBEDDINGS,
                 MediaProcessingCapability.MODERATION,

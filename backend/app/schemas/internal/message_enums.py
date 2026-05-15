@@ -41,7 +41,6 @@ class AttachmentDownloadStatus(str, Enum):
 
 class MediaProcessingCapability(str, Enum):
     TRANSCRIPTION = "transcription"
-    OCR = "ocr"
     METADATA_EXTRACTION = "metadata_extraction"
     EMBEDDINGS = "embeddings"
     MODERATION = "moderation"

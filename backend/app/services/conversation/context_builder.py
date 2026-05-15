@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.models.contact import Contact
 from app.models.conversation import Conversation, Message
+from app.services.attachment_service import AttachmentService
+from app.services.media_processing_service import MediaProcessingService
+from app.schemas.internal.message_enums import MediaProcessingCapability
 import app.services.message_service as message_service
 
 logger = logging.getLogger(__name__)
@@ -35,6 +38,8 @@ def build_conversation_context(
     user_memory = _extract_user_memory(contact)
     target_message = _resolve_target_message(current_message, history)
     group_context = _build_group_context(current_message, history)
+    _log_current_message_media_state(db=db, current_message=current_message)
+    _log_context_summary(conversation=conversation, current_message=current_message, history=history)
 
     return {
         "messages": history,
@@ -44,6 +49,80 @@ def build_conversation_context(
         "target_message": target_message,
         "group_context": group_context,
     }
+
+
+def _log_current_message_media_state(*, db: Session, current_message: Message) -> None:
+    attachment_service = AttachmentService(db)
+    processing_service = MediaProcessingService(db)
+    attachments = attachment_service.list_by_message_id_and_tenant(
+        message_id=current_message.id,
+        tenant_id=current_message.tenant_id,
+    )
+    attachment_types = sorted({str(item.attachment_type.value) for item in attachments})
+    logger.warning(
+        "[AI][CONTEXT] message_id=%s conversation_id=%s has_media=%s attachments=%s types=%s",
+        current_message.id,
+        current_message.conversation_id,
+        bool(current_message.has_media),
+        len(attachments),
+        ",".join(attachment_types) if attachment_types else "none",
+    )
+    capabilities = [
+        MediaProcessingCapability.TRANSCRIPTION,
+        MediaProcessingCapability.DOCUMENT_EXTRACTION,
+    ]
+    for attachment in attachments:
+        has_blob = attachment_service.attachment_blob_exists(
+            attachment_id=attachment.id,
+            tenant_id=current_message.tenant_id,
+            storage_key=attachment.storage_key,
+        )
+        artifacts = processing_service.list_artifacts_by_capabilities(
+            attachment_id=attachment.id,
+            tenant_id=current_message.tenant_id,
+            capabilities=capabilities,
+        )
+        artifacts_by_cap = {item.capability: item for item in artifacts}
+        logger.warning(
+            "[AI][ATTACHMENT] message_id=%s attachment_id=%s type=%s mime=%s status=%s backend=%s has_blob=%s has_provider_url=%s has_provider_media_id=%s",
+            current_message.id,
+            attachment.id,
+            attachment.attachment_type.value,
+            attachment.mime_type,
+            attachment.download_status.value,
+            attachment.storage_backend.value,
+            has_blob,
+            bool(attachment.provider_url),
+            bool(attachment.provider_media_id),
+        )
+        _log_artifact_inclusion(attachment.id, "transcription", artifacts_by_cap.get(MediaProcessingCapability.TRANSCRIPTION))
+        _log_artifact_inclusion(
+            attachment.id,
+            "extracted_text",
+            artifacts_by_cap.get(MediaProcessingCapability.DOCUMENT_EXTRACTION),
+        )
+
+
+def _log_artifact_inclusion(attachment_id: uuid.UUID, artifact_name: str, artifact: Any) -> None:
+    has_text = bool((getattr(artifact, "payload_text", None) or "").strip())
+    logger.warning(
+        "[AI][ARTIFACT] attachment_id=%s artifact=%s exists=%s has_text=%s included_in_prompt=%s",
+        attachment_id,
+        artifact_name,
+        bool(artifact),
+        has_text,
+        False,
+    )
+
+
+def _log_context_summary(*, conversation: Conversation, current_message: Message, history: list[dict]) -> None:
+    logger.warning(
+        "[AI][CONTEXT] assembled conversation_id=%s message_id=%s history_messages=%s current_message_chars=%s",
+        conversation.id,
+        current_message.id,
+        len(history),
+        len((current_message.content_text or "").strip()),
+    )
 
 
 def _get_history(

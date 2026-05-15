@@ -62,23 +62,6 @@ async def get_attachment_transcription(
     ]
 
 
-@router.get("/attachments/{attachment_id}/ocr", response_model=list[ProcessedArtifactDTO])
-async def get_attachment_ocr(
-    attachment_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
-    _: None = Depends(require_permission("messages.read")),
-):
-    return [
-        item
-        for item in _service(db).list_artifacts_by_capabilities(
-            attachment_id=attachment_id,
-            tenant_id=current_tenant_id,
-            capabilities=[MediaProcessingCapability.OCR],
-        )
-    ]
-
-
 @router.get("/attachments/{attachment_id}/thumbnails", response_model=list[ProcessedArtifactDTO])
 async def get_attachment_thumbnails(
     attachment_id: uuid.UUID,

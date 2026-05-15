@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
 from app.core.utils import dict_get_any_case
 from app.schemas.internal.message_enums import AttachmentType, MessageType, StorageBackend
 from app.schemas.internal.normalized_message import AttachmentMetadata, NormalizedAttachment
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_message_type(raw_type: Any) -> MessageType:
@@ -93,7 +96,7 @@ def normalize_attachment(
         provider=provider,
         source="inbound_webhook",
     )
-    return NormalizedAttachment(
+    normalized = NormalizedAttachment(
         type=_coalesce_attachment_type(raw, fallback_message_type),
         mime_type=str(mime_type) if mime_type is not None else None,
         filename=str(filename) if filename is not None else None,
@@ -112,6 +115,17 @@ def normalize_attachment(
         caption=str(caption) if caption is not None else None,
         metadata=metadata,
     )
+    logger.warning(
+        "[MULTIMEDIA][NORMALIZE] attachment type=%s mime=%s size_bytes=%s provider_media_id=%s has_provider_url=%s has_base64=%s storage_backend=%s",
+        normalized.type.value,
+        normalized.mime_type,
+        normalized.size_bytes,
+        normalized.provider_media_id,
+        bool(normalized.provider_url),
+        bool(normalized.base64_data),
+        normalized.metadata.storage_backend.value,
+    )
+    return normalized
 
 
 def normalize_attachments_from_payload(
@@ -136,6 +150,12 @@ def normalize_attachments_from_payload(
             )
 
     if normalized:
+        logger.warning(
+            "[MULTIMEDIA][NORMALIZE] attachments_array_detected count=%s provider=%s fallback_message_type=%s",
+            len(normalized),
+            provider,
+            fallback_message_type.value,
+        )
         return normalized
 
     legacy = {
@@ -155,6 +175,11 @@ def normalize_attachments_from_payload(
     has_any_media_source = any([legacy["provider_url"], legacy["provider_media_id"], legacy["base64_data"]])
     if not has_any_media_source:
         return []
+    logger.warning(
+        "[MULTIMEDIA][NORMALIZE] legacy_media_payload_detected provider=%s fallback_message_type=%s",
+        provider,
+        fallback_message_type.value,
+    )
     return [
         normalize_attachment(
             legacy,

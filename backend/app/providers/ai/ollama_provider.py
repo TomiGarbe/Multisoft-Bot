@@ -45,6 +45,13 @@ class OllamaProvider(AIInterface):
             "prompt": prompt,
             "stream": False
         }
+        logger.warning(
+            "[AI][OLLAMA][PAYLOAD] endpoint=/api/generate model=%s prompt_chars=%s stream=%s multimedia_included=%s",
+            self.model,
+            len(prompt or ""),
+            False,
+            False,
+        )
         
         headers = {
             "Content-Type": "application/json"
@@ -106,6 +113,33 @@ class OllamaProvider(AIInterface):
         }
         if tools:
             payload["tools"] = tools
+        message_summaries = []
+        multimedia_entries = 0
+        for idx, message in enumerate(messages):
+            content = message.get("content")
+            content_kind = type(content).__name__
+            content_chars = len(content) if isinstance(content, str) else None
+            has_images_field = bool(message.get("images"))
+            if has_images_field:
+                multimedia_entries += 1
+            message_summaries.append(
+                {
+                    "idx": idx,
+                    "role": message.get("role"),
+                    "content_kind": content_kind,
+                    "content_chars": content_chars,
+                    "has_images_field": has_images_field,
+                    "has_tool_calls": bool(message.get("tool_calls")),
+                }
+            )
+        logger.warning(
+            "[AI][OLLAMA][PAYLOAD] endpoint=/api/chat model=%s messages=%s tools=%s multimedia_entries=%s summary=%s",
+            self.model,
+            len(messages),
+            len(tools or []),
+            multimedia_entries,
+            message_summaries,
+        )
         logger.info(
             "Ollama chat request (model=%s tools_count=%d)",
             self.model,

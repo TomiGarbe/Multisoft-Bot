@@ -30,11 +30,11 @@ class MediaProcessingOrchestrator:
     def orchestrate_for_attachment(self, *, attachment_id: uuid.UUID, tenant_id: uuid.UUID) -> ProcessingLifecycleSnapshot | None:
         attachment = self.attachment_service.get_by_id_and_tenant(attachment_id, tenant_id)
         if attachment is None:
-            logger.warning("media_orchestrator_attachment_missing attachment_id=%s tenant_id=%s", attachment_id, tenant_id)
+            logger.warning("[MULTIMEDIA][PROCESSING] attachment_missing attachment_id=%s tenant_id=%s", attachment_id, tenant_id)
             return None
         if attachment.download_status.value != "completed":
-            logger.info(
-                "media_orchestrator_waiting_download attachment_id=%s tenant_id=%s download_status=%s",
+            logger.warning(
+                "[MULTIMEDIA][PROCESSING] waiting_download attachment_id=%s tenant_id=%s download_status=%s",
                 attachment.id,
                 attachment.tenant_id,
                 attachment.download_status.value,
@@ -43,7 +43,7 @@ class MediaProcessingOrchestrator:
         allowed, reason = self.security_service.validate_for_processing(attachment)
         if not allowed:
             logger.warning(
-                "media_orchestrator_skipped_security attachment_id=%s tenant_id=%s reason=%s",
+                "[MULTIMEDIA][PROCESSING] skipped_security attachment_id=%s tenant_id=%s reason=%s",
                 attachment_id,
                 tenant_id,
                 reason,
@@ -68,8 +68,8 @@ class MediaProcessingOrchestrator:
             if decision.enabled:
                 filtered_capabilities.append(capability)
             else:
-                logger.info(
-                    "media_orchestrator_capability_disabled attachment_id=%s tenant_id=%s capability=%s reason=%s",
+                logger.warning(
+                    "[MULTIMEDIA][PROCESSING] capability_disabled attachment_id=%s tenant_id=%s capability=%s reason=%s",
                     attachment_id,
                     tenant_id,
                     capability.value,
@@ -95,10 +95,17 @@ class MediaProcessingOrchestrator:
         self.db.commit()
 
         for job in jobs:
+            logger.warning(
+                "[MULTIMEDIA][PROCESSING] queued job_id=%s tenant_id=%s attachment_id=%s capability=%s",
+                job.id,
+                tenant_id,
+                attachment_id,
+                job.capability.value,
+            )
             media_processing_dispatcher.enqueue(MediaProcessingJobDispatch(job_id=job.id, tenant_id=tenant_id))
 
-        logger.info(
-            "media_orchestrator_jobs_created attachment_id=%s tenant_id=%s jobs=%s capabilities=%s size_bytes=%s duration_ms=%s",
+        logger.warning(
+            "[MULTIMEDIA][PROCESSING] jobs_created attachment_id=%s tenant_id=%s jobs=%s capabilities=%s size_bytes=%s duration_ms=%s",
             attachment_id,
             tenant_id,
             len(jobs),

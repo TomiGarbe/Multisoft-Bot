@@ -14,6 +14,24 @@ import type { ChannelConfigValidationStatus } from '@/types/channelConfig';
 import type { Channel } from '@/types/channel';
 import { getChannelMeta } from '@/components/conversations/channelMeta';
 
+const attachmentCache = new Map<string, Attachment[]>();
+const attachmentInFlight = new Map<string, Promise<Attachment[]>>();
+
+function shouldFetchAttachments(message: Message): boolean {
+  const kind = (message.messageType ?? '').toLowerCase();
+  if (
+    kind.includes('image') ||
+    kind.includes('audio') ||
+    kind.includes('video') ||
+    kind.includes('document') ||
+    kind.includes('file') ||
+    kind.includes('media')
+  ) {
+    return true;
+  }
+  return message.content.trim().length === 0;
+}
+
 export function useConversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -140,6 +158,8 @@ export function useConversations() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handler = () => {
+      attachmentCache.clear();
+      attachmentInFlight.clear();
       setConversations([]);
       setSelectedId('');
       setMessages({});
@@ -177,7 +197,26 @@ export function useConversations() {
     getMessages(selectedId)
       .then(async (data) => {
         const attachmentsByMessage = await Promise.allSettled(
-          data.map((message) => getAttachmentsByMessageId(message.id)),
+          data.map(async (message) => {
+            if (!shouldFetchAttachments(message)) {
+              return { messageId: message.id, attachments: [] as Attachment[] };
+            }
+            const cached = attachmentCache.get(message.id);
+            if (cached) return { messageId: message.id, attachments: cached };
+            const running =
+              attachmentInFlight.get(message.id) ??
+              getAttachmentsByMessageId(message.id).then((response) => {
+                attachmentCache.set(message.id, response.attachments);
+                return response.attachments;
+              });
+            attachmentInFlight.set(message.id, running);
+            try {
+              const resolved = await running;
+              return { messageId: message.id, attachments: resolved };
+            } finally {
+              attachmentInFlight.delete(message.id);
+            }
+          }),
         );
         const nextMessages = data.map((message, index) => {
           const resolved = attachmentsByMessage[index];

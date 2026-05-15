@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Optional
 
 from app.interfaces.storage import StorageAccessReference, StorageObject, StorageProvider, StorageSaveRequest
 from app.repositories.attachment_repository import AttachmentRepository
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseStorageProvider(StorageProvider):
@@ -14,6 +17,13 @@ class DatabaseStorageProvider(StorageProvider):
         self.repository = repository
 
     def save(self, request: StorageSaveRequest) -> str:
+        logger.warning(
+            "[MULTIMEDIA][STORAGE] blob_save attachment_id=%s tenant_id=%s payload_bytes=%s backend=%s",
+            request.attachment_id,
+            request.tenant_id,
+            len(request.payload),
+            self.backend_name,
+        )
         self.repository.create_or_update_blob(
             attachment_id=request.attachment_id,
             tenant_id=request.tenant_id,
@@ -29,12 +39,25 @@ class DatabaseStorageProvider(StorageProvider):
         storage_key: Optional[str] = None,
         byte_range: Optional[tuple[int, int]] = None,
     ) -> Optional[StorageObject]:
+        logger.warning(
+            "[MULTIMEDIA][STORAGE] blob_load attachment_id=%s tenant_id=%s has_range=%s backend=%s",
+            attachment_id,
+            tenant_id,
+            byte_range is not None,
+            self.backend_name,
+        )
         blob = self.repository.get_blob_by_attachment_id(
             attachment_id=attachment_id,
             tenant_id=tenant_id,
             byte_range=byte_range,
         )
         if blob is None:
+            logger.warning(
+                "[MULTIMEDIA][STORAGE] blob_missing attachment_id=%s tenant_id=%s backend=%s",
+                attachment_id,
+                tenant_id,
+                self.backend_name,
+            )
             return None
         return StorageObject(payload=blob, size_bytes=len(blob))
 
@@ -69,4 +92,3 @@ class DatabaseStorageProvider(StorageProvider):
             reference=storage_key or str(attachment_id),
             expires_in_seconds=ttl_seconds,
         )
-

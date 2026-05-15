@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from typing import Optional
@@ -15,6 +16,8 @@ from app.schemas.attachment import (
 )
 from app.schemas.internal.message_enums import AttachmentType
 from app.services.attachment_service import AttachmentService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,11 @@ class MultimediaService:
     ) -> Optional[AttachmentBlobPayload]:
         attachment = self.attachment_service.get_by_id_and_tenant(attachment_id, tenant_id)
         if attachment is None:
+            logger.warning(
+                "[MULTIMEDIA][STREAM] attachment_not_found attachment_id=%s tenant_id=%s",
+                attachment_id,
+                tenant_id,
+            )
             return None
 
         total_size = int(attachment.size_bytes or 0)
@@ -109,6 +117,11 @@ class MultimediaService:
             byte_range=parsed_range,
         )
         if storage_obj is None:
+            logger.warning(
+                "[MULTIMEDIA][STREAM] blob_not_found attachment_id=%s tenant_id=%s",
+                attachment_id,
+                tenant_id,
+            )
             return None
 
         mime_type = (attachment.mime_type or storage_obj.mime_type or "application/octet-stream").split(";")[0].strip()
@@ -127,6 +140,17 @@ class MultimediaService:
             range_end=end,
             total_size=total_size if total_size > 0 else None,
             is_partial=parsed_range is not None,
+        )
+        logger.warning(
+            "[MULTIMEDIA][STREAM] blob_ready attachment_id=%s tenant_id=%s as_download=%s mime=%s size_bytes=%s is_partial=%s range_start=%s range_end=%s",
+            attachment_id,
+            tenant_id,
+            as_download,
+            mime_type,
+            storage_obj.size_bytes,
+            parsed_range is not None,
+            start,
+            end,
         )
         return AttachmentBlobPayload(content=storage_obj.payload, descriptor=descriptor)
 

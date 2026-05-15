@@ -184,10 +184,20 @@ class WhatsAppMultisoftProvider(MessageProvider):
         sent = 0
         fallback_count = 0
         raw_results: list[dict[str, Any]] = []
+        logger.warning(
+            "[MULTIMEDIA][OUTBOUND] provider_send_media_start provider=multisoft to=%s attachments_count=%s",
+            to,
+            len(media_message.attachments),
+        )
         for attachment in media_message.attachments:
             media_url = (attachment.provider_url or "").strip()
             if not media_url:
                 fallback_count += 1
+                logger.warning(
+                    "[MULTIMEDIA][OUTBOUND] provider_send_media_missing_url type=%s provider_media_id=%s",
+                    attachment.type.value,
+                    attachment.provider_media_id,
+                )
                 continue
             payload = {
                 "number": str(to),
@@ -229,6 +239,12 @@ class WhatsAppMultisoftProvider(MessageProvider):
             )
             raw_results.append(response.json() if response.content else {"status_code": response.status_code})
             sent += 1
+            logger.warning(
+                "[MULTIMEDIA][OUTBOUND] provider_send_media_attachment_sent type=%s mime=%s has_caption=%s",
+                attachment.type.value,
+                attachment.mime_type,
+                bool(payload["caption"]),
+            )
 
         if sent == 0:
             content = (media_message.fallback_text or "").strip() or "Adjunto multimedia"
@@ -244,8 +260,19 @@ class WhatsAppMultisoftProvider(MessageProvider):
                 "fallback_missing_media_urls": fallback_count,
                 "media_results": raw_results,
             }
+            logger.warning(
+                "[MULTIMEDIA][OUTBOUND] provider_send_media_fallback_to_text to=%s missing_urls=%s",
+                to,
+                fallback_count,
+            )
             return result
 
+        logger.warning(
+            "[MULTIMEDIA][OUTBOUND] provider_send_media_done to=%s sent=%s fallback_missing_urls=%s",
+            to,
+            sent,
+            fallback_count,
+        )
         return {
             "status": "sent",
             "provider_message_id": str(uuid.uuid4()),
