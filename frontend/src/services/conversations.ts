@@ -24,6 +24,7 @@ interface ApiMessage {
   sender_type: 'contact' | 'bot';
   message_type?: string;
   content: string | null;
+  has_media?: boolean;
   created_at: string;
 }
 
@@ -61,6 +62,7 @@ function mapMessage(raw: ApiMessage): Message {
     senderType: raw.sender_type,
     messageType: raw.message_type,
     content: raw.content ?? '',
+    hasMedia: Boolean(raw.has_media),
     createdAt: raw.created_at,
   };
 }

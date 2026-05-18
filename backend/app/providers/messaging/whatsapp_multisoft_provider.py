@@ -34,6 +34,10 @@ class WhatsAppMultisoftProvider(MessageProvider):
             fallback_message_type=message_type,
         )
         has_media = bool(attachments)
+        content = dict_get_any_case(payload, "text", "body", "message", "caption")
+        if not content and has_media:
+            attachment_caption = next((item.caption for item in attachments if (item.caption or "").strip()), None)
+            content = attachment_caption
 
         return NormalizedMessage(
             channel_id=channel_id,
@@ -42,7 +46,7 @@ class WhatsAppMultisoftProvider(MessageProvider):
             ),
             sender_external_id=sender_id,
             sender_name=dict_get_any_case(payload, "sender_name", "notifyName", "name"),
-            content=dict_get_any_case(payload, "text", "body", "message"),
+            content=content,
             message_type=message_type,
             is_group=to_bool(dict_get_any_case(payload, "is_group", "isGroup"), default=False),
             group_id=dict_get_any_case(payload, "group_id", "fromId", "chatId"),

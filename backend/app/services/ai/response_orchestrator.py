@@ -88,6 +88,7 @@ class AIResponseOrchestrator:
             len(normalized_prompt or ""),
             (normalized_prompt or "")[:180].replace("\n", "\\n"),
         )
+        logger.info("[AI][INPUT] mode=generate prompt_chars=%s", len(normalized_prompt or ""))
         ai_service = AIService(route=route)
         started = time.perf_counter()
         payload = await ai_service.generate_with_metadata(normalized_prompt)
@@ -149,6 +150,12 @@ class AIResponseOrchestrator:
             multimodal_stats.get("images_skipped", 0),
             route.capabilities.supports_vision,
             approx_payload_bytes,
+        )
+        logger.info(
+            "[AI][INPUT] mode=chat user_message_chars=%s images_included=%s vision_supported=%s",
+            len(current_user_message or ""),
+            multimodal_stats.get("images_included", 0),
+            route.capabilities.supports_vision,
         )
         started = time.perf_counter()
         payload = await ai_service.generate_chat_with_metadata(messages, tools=tools)

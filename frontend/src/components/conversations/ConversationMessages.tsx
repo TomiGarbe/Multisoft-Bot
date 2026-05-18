@@ -10,6 +10,10 @@ interface Props {
 }
 
 export default function ConversationMessages({ messages, loading = false, onRetry }: Props) {
+  console.warn('[PIPELINE][FRONTEND_RENDER]', {
+    messages: messages.length,
+    loading,
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
   const previousCountRef = useRef(0);
 

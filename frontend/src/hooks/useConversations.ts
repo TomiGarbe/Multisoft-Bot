@@ -18,6 +18,7 @@ const attachmentCache = new Map<string, Attachment[]>();
 const attachmentInFlight = new Map<string, Promise<Attachment[]>>();
 
 function shouldFetchAttachments(message: Message): boolean {
+  if (message.hasMedia) return true;
   const kind = (message.messageType ?? '').toLowerCase();
   if (
     kind.includes('image') ||

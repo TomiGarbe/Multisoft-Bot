@@ -3,6 +3,7 @@ Webhook adapter: keeps request-time work minimal and provider-agnostic.
 """
 
 import logging
+import json
 import uuid
 from typing import Any
 
@@ -16,6 +17,13 @@ from app.services.inbound.incoming_message_handler import handle_incoming_messag
 from app.services.message_service import ensure_message_id
 
 logger = logging.getLogger(__name__)
+
+
+def _pretty_json(value: Any) -> str:
+    try:
+        return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True, default=str)
+    except Exception:
+        return str(value)
 
 
 def _log_normalized_media_summary(normalized: NormalizedMessage, provider_name: str) -> None:
@@ -89,6 +97,12 @@ async def process_webhook_payload(
     tenant_id: uuid.UUID,
     provider_name: str,
 ) -> None:
+    logger.warning(
+        "[PIPELINE][RECEIVED] provider=%s tenant_id=%s channel_id=%s",
+        provider_name,
+        tenant_id,
+        channel_id,
+    )
     channel_repo = ChannelRepository(db)
     channel = channel_repo.get_by_id_and_tenant(channel_id, tenant_id)
     if not channel:
@@ -101,8 +115,19 @@ async def process_webhook_payload(
 
     provider = get_message_provider(provider_name)
     normalized: NormalizedMessage = provider.normalize_incoming_payload(str(channel_id), payload)
+    logger.warning("[WEBHOOK][NORMALIZED] %s", _pretty_json(normalized.model_dump(mode="json")))
     ensure_message_id(normalized)
     _log_normalized_media_summary(normalized, provider_name)
+    logger.warning(
+        "[PIPELINE][NORMALIZED] provider=%s channel_id=%s message_id=%s message_type=%s has_media=%s attachments=%s content_chars=%s",
+        provider_name,
+        normalized.channel_id,
+        normalized.external_message_id,
+        normalized.message_type.value,
+        normalized.has_media,
+        len(normalized.attachments),
+        len((normalized.content or "").strip()),
+    )
 
     if normalized.is_status:
         logger.info("webhook_status_ignored channel_id=%s", normalized.channel_id)

@@ -149,6 +149,7 @@ export interface Message {
   senderType: 'contact' | 'bot' | 'agent';
   messageType?: string;
   content: string;
+  hasMedia?: boolean;
   createdAt: string;
   attachments?: Attachment[];
   status?: MessageStatus;

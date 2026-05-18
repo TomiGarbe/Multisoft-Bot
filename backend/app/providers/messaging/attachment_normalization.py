@@ -135,6 +135,15 @@ def normalize_attachments_from_payload(
     fallback_message_type: MessageType,
 ) -> list[NormalizedAttachment]:
     raw_attachments = dict_get_any_case(payload, "attachments", default=[]) or []
+    if not isinstance(raw_attachments, list):
+        raw_attachments = []
+    for media_key in ("image", "audio", "video", "document", "file", "media"):
+        media_obj = dict_get_any_case(payload, media_key)
+        if isinstance(media_obj, dict):
+            enriched = dict(media_obj)
+            enriched.setdefault("type", media_key)
+            raw_attachments.append(enriched)
+
     normalized: list[NormalizedAttachment] = []
     if isinstance(raw_attachments, list):
         for raw in raw_attachments:

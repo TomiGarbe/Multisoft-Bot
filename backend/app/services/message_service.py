@@ -72,6 +72,7 @@ def _serialize_message(message: Message) -> MessageResponse:
         status=message.status,
         provider_message_id=message.provider_message_id,
         replied_to_message_id=message.replied_to_message_id,
+        has_media=bool(message.has_media),
         created_at=message.created_at,
     )
 
@@ -150,6 +151,15 @@ class MessageService:
             replied_to_message_id=normalized.replied_to_message_id,
         )
         message = self.message_persistence.save_message(message, conversation)
+        logger.warning(
+            "[PIPELINE][DB_SAVED] stage=inbound message_id=%s conversation_id=%s provider_message_id=%s message_type=%s has_media=%s content_chars=%s",
+            message.id,
+            message.conversation_id,
+            message.provider_message_id,
+            message.message_type,
+            bool(message.has_media),
+            len((message.content_text or "").strip()),
+        )
         self._persist_normalized_attachments(message, normalized)
         self._publish_new_message_event(message)
         return message
@@ -538,6 +548,14 @@ class MessageService:
 
     def _publish_new_message_event(self, message: Message) -> None:
         serialized = jsonable_encoder(self._to_response(message))
+        logger.warning(
+            "[PIPELINE][SOCKET_EMIT] event=new_message message_id=%s conversation_id=%s message_type=%s has_media=%s content_chars=%s",
+            message.id,
+            message.conversation_id,
+            message.message_type,
+            bool(message.has_media),
+            len((message.content_text or "").strip()),
+        )
         event_bus.publish(
             "new_message",
             {

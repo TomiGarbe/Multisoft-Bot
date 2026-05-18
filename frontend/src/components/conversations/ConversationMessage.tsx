@@ -22,6 +22,15 @@ export default function ConversationMessage({ message, grouped = false, onRetry 
   const isPending = message.status === 'pending';
   const isError = message.status === 'error';
   const attachments = useMemo(() => message.attachments ?? [], [message.attachments]);
+  console.warn('[MESSAGE_RENDER]', {
+    messageId: message.id,
+    direction: message.direction,
+    messageType: message.messageType,
+    hasMedia: message.hasMedia,
+    contentChars: (message.content || '').length,
+    attachmentsCount: attachments.length,
+  });
+  console.warn('[MESSAGE_PAYLOAD]', message);
 
   return (
     <div className={`flex flex-col ${isInbound ? 'items-start' : 'items-end'} ${grouped ? 'mt-0.5' : 'mt-3'}`}>

@@ -37,8 +37,8 @@ class MediaProcessingRuntimeService:
         self._validate_limits(attachment=attachment, payload=binary_data, capability=capability)
 
         if capability == MediaProcessingCapability.TRANSCRIPTION:
-            logger.debug(
-                "[MULTIMEDIA][PROCESSING] transcription_started attachment_id=%s mime=%s",
+            logger.info(
+                "[AI][TRANSCRIPTION][START] attachment_id=%s mime=%s",
                 attachment.id,
                 attachment.mime_type,
             )
@@ -49,10 +49,11 @@ class MediaProcessingRuntimeService:
             )
             payload_text = str(result.get("text") or "") or None
             logger.info(
-                "[MULTIMEDIA][PROCESSING] transcription_completed attachment_id=%s language=%s segments=%s",
+                "[AI][TRANSCRIPTION][SUCCESS] attachment_id=%s language=%s segments=%s text_chars=%s",
                 attachment.id,
                 result.get("language"),
                 len(result.get("segments") or []),
+                len(payload_text or ""),
             )
             return self._artifact(attachment, capability, result, payload_text)
 
@@ -97,6 +98,12 @@ class MediaProcessingRuntimeService:
                 },
             }
         except TranscriptionError as exc:
+            logger.warning(
+                "[AI][TRANSCRIPTION][FAILED] code=%s retryable=%s detail=%s",
+                exc.code,
+                exc.retryable,
+                exc.message,
+            )
             raise MediaProcessingError(exc.code, exc.message, retryable=exc.retryable) from exc
         finally:
             if temp_path is not None:

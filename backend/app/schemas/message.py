@@ -25,6 +25,7 @@ class MessageResponse(BaseModel):
     status: Optional[str] = None
     provider_message_id: Optional[str] = None
     replied_to_message_id: Optional[str] = None
+    has_media: bool = False
     created_at: Optional[datetime] = None
 
 
