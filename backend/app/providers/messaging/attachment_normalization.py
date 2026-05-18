@@ -13,6 +13,15 @@ logger = logging.getLogger(__name__)
 
 def resolve_message_type(raw_type: Any) -> MessageType:
     value = str(raw_type or "").strip().lower()
+    aliases = {
+        "ptt": MessageType.AUDIO.value,
+        "voice": MessageType.AUDIO.value,
+        "voice_note": MessageType.AUDIO.value,
+        "photo": MessageType.IMAGE.value,
+        "img": MessageType.IMAGE.value,
+        "doc": MessageType.DOCUMENT.value,
+    }
+    value = aliases.get(value, value)
     allowed = {
         MessageType.TEXT.value,
         MessageType.AUDIO.value,
@@ -81,12 +90,12 @@ def normalize_attachment(
     fallback_message_type: MessageType,
     fallback_caption: Optional[str] = None,
 ) -> NormalizedAttachment:
-    mime_type = dict_get_any_case(raw, "mime_type", "mimeType")
+    mime_type = dict_get_any_case(raw, "mime_type", "mimeType", "mimetype", "contentType", "content_type")
     filename = dict_get_any_case(raw, "filename", "file_name", "name")
     extension = dict_get_any_case(raw, "extension", "ext")
     provider_media_id = dict_get_any_case(raw, "provider_media_id", "media_id", "id", "file_id", "providerFileId")
     provider_url = dict_get_any_case(raw, "provider_url", "url", "file_url", "fileUrl")
-    base64_data = dict_get_any_case(raw, "base64_data", "base64", "data_base64", "dataBase64")
+    base64_data = dict_get_any_case(raw, "base64_data", "base64", "data_base64", "dataBase64", "data")
     caption = dict_get_any_case(raw, "caption")
     if caption is None:
         caption = fallback_caption
@@ -105,7 +114,7 @@ def normalize_attachment(
             str(extension) if extension is not None else None,
             str(mime_type) if mime_type is not None else None,
         ),
-        size_bytes=_to_int_or_none(dict_get_any_case(raw, "size_bytes", "size", "file_size", "content_length")),
+        size_bytes=_to_int_or_none(dict_get_any_case(raw, "size_bytes", "size", "file_size", "content_length", "filesize", "fileSize")),
         width=_to_int_or_none(dict_get_any_case(raw, "width")),
         height=_to_int_or_none(dict_get_any_case(raw, "height")),
         duration_ms=_to_int_or_none(dict_get_any_case(raw, "duration_ms", "duration", "durationMs")),
@@ -142,6 +151,19 @@ def normalize_attachments_from_payload(
         if isinstance(media_obj, dict):
             enriched = dict(media_obj)
             enriched.setdefault("type", media_key)
+            # Multisoft inbound media payload shape.
+            if dict_get_any_case(enriched, "base64_data", "base64", "data_base64", "dataBase64") is None:
+                payload_data = dict_get_any_case(enriched, "data")
+                if payload_data is not None:
+                    enriched["base64_data"] = payload_data
+            if dict_get_any_case(enriched, "mime_type", "mimeType", "mimetype") is None:
+                media_mime = dict_get_any_case(enriched, "mimetype")
+                if media_mime is not None:
+                    enriched["mime_type"] = media_mime
+            if dict_get_any_case(enriched, "size_bytes", "size", "filesize") is None:
+                media_size = dict_get_any_case(enriched, "filesize")
+                if media_size is not None:
+                    enriched["size_bytes"] = media_size
             raw_attachments.append(enriched)
 
     normalized: list[NormalizedAttachment] = []

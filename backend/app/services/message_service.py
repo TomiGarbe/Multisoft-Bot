@@ -617,6 +617,7 @@ class MessageService:
             )
 
         persisted = self.attachment_service.save_attachments_bulk(records)
+        self._materialize_inbound_base64_attachments(message=message, persisted=persisted, normalized=normalized)
 
         self.repository.commit()
         for attachment in persisted:
@@ -643,6 +644,107 @@ class MessageService:
                     tenant_id=message.tenant_id,
                 )
             )
+
+    def _materialize_inbound_base64_attachments(
+        self,
+        *,
+        message: Message,
+        persisted: list[Any],
+        normalized: NormalizedMessage,
+    ) -> None:
+        if not persisted:
+            return
+        for attachment_row, normalized_item in zip(persisted, normalized.attachments):
+            payload = (normalized_item.base64_data or "").strip()
+            if not payload:
+                continue
+            logger.warning(
+                "[MULTIMEDIA][BASE64_DETECTED] message_id=%s attachment_id=%s mime=%s declared_size=%s",
+                message.id,
+                attachment_row.id,
+                normalized_item.mime_type,
+                normalized_item.size_bytes,
+            )
+            try:
+                decoded, inferred_mime = self._decode_inbound_base64_payload(payload)
+                logger.warning(
+                    "[MULTIMEDIA][DECODE_SUCCESS] attachment_id=%s decoded_bytes=%s inferred_mime=%s",
+                    attachment_row.id,
+                    len(decoded),
+                    inferred_mime,
+                )
+                storage_key = self.attachment_service.save_attachment_blob(
+                    attachment_id=attachment_row.id,
+                    tenant_id=message.tenant_id,
+                    binary_data=decoded,
+                )
+                metadata = dict(attachment_row.metadata_json or {})
+                metadata["base64_materialized"] = True
+                metadata["base64_materialized_bytes"] = len(decoded)
+                metadata["base64_materialized_mime"] = inferred_mime or normalized_item.mime_type
+                metadata["base64_data"] = None
+                self.attachment_service.update_download_state(
+                    attachment=attachment_row,
+                    status=AttachmentDownloadStatus.DOWNLOADING,
+                    metadata_json=metadata,
+                )
+                final_mime = (normalized_item.mime_type or inferred_mime or "").strip() or None
+                self.attachment_service.update_download_state(
+                    attachment=attachment_row,
+                    status=AttachmentDownloadStatus.COMPLETED,
+                    metadata_json=metadata,
+                    mime_type=final_mime,
+                    size_bytes=len(decoded),
+                    checksum_sha256=hashlib.sha256(decoded).hexdigest(),
+                    storage_backend=StorageBackend.DB,
+                )
+                attachment_row.storage_key = storage_key
+                logger.warning(
+                    "[MULTIMEDIA][FILE_SAVED] attachment_id=%s storage_key=%s size_bytes=%s",
+                    attachment_row.id,
+                    storage_key,
+                    len(decoded),
+                )
+                logger.warning(
+                    "[MULTIMEDIA][ATTACHMENT_READY] message_id=%s attachment_id=%s status=%s backend=%s",
+                    message.id,
+                    attachment_row.id,
+                    attachment_row.download_status.value,
+                    attachment_row.storage_backend.value,
+                )
+                event_bus.publish(
+                    "attachment_updated",
+                    {
+                        "type": "attachment_updated",
+                        "conversation_id": str(message.conversation_id),
+                        "message_id": str(message.id),
+                        "attachment_id": str(attachment_row.id),
+                        "status": attachment_row.download_status.value,
+                        "storage_backend": attachment_row.storage_backend.value,
+                    },
+                    tenant_id=message.tenant_id,
+                )
+            except Exception:
+                logger.exception(
+                    "[MULTIMEDIA][DECODE_FAILED] message_id=%s attachment_id=%s",
+                    message.id,
+                    attachment_row.id,
+                )
+
+    @staticmethod
+    def _decode_inbound_base64_payload(payload: str) -> tuple[bytes, Optional[str]]:
+        value = payload.strip()
+        mime: Optional[str] = None
+        if value.startswith("data:") and "," in value:
+            prefix, encoded = value.split(",", 1)
+            value = encoded
+            header = prefix.split(";", 1)[0].replace("data:", "").strip().lower()
+            mime = header or None
+        try:
+            decoded = base64.b64decode(value, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("invalid_inbound_base64") from exc
+        return decoded, mime
 
     def _persist_outbound_attachments(
         self,

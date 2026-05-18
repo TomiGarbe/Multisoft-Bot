@@ -108,6 +108,13 @@ class MediaProcessingOrchestrator:
                 attachment_id,
                 job.capability.value,
             )
+            if job.capability.value == "transcription":
+                logger.info(
+                    "[AI][TRANSCRIPTION][JOB_CREATED] job_id=%s tenant_id=%s attachment_id=%s",
+                    job.id,
+                    tenant_id,
+                    attachment_id,
+                )
             media_processing_dispatcher.enqueue(MediaProcessingJobDispatch(job_id=job.id, tenant_id=tenant_id))
 
         logger.debug(
