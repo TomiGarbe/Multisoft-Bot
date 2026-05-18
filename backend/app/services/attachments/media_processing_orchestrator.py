@@ -164,14 +164,14 @@ class MediaProcessingOrchestrator:
         )
 
     def _reduce_status(self, statuses: list[MediaProcessingStatus]) -> MediaProcessingStatus:
-        if any(status == MediaProcessingStatus.PROCESSING for status in statuses):
-            return MediaProcessingStatus.PROCESSING
-        if any(status == MediaProcessingStatus.QUEUED for status in statuses):
-            return MediaProcessingStatus.QUEUED
         if any(status == MediaProcessingStatus.FAILED for status in statuses):
             if any(status == MediaProcessingStatus.COMPLETED for status in statuses):
                 return MediaProcessingStatus.PARTIAL
             return MediaProcessingStatus.FAILED
+        if any(status == MediaProcessingStatus.PROCESSING for status in statuses):
+            return MediaProcessingStatus.PROCESSING
+        if any(status == MediaProcessingStatus.QUEUED for status in statuses):
+            return MediaProcessingStatus.QUEUED
         if any(status == MediaProcessingStatus.COMPLETED for status in statuses):
             if all(status in {MediaProcessingStatus.COMPLETED, MediaProcessingStatus.SKIPPED} for status in statuses):
                 return MediaProcessingStatus.COMPLETED

@@ -31,6 +31,7 @@ from app.core.config import settings
 from app.core.datetime_utils import reset_current_tenant_timezone
 from app.core.serialization import configure_datetime_encoder
 from app.db.session import SessionLocal
+from app.services.whisper_transcription_service import WhisperTranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,12 @@ def bootstrap_security() -> None:
         logger.info("ffmpeg available at %s", ffmpeg_path)
     else:
         logger.warning("ffmpeg missing in PATH")
+
+    whisper_ok, whisper_state, whisper_detail = WhisperTranscriptionService.validate_startup_dependencies()
+    if whisper_ok:
+        logger.info("[WHISPER] ready")
+    else:
+        logger.warning("[WHISPER] %s detail=%s", whisper_state, whisper_detail)
 
     if not settings.SECURITY_BOOTSTRAP_ENABLED:
         logger.info("Security bootstrap is disabled by configuration.")

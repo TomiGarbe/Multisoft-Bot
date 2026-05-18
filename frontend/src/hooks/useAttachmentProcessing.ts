@@ -14,8 +14,10 @@ const stateCache = new Map<string, State>();
 const inFlight = new Map<string, Promise<State>>();
 const POLL_INTERVAL_MS = 7000;
 const RETRY_AFTER_NOT_FOUND_MS = 60000;
+const TRANSCRIPTION_PENDING_TIMEOUT_MS = 120000;
 
 const notFoundUntil = new Map<string, number>();
+const pendingSince = new Map<string, number>();
 
 function isPollingNeeded(status: Attachment['status'], snapshot: AttachmentProcessingSnapshot | null): boolean {
   if (snapshot) {
@@ -123,6 +125,17 @@ export function useAttachmentProcessing(attachment: Attachment) {
   }, [attachment.id, attachment.status, isBackendAttachmentId]);
 
   useEffect(() => {
+    const isPending = state.status?.status === 'pending' || state.status?.status === 'queued' || state.status?.status === 'processing';
+    if (!isPending) {
+      pendingSince.delete(attachment.id);
+      return;
+    }
+    if (!pendingSince.has(attachment.id)) {
+      pendingSince.set(attachment.id, Date.now());
+    }
+  }, [attachment.id, state.status?.status]);
+
+  useEffect(() => {
     if (!isBackendAttachmentId) return;
     if (notFoundUntil.get(attachment.id) && Date.now() < (notFoundUntil.get(attachment.id) ?? 0)) return;
     if (!isPollingNeeded(attachment.status, state.status)) return;
@@ -160,11 +173,18 @@ export function useAttachmentProcessing(attachment: Attachment) {
     return { transcription, extracted };
   }, [state.artifacts]);
 
+  const hasTimedOutPending = useMemo(() => {
+    const startedAt = pendingSince.get(attachment.id);
+    if (!startedAt) return false;
+    return Date.now() - startedAt >= TRANSCRIPTION_PENDING_TIMEOUT_MS;
+  }, [attachment.id, state.status?.status, state.artifacts.length]);
+
   return {
     loading: state.loading,
     error: state.error,
     status: state.status,
     artifacts: state.artifacts,
+    hasTimedOutPending,
     ...derived,
   };
 }
@@ -173,4 +193,5 @@ export function invalidateAttachmentProcessingCache(attachmentId: string): void 
   stateCache.delete(attachmentId);
   inFlight.delete(attachmentId);
   notFoundUntil.delete(attachmentId);
+  pendingSince.delete(attachmentId);
 }

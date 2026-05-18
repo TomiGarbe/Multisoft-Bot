@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
@@ -119,3 +120,26 @@ class WhisperTranscriptionService:
             )
             cls._model_cache_key = cache_key
             return cls._model
+
+    @classmethod
+    def validate_startup_dependencies(cls) -> tuple[bool, str, str]:
+        ffmpeg_path = shutil.which("ffmpeg")
+        if not ffmpeg_path:
+            return False, "dependency_missing", "ffmpeg binary not found in PATH"
+
+        try:
+            import requests  # noqa: F401
+        except Exception as exc:
+            return False, "dependency_missing", f"requests import failed: {exc}"
+
+        try:
+            from faster_whisper import WhisperModel  # noqa: F401
+        except Exception as exc:
+            return False, "dependency_missing", f"faster_whisper import failed: {exc}"
+
+        try:
+            cls._get_or_create_model()
+        except Exception as exc:
+            return False, "model_not_ready", str(exc)
+
+        return True, "ready", "ok"

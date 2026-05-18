@@ -17,7 +17,7 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
   const [showTranscription, setShowTranscription] = useState(false);
 
   const label = useMemo(() => `${formatMediaTime(currentTime)} / ${formatMediaTime(duration)}`, [currentTime, duration]);
-  const { loading, error, status, transcription } = useAttachmentProcessing(attachment);
+  const { loading, error, status, transcription, hasTimedOutPending } = useAttachmentProcessing(attachment);
   const transcriptionJob = useMemo(
     () => status?.jobs.find((job) => job.capability === 'transcription'),
     [status],
@@ -31,6 +31,7 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
       transcriptionJob?.status === 'queued' ||
       transcriptionJob?.status === 'processing');
   const isTranscriptionFailed = !transcription && transcriptionJob?.status === 'failed';
+  const isTranscriptionTimedOut = !transcription && hasTimedOutPending;
   const failedReason = transcriptionJob?.lastErrorCode || transcriptionJob?.lastErrorMessage;
 
   const { url, loading: streamLoading, error: streamError } = useAuthenticatedAttachmentStream(
@@ -117,6 +118,11 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
           {failedReason ? <span className="ml-1 text-red-600">({failedReason})</span> : null}
         </div>
       ) : null}
+      {isTranscriptionTimedOut ? (
+        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          No se pudo transcribir el audio.
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={() => setShowTranscription((prev) => !prev)}
@@ -131,7 +137,7 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
             <p className="max-h-44 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700">{transcription.payloadText}</p>
           ) : isTranscriptionProcessing ? (
             <p className="text-xs text-amber-700">Transcribiendo audio...</p>
-          ) : isTranscriptionFailed ? (
+          ) : isTranscriptionFailed || isTranscriptionTimedOut ? (
             <p className="text-xs text-red-700">No se pudo transcribir el audio</p>
           ) : (
             <p className="text-xs text-gray-600">Transcripción no disponible</p>
@@ -141,7 +147,7 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
       {error ? (
         <p className="mt-1 text-[11px] text-red-600">No se pudo consultar el estado de transcripcion.</p>
       ) : null}
-      {loading ? (
+      {loading && !isTranscriptionTimedOut ? (
         <p className="mt-1 text-[11px] text-amber-700">Cargando estado de transcripcion...</p>
       ) : null}
     </div>
