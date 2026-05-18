@@ -1,6 +1,7 @@
-﻿import Table from '@/components/ui/Table';
-import Button from '@/components/ui/Button';
-import { KeyRound, Pencil, Power, Trash } from 'lucide-react';
+import { KeyRound, Pencil, Power, Trash2 } from 'lucide-react';
+import Badge from '@/components/ui/Badge';
+import IconButton from '@/components/ui/IconButton';
+import Table from '@/components/ui/Table';
 import type { User } from '@/types/access';
 
 interface Props {
@@ -31,6 +32,15 @@ function resolveRoleLabel(user: User): string {
   return raw;
 }
 
+function initialsOf(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
 export default function UsersTable({
   users,
   isDeletingId,
@@ -43,7 +53,7 @@ export default function UsersTable({
 }: Props) {
   return (
     <Table
-      headers={['Nombre', 'Email', 'Rol', 'Estado', 'Ultimo acceso', 'Fecha creacion', 'Acciones']}
+      headers={['Usuario', 'Rol', 'Estado', 'Ultimo acceso', 'Creacion', '']}
       hasRows={users.length > 0}
       emptyMessage="No hay usuarios creados todavia."
     >
@@ -53,59 +63,64 @@ export default function UsersTable({
 
         return (
           <tr key={user.id}>
-            <td className="px-4 py-3 text-sm font-medium text-slate-900">{user.name}</td>
-            <td className="px-4 py-3 text-sm text-slate-700">{user.email}</td>
-            <td className="px-4 py-3 text-sm text-slate-700">
-              <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                {resolveRoleLabel(user)}
-              </span>
+            <td className="px-4 py-3 text-sm">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">
+                  {initialsOf(user.name) || 'U'}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-slate-900">{user.name}</p>
+                  <p className="truncate text-xs text-slate-500">{user.email}</p>
+                </div>
+              </div>
+            </td>
+            <td className="px-4 py-3 text-sm">
+              <Badge tone="info" label={resolveRoleLabel(user)} variant="soft" />
             </td>
             <td className="px-4 py-3">
-              <span
-                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
-                }`}
-              >
-                {statusLabel(user)}
-              </span>
+              <Badge
+                tone={isActive ? 'success' : 'neutral'}
+                label={statusLabel(user)}
+                variant="dot"
+              />
             </td>
-            <td className="px-4 py-3 text-sm text-slate-700">{formatDate(user.last_login_at ?? user.last_access_at)}</td>
-            <td className="px-4 py-3 text-sm text-slate-700">{formatDate(user.created_at)}</td>
+            <td className="px-4 py-3 text-sm text-slate-600">
+              {formatDate(user.last_login_at ?? user.last_access_at)}
+            </td>
+            <td className="px-4 py-3 text-sm text-slate-600">{formatDate(user.created_at)}</td>
             <td className="px-4 py-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" className="p-2" onClick={() => onEdit(user)} title="Editar" aria-label="Editar">
-                  <Pencil size={16} />
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="p-2"
+              <div className="flex items-center justify-end gap-1.5">
+                <IconButton
+                  icon={<Pencil />}
+                  label="Editar"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onEdit(user)}
+                />
+                <IconButton
+                  icon={<Power />}
+                  label={isActive ? 'Desactivar' : 'Activar'}
+                  size="sm"
+                  variant="ghost"
                   onClick={() => onToggleStatus(user)}
                   disabled={isBusy}
-                  title={isActive ? 'Desactivar' : 'Activar'}
-                  aria-label={isActive ? 'Desactivar' : 'Activar'}
-                >
-                  <Power size={16} />
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="p-2"
+                />
+                <IconButton
+                  icon={<KeyRound />}
+                  label="Resetear contrasena"
+                  size="sm"
+                  variant="ghost"
                   onClick={() => onResetPassword(user)}
                   disabled={isBusy}
-                  title="Resetear contrasena"
-                  aria-label="Resetear contrasena"
-                >
-                  <KeyRound size={16} />
-                </Button>
-                <Button
+                />
+                <IconButton
+                  icon={<Trash2 />}
+                  label="Eliminar"
+                  size="sm"
                   variant="danger"
-                  className="p-2"
                   onClick={() => onDelete(user)}
                   disabled={isBusy}
-                  title="Eliminar"
-                  aria-label="Eliminar"
-                >
-                  <Trash size={16} />
-                </Button>
+                />
               </div>
             </td>
           </tr>

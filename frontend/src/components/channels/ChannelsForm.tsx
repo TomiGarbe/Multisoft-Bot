@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
-import Checkbox from '@/components/ui/Checkbox';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import Select from '@/components/ui/Select';
 import { CHANNEL_TYPE_DEFINITIONS, CHANNEL_TYPE_LABELS, type ChannelType } from '@/components/channels/channelFormConfig';
 import {
   buildExternalId,
@@ -33,7 +33,6 @@ interface FormState {
   name: string;
   webhook_url: string;
   phone: string;
-  is_active: boolean;
 }
 
 const DEFAULT_TYPE: ChannelType = 'whatsapp';
@@ -45,7 +44,6 @@ const initialForm: FormState = {
   name: '',
   webhook_url: '',
   phone: '',
-  is_active: true,
 };
 
 export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: ChannelsFormProps) {
@@ -98,7 +96,6 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
         name: channel.name,
         webhook_url: webhookUrl,
         phone: channelType === 'whatsapp' ? channel.external_id : '',
-        is_active: channel.is_active,
       });
       setExistingExternalId(channel.external_id);
     } else {
@@ -170,7 +167,6 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
           name: form.name.trim(),
           external_id,
           config,
-          is_active: form.is_active,
         };
 
         await updateChannel(channel.id, payload);
@@ -182,7 +178,7 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
           name: form.name.trim(),
           external_id,
           config,
-          is_active: form.is_active,
+          is_active: true,
         };
 
         await createChannel(payload);
@@ -218,26 +214,16 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
       <form id="channel-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
 
-        <div className="space-y-1.5">
-          <label htmlFor="channel-tenant" className="block text-sm font-medium text-slate-700">
-            Negocio
-          </label>
-          <select
-            id="channel-tenant"
-            value={form.tenant_id}
-            onChange={(event) => setForm((prev) => ({ ...prev, tenant_id: event.target.value }))}
-            disabled={isSaving || isEditing || isLoadingTenants}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-            required
-          >
-            <option value="">{isLoadingTenants ? 'Cargando negocios...' : 'Selecciona un negocio'}</option>
-            {tenants.map((tenant) => (
-              <option key={tenant.id} value={tenant.id}>
-                {tenant.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Negocio"
+          id="channel-tenant"
+          value={form.tenant_id}
+          onChange={(event) => setForm((prev) => ({ ...prev, tenant_id: event.target.value }))}
+          disabled={isSaving || isEditing || isLoadingTenants}
+          placeholder={isLoadingTenants ? 'Cargando negocios...' : 'Selecciona un negocio'}
+          options={tenants.map((tenant) => ({ value: tenant.id, label: tenant.name }))}
+          required
+        />
 
         <Input
           label="Nombre del canal"
@@ -248,44 +234,24 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
           disabled={isSaving}
         />
 
-        <div className="space-y-1.5">
-          <label htmlFor="channel-type" className="block text-sm font-medium text-slate-700">
-            Tipo
-          </label>
-          <select
-            id="channel-type"
-            value={form.type}
-            onChange={(event) => setForm((prev) => ({ ...prev, type: event.target.value as ChannelType }))}
-            disabled={isSaving || isEditing}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-          >
-            {CHANNEL_TYPE_DEFINITIONS.map((typeOption) => (
-              <option key={typeOption.value} value={typeOption.value}>
-                {CHANNEL_TYPE_LABELS[typeOption.value]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Tipo"
+          id="channel-type"
+          value={form.type}
+          onChange={(event) => setForm((prev) => ({ ...prev, type: event.target.value as ChannelType }))}
+          disabled={isSaving || isEditing}
+          options={CHANNEL_TYPE_DEFINITIONS.map((typeOption) => ({ value: typeOption.value, label: CHANNEL_TYPE_LABELS[typeOption.value] }))}
+        />
 
-        <div className="space-y-1.5">
-          <label htmlFor="channel-provider" className="block text-sm font-medium text-slate-700">
-            Provider
-          </label>
-          <select
-            id="channel-provider"
-            value={form.provider}
-            onChange={(event) => setForm((prev) => ({ ...prev, provider: event.target.value }))}
-            disabled={isSaving}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-            required
-          >
-            {providerOptions.map((provider) => (
-              <option key={provider.value} value={provider.value}>
-                {provider.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Provider"
+          id="channel-provider"
+          value={form.provider}
+          onChange={(event) => setForm((prev) => ({ ...prev, provider: event.target.value }))}
+          disabled={isSaving}
+          options={providerOptions.map((provider) => ({ value: provider.value, label: provider.label }))}
+          required
+        />
 
         {dynamicFields.map((field) => {
           if (field.key === 'phone') {
@@ -314,17 +280,7 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
           type="url"
           disabled={isSaving}
         />
-
-        <Checkbox
-          label="Canal activo"
-          description="Si esta inactivo, no recibira ni enviara mensajes."
-          checked={form.is_active}
-          onChange={(event) => setForm((prev) => ({ ...prev, is_active: event.target.checked }))}
-          disabled={isSaving}
-        />
       </form>
     </Modal>
   );
 }
-
-

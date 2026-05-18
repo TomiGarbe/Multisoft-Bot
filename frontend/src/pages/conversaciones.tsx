@@ -28,14 +28,20 @@ export default function ConversationsPage() {
     configStatusByConversation,
     search,
     selectedChannel,
-    selectedStatus,
+    selectedMode,
+    selectedUserTypes,
     channelOptions,
+    userTypeOptions,
+    userTypeMap,
+    selectedConversationUserTypes,
     stats,
     setSearch,
     setSelectedChannel,
-    setSelectedStatus,
+    setSelectedMode,
+    setSelectedUserTypes,
     clearFilters,
     resolveConversationChannel,
+    updateContactCurrentType,
   } = useConversations();
 
   const selectedConversationStatus = selectedConversation?.activeConversationId
@@ -84,9 +90,13 @@ export default function ConversationsPage() {
               onSearchChange={setSearch}
               selectedChannel={selectedChannel}
               onChannelChange={setSelectedChannel}
-              selectedStatus={selectedStatus}
-              onStatusChange={setSelectedStatus}
+              selectedMode={selectedMode}
+              onModeChange={setSelectedMode}
+              selectedUserTypes={selectedUserTypes}
+              onUserTypesChange={setSelectedUserTypes}
               channelOptions={channelOptions}
+              userTypeOptions={userTypeOptions}
+              userTypeMap={userTypeMap}
               onClearFilters={clearFilters}
               getChannelMeta={resolveConversationChannel}
               loading={loadingConversations}
@@ -109,6 +119,9 @@ export default function ConversationsPage() {
               aiUnavailable={isAiUnavailable}
               aiUnavailableReason={aiUnavailableReason}
               channelMeta={selectedConversation ? resolveConversationChannel(selectedConversation) : undefined}
+              userTypeOptions={selectedConversationUserTypes}
+              userTypeMap={userTypeMap}
+              onContactTypeChange={updateContactCurrentType}
               onOpenConfig={() => {
                 const openConfig = async () => {
                   try {

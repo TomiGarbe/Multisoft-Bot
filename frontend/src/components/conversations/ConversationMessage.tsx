@@ -16,48 +16,42 @@ function formatTime(isoString: string): string {
   });
 }
 
-
 export default function ConversationMessage({ message, grouped = false, onRetry }: Props) {
   const isInbound = message.direction === 'inbound';
   const isPending = message.status === 'pending';
   const isError = message.status === 'error';
   const attachments = useMemo(() => message.attachments ?? [], [message.attachments]);
-  console.warn('[MESSAGE_RENDER]', {
-    messageId: message.id,
-    direction: message.direction,
-    messageType: message.messageType,
-    hasMedia: message.hasMedia,
-    contentChars: (message.content || '').length,
-    attachmentsCount: attachments.length,
-  });
-  console.warn('[MESSAGE_PAYLOAD]', message);
 
   return (
-    <div className={`flex flex-col ${isInbound ? 'items-start' : 'items-end'} ${grouped ? 'mt-0.5' : 'mt-3'}`}>
-      <div className="flex max-w-[70%] flex-col gap-1">
+    <div
+      className={`flex flex-col ${isInbound ? 'items-start' : 'items-end'} ${
+        grouped ? 'mt-1' : 'mt-4'
+      }`}
+    >
+      <div className="flex max-w-[75%] flex-col gap-1">
         {message.content && (
           <div
-            className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed transition-opacity ${
+            className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm transition-opacity ${
               isPending ? 'opacity-60' : 'opacity-100'
             } ${
               isError
-                ? 'rounded-tr-sm border border-red-200 bg-red-50 text-gray-900 shadow-sm'
+                ? 'rounded-tr-md border border-rose-200 bg-rose-50 text-slate-900'
                 : isInbound
-                ? 'rounded-tl-sm border border-gray-100 bg-white text-gray-900 shadow-sm'
-                : 'rounded-tr-sm bg-blue-500 text-white'
+                  ? 'rounded-tl-md border border-slate-200 bg-white text-slate-900'
+                  : 'rounded-tr-md bg-sky-600 text-white'
             }`}
           >
             <p className="break-words whitespace-pre-wrap">{message.content}</p>
             <span
               className={`mt-1 flex select-none items-center justify-end gap-1 text-[10px] ${
-                isInbound ? 'text-gray-400' : isError ? 'text-red-400' : 'text-blue-200'
+                isInbound ? 'text-slate-400' : isError ? 'text-rose-400' : 'text-sky-100'
               }`}
             >
               {formatTime(message.createdAt)}
               {isPending && (
                 <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" />
               )}
-              {isError && <AlertCircle className="h-3 w-3 text-red-400" />}
+              {isError && <AlertCircle className="h-3 w-3 text-rose-400" />}
             </span>
           </div>
         )}
@@ -69,7 +63,7 @@ export default function ConversationMessage({ message, grouped = false, onRetry 
         {isError && onRetry && (
           <button
             onClick={() => onRetry(message.id)}
-            className="self-end text-[11px] text-red-500 transition-colors hover:text-red-700"
+            className="self-end text-[11px] text-rose-600 transition-colors hover:text-rose-700"
           >
             <span className="inline-flex items-center gap-1">
               <RotateCcw className="h-3 w-3" />
@@ -79,7 +73,7 @@ export default function ConversationMessage({ message, grouped = false, onRetry 
         )}
 
         {!message.content && attachments.length === 0 && (
-          <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
             <Play className="h-3.5 w-3.5" />
             Mensaje sin contenido
           </div>

@@ -1,5 +1,8 @@
+import { AlertCircle, Lock, LogIn, Mail } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import { getToken, login } from '@/services/auth';
 
 export default function LoginPage() {
@@ -33,58 +36,76 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
-        <div className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mb-8 text-center">
-            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-600 text-xl font-bold text-white">
+    <div className="relative min-h-screen overflow-hidden bg-slate-50">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sky-50 via-white to-slate-100"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-sky-200/40 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-32 -bottom-32 h-96 w-96 rounded-full bg-indigo-200/40 blur-3xl"
+      />
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-4 py-8 sm:px-6">
+        <div className="animate-modal w-full overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-8 shadow-xl ring-1 ring-black/5 backdrop-blur-sm">
+          <div className="mb-7 text-center">
+            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-sky-700 text-xl font-bold text-white shadow-lg shadow-sky-200">
               M
             </span>
-            <h1 className="mt-4 text-2xl font-bold text-slate-900">Acceso</h1>
+            <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">Bienvenido</h1>
             <p className="mt-1 text-sm text-slate-500">Ingresa a la plataforma de gestion.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <label htmlFor="email" className="text-sm font-medium text-slate-700">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@empresa.com"
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                required
-              />
-            </div>
+            <Input
+              label="Email"
+              id="login-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@empresa.com"
+              leadingIcon={<Mail />}
+              autoComplete="email"
+              required
+            />
 
-            <div className="space-y-1">
-              <label htmlFor="password" className="text-sm font-medium text-slate-700">
-                Contrasena
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="********"
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
-                required
-              />
-            </div>
+            <Input
+              label="Contrasena"
+              id="login-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="********"
+              leadingIcon={<Lock />}
+              autoComplete="current-password"
+              required
+            />
 
-            {!!error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+            {error ? (
+              <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : null}
 
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+              loading={loading}
+              leadingIcon={<LogIn />}
+              className="w-full"
+              size="lg"
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
-            </button>
+            </Button>
           </form>
+
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Multisoft Bot - Plataforma de gestion
+          </p>
         </div>
       </div>
     </div>

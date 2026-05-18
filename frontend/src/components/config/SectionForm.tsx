@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import IconButton from '@/components/ui/IconButton';
+import Input from '@/components/ui/Input';
+import Textarea from '@/components/ui/Textarea';
 import type { BotConfigArrayItem, BotConfigObject, BotConfigSection } from '@/hooks/useBotConfig';
 
 interface SectionFormProps {
@@ -9,9 +13,7 @@ interface SectionFormProps {
 }
 
 function toLabel(value: string): string {
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function parsePrimitive(input: string): string | number | boolean | null {
@@ -67,23 +69,19 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
     return (
       <div className="space-y-3">
         {Object.entries(objectValue).map(([key, fieldValue]) => (
-          <div key={key} className="flex items-center gap-2">
-            <input
-              value={key}
-              disabled
-              className="w-1/3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
-            />
-            <input
+          <div key={key} className="grid grid-cols-[140px_1fr_auto] items-start gap-2">
+            <Input value={key} disabled />
+            <Input
               value={fieldValue === null ? 'null' : String(fieldValue)}
               onChange={(event) => {
                 const nextValue = parsePrimitive(event.target.value);
                 setDraft((prev) => ({ ...(prev as BotConfigObject), [key]: nextValue }));
               }}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400"
             />
-            <Button
-              variant="ghost"
-              type="button"
+            <IconButton
+              icon={<Trash2 />}
+              label="Eliminar"
+              variant="danger"
               onClick={() => {
                 setDraft((prev) => {
                   const next = { ...(prev as BotConfigObject) };
@@ -91,22 +89,20 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
                   return next;
                 });
               }}
-            >
-              Eliminar
-            </Button>
+            />
           </div>
         ))}
 
-        <div className="flex items-center gap-2">
-          <input
+        <div className="grid grid-cols-[1fr_auto] items-end gap-2 pt-1">
+          <Input
             placeholder="Nuevo campo"
             value={newFieldKey}
             onChange={(event) => setNewFieldKey(event.target.value)}
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400"
           />
           <Button
-            variant="secondary"
             type="button"
+            variant="secondary"
+            leadingIcon={<Plus />}
             onClick={() => {
               const normalized = newFieldKey.trim();
               if (!normalized) return;
@@ -134,10 +130,11 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
           const isObjectItem = item !== null && typeof item === 'object' && !Array.isArray(item);
 
           return (
-            <div key={`${sectionKey}-${index}`} className="rounded-lg border border-slate-200 p-3">
+            <div key={`${sectionKey}-${index}`} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/40 p-3">
               {isObjectItem ? (
-                <textarea
+                <Textarea
                   rows={4}
+                  className="font-mono"
                   value={JSON.stringify(item, null, 2)}
                   onChange={(event) => {
                     try {
@@ -152,10 +149,9 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
                       setError('JSON invalido en un elemento de la lista.');
                     }
                   }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400"
                 />
               ) : (
-                <input
+                <Input
                   value={item === null ? 'null' : String(item)}
                   onChange={(event) => {
                     const nextValue = parsePrimitive(event.target.value);
@@ -165,14 +161,15 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
                       return next;
                     });
                   }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400"
                 />
               )}
 
-              <div className="mt-2 flex justify-end">
+              <div className="flex justify-end">
                 <Button
                   variant="ghost"
+                  size="sm"
                   type="button"
+                  leadingIcon={<Trash2 />}
                   onClick={() => {
                     setDraft((prev) => (prev as BotConfigArrayItem[]).filter((_, itemIndex) => itemIndex !== index));
                   }}
@@ -187,6 +184,7 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
         <Button
           variant="secondary"
           type="button"
+          leadingIcon={<Plus />}
           onClick={() => {
             setDraft((prev) => [...(prev as BotConfigArrayItem[]), '']);
           }}
@@ -210,10 +208,14 @@ export default function SectionForm({ sectionKey, value, onSave }: SectionFormPr
 
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
-      <div className="flex items-center justify-end gap-2">
-        {saved ? <span className="text-xs font-medium text-emerald-600">Guardado</span> : null}
-        <Button type="button" onClick={handleSave} disabled={saving || !isDirty}>
-          {saving ? 'Guardando...' : 'Guardar seccion'}
+      <div className="flex items-center justify-end gap-3">
+        {saved ? (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Guardado
+          </span>
+        ) : null}
+        <Button type="button" onClick={handleSave} loading={saving} disabled={!isDirty}>
+          Guardar seccion
         </Button>
       </div>
     </article>

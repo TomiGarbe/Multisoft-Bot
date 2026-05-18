@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Select from '@/components/ui/Select';
 
 export interface ChannelSelectorOption {
   value: string;
@@ -25,21 +26,15 @@ export default function ChannelSelector({
   className = '',
 }: ChannelSelectorProps) {
   return (
-    <div className={`space-y-1.5 ${className}`.trim()}>
-      {label ? <label className="block text-sm font-medium text-slate-700">{label}</label> : null}
-      <select
+    <div className={className}>
+      <Select
+        label={typeof label === 'string' ? label : undefined}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {!options.length ? <option value="">{placeholder}</option> : null}
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        options={options}
+        placeholder={!options.length ? placeholder : undefined}
+      />
     </div>
   );
 }

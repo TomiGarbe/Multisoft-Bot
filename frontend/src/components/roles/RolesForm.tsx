@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import PermissionSelector from '@/components/permissions/PermissionSelector';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import Textarea from '@/components/ui/Textarea';
+import FormSection from '@/components/ui/FormSection';
 import { getApiErrorMessage } from '@/services/api';
 import { createRole, updateRole } from '@/services/roles';
 import type { Role } from '@/types/access';
@@ -127,42 +130,32 @@ export default function RolesForm({ open, onClose, role, onSuccess }: RolesFormP
           label="Nombre"
           value={form.name}
           onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-          placeholder="Manager"
+          placeholder="Supervisor"
           required
           disabled={isSaving}
         />
 
-        <div className="space-y-1.5">
-          <label htmlFor="role-description" className="block text-sm font-medium text-slate-700">
-            Descripcion
-          </label>
-          <textarea
-            id="role-description"
-            value={form.description}
-            onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-            placeholder="Describe lo que este rol puede hacer"
-            rows={3}
-            disabled={isSaving}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-          />
-        </div>
+        <Textarea
+          id="role-description"
+          label="Descripcion"
+          value={form.description}
+          onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+          placeholder="Describe lo que este rol puede hacer"
+          rows={3}
+          disabled={isSaving}
+        />
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-800">Permisos</h3>
-            <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
-              {form.permissions.length} seleccionados
-            </span>
+        <FormSection title="Permisos" description="Define permisos por categoria funcional.">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm text-slate-600">Seleccionados</span>
+            <Badge label={`${form.permissions.length}`} tone="info" />
           </div>
-
-          <p className="text-xs text-slate-500">Selecciona permisos por grupo o individualmente.</p>
-
           <PermissionSelector
             value={form.permissions}
             onChange={(permissionIds) => setForm((prev) => ({ ...prev, permissions: normalizeIds(permissionIds) }))}
             disabled={isSaving}
           />
-        </div>
+        </FormSection>
       </form>
     </Modal>
   );

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.auth import TenantUser
 from app.models.config import ChannelBotConfig
-from app.models.conversation import Conversation, ChatThread
+from app.models.conversation import Conversation, ChatThread, Message
 from app.models.contact import Contact
 from app.models.metrics import ContactUsage
 from app.repositories.base_repository import BaseRepository
@@ -50,6 +50,33 @@ class ConversationRepository(BaseRepository):
             select(Contact)
             .join(ContactUsage, ContactUsage.contact_id == Contact.id)
             .where(ContactUsage.conversation_id == conversation_id)
+        )
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_contact_by_id_and_tenant(self, contact_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[Contact]:
+        stmt = select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_latest_message_for_conversation(self, conversation_id: uuid.UUID) -> Optional[Message]:
+        stmt = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_latest_channel_id_for_contact(self, contact_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[uuid.UUID]:
+        stmt = (
+            select(ChatThread.channel_id)
+            .join(Conversation, Conversation.chat_thread_id == ChatThread.id)
+            .join(ContactUsage, ContactUsage.conversation_id == Conversation.id)
+            .where(
+                ContactUsage.contact_id == contact_id,
+                Conversation.tenant_id == tenant_id,
+            )
+            .order_by(Conversation.last_message_at.desc(), Conversation.started_at.desc())
+            .limit(1)
         )
         return self.db.execute(stmt).scalar_one_or_none()
 

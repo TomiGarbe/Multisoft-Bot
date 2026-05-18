@@ -10,10 +10,6 @@ interface Props {
 }
 
 export default function ConversationMessages({ messages, loading = false, onRetry }: Props) {
-  console.warn('[PIPELINE][FRONTEND_RENDER]', {
-    messages: messages.length,
-    loading,
-  });
   const bottomRef = useRef<HTMLDivElement>(null);
   const previousCountRef = useRef(0);
 
@@ -26,16 +22,18 @@ export default function ConversationMessages({ messages, loading = false, onRetr
   }, [messages]);
 
   return (
-    <div className="h-full px-4 py-4">
+    <div className="h-full px-4 pb-6 pt-4 md:px-6">
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
-          <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+        <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500" />
           <p className="text-sm">Cargando mensajes...</p>
         </div>
       ) : messages.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
-          <MessageSquare className="w-8 h-8 opacity-30" />
-          <p className="text-sm">No hay mensajes aun</p>
+        <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-300 ring-1 ring-slate-200">
+            <MessageSquare className="h-5 w-5" />
+          </span>
+          <p className="text-sm font-medium text-slate-500">No hay mensajes aun</p>
         </div>
       ) : (
         <>
@@ -48,15 +46,17 @@ export default function ConversationMessages({ messages, loading = false, onRetr
             return (
               <div key={msg.id}>
                 {showBoundary && (
-                  <div className="my-4 rounded-md border border-slate-200 bg-white px-3 py-2 text-center">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Nueva conversacion {msg.conversationType ? `(${msg.conversationType})` : ''}
-                    </p>
-                    {msg.conversationStartedAt && (
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {new Date(msg.conversationStartedAt).toLocaleString('es-AR')}
+                  <div className="my-5 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <div className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        Nueva conversacion{msg.conversationType ? ` · ${msg.conversationType}` : ''}
+                        {msg.conversationStartedAt
+                          ? ` · ${new Date(msg.conversationStartedAt).toLocaleString('es-AR')}`
+                          : ''}
                       </p>
-                    )}
+                    </div>
+                    <div className="h-px flex-1 bg-slate-200" />
                   </div>
                 )}
                 <ConversationMessage
@@ -69,7 +69,7 @@ export default function ConversationMessages({ messages, loading = false, onRetr
           })}
         </>
       )}
-      <div ref={bottomRef} />
+      <div ref={bottomRef} className="h-2" />
     </div>
   );
 }

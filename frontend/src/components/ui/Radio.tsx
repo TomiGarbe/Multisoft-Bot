@@ -1,70 +1,38 @@
 'use client';
 
-import { Check, Minus } from 'lucide-react';
 import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 
-type CheckboxVariant = 'inline' | 'card';
+type RadioVariant = 'inline' | 'card';
 
-interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> {
+interface RadioProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> {
   label?: string;
   description?: string;
-  variant?: CheckboxVariant;
-  indeterminate?: boolean;
-  size?: 'sm' | 'md';
+  variant?: RadioVariant;
 }
 
-const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
-  {
-    label,
-    description,
-    variant = 'inline',
-    indeterminate = false,
-    size = 'md',
-    className = '',
-    id,
-    checked,
-    disabled,
-    ...props
-  },
+const Radio = forwardRef<HTMLInputElement, RadioProps>(function Radio(
+  { label, description, variant = 'inline', className = '', id, checked, disabled, ...props },
   ref,
 ) {
   const reactId = useId();
-  const inputId = id || `cb-${reactId}`;
-  const box = size === 'sm' ? 'h-4 w-4' : 'h-[18px] w-[18px]';
+  const inputId = id || `rd-${reactId}`;
 
   const visual = (
     <span
       aria-hidden
-      className={`relative inline-flex shrink-0 ${box} items-center justify-center rounded-md border transition-all duration-150 ${
-        checked || indeterminate
-          ? 'border-sky-600 bg-sky-600 text-white shadow-sm'
+      className={`relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-all duration-150 ${
+        checked
+          ? 'border-sky-600 bg-white shadow-sm'
           : 'border-slate-300 bg-white group-hover:border-slate-400'
       } ${disabled ? 'opacity-50' : ''} peer-focus-visible:ring-2 peer-focus-visible:ring-sky-200 peer-focus-visible:ring-offset-2`}
     >
-      {indeterminate ? (
-        <Minus className="h-3 w-3 animate-check" strokeWidth={3.5} />
-      ) : checked ? (
-        <Check className="h-3 w-3 animate-check" strokeWidth={3.5} />
-      ) : null}
+      <span
+        className={`block h-2 w-2 rounded-full transition-all duration-150 ${
+          checked ? 'scale-100 bg-sky-600' : 'scale-0 bg-transparent'
+        }`}
+      />
     </span>
   );
-
-  if (!label && variant === 'inline') {
-    return (
-      <span className={`group inline-flex items-center ${className}`.trim()}>
-        <input
-          ref={ref}
-          id={inputId}
-          type="checkbox"
-          className="peer sr-only"
-          checked={checked}
-          disabled={disabled}
-          {...props}
-        />
-        {visual}
-      </span>
-    );
-  }
 
   if (variant === 'card') {
     return (
@@ -77,7 +45,7 @@ const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
         <input
           ref={ref}
           id={inputId}
-          type="checkbox"
+          type="radio"
           className="peer sr-only"
           checked={checked}
           disabled={disabled}
@@ -85,9 +53,7 @@ const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
         />
         {visual}
         <span className="min-w-0 flex-1">
-          {label ? (
-            <span className="block text-sm font-medium text-slate-800">{label}</span>
-          ) : null}
+          {label ? <span className="block text-sm font-medium text-slate-800">{label}</span> : null}
           {description ? (
             <span className="mt-0.5 block text-xs text-slate-500">{description}</span>
           ) : null}
@@ -106,7 +72,7 @@ const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
       <input
         ref={ref}
         id={inputId}
-        type="checkbox"
+        type="radio"
         className="peer sr-only"
         checked={checked}
         disabled={disabled}
@@ -118,4 +84,4 @@ const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
   );
 });
 
-export default Checkbox;
+export default Radio;

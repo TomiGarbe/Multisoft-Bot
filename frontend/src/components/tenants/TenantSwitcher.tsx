@@ -1,8 +1,9 @@
 import { Building2 } from 'lucide-react';
 import { useTenantContext } from '@/context/tenant-context';
+import Select from '@/components/ui/Select';
 
 export default function TenantSwitcher() {
-  const { loading, error, tenants, activeTenantId, setTenant, activeTenant } = useTenantContext();
+  const { loading, error, tenants, activeTenantId, setTenant } = useTenantContext();
 
   if (loading) {
     return <span className="text-xs text-slate-500">Cargando tenant...</span>;
@@ -17,25 +18,14 @@ export default function TenantSwitcher() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <label className="sr-only" htmlFor="tenant-switcher">
-        Tenant activo
-      </label>
-      <div className="relative">
-        <Building2 className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-        <select
-          id="tenant-switcher"
-          value={activeTenantId ?? ''}
-          onChange={(event) => setTenant(event.target.value)}
-          className="h-9 min-w-[180px] appearance-none rounded-md border border-slate-200 bg-white pl-8 pr-8 text-sm text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
-        >
-          {tenants.map((tenant) => (
-            <option key={tenant.id} value={tenant.id}>
-              {tenant.name}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="w-full max-w-[260px] min-w-[180px]">
+      <Select
+        id="tenant-switcher"
+        value={activeTenantId ?? ''}
+        onChange={(event) => setTenant(event.target.value)}
+        options={tenants.map((tenant) => ({ value: tenant.id, label: tenant.name }))}
+        leadingIcon={<Building2 className="h-4 w-4" />}
+      />
     </div>
   );
 }

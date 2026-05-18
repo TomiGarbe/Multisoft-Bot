@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import Select from '@/components/ui/Select';
+import Switch from '@/components/ui/Switch';
+import Textarea from '@/components/ui/Textarea';
 import {
   createTenant,
   updateTenant,
@@ -30,12 +34,14 @@ export default function TenantsForm({
   onClose,
   onSaved,
 }: Props) {
+  const isEditing = Boolean(tenant);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [industry, setIndustry] = useState('');
   const [timezone, setTimezone] = useState(DEFAULT_TENANT_TIMEZONE);
   const [isActivo, setIsActivo] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [slugTouched, setSlugTouched] = useState(false);
@@ -58,33 +64,39 @@ export default function TenantsForm({
       setIsActivo(true);
       setSlugTouched(false);
     }
-  }, [tenant]);
+    setError(null);
+  }, [tenant, isOpen]);
 
-  // 🔥 Auto slug
   useEffect(() => {
     if (!slugTouched) {
       setSlug(generateSlug(name));
     }
   }, [name, slugTouched]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!timezone) {
-      alert('La zona horaria es obligatoria.');
+      setError('La zona horaria es obligatoria.');
       return;
     }
     if (!isAllowedTenantTimezone(timezone)) {
-      alert('Selecciona una zona horaria valida de la lista.');
+      setError('Selecciona una zona horaria valida de la lista.');
+      return;
+    }
+    if (!name.trim()) {
+      setError('El nombre es obligatorio.');
       return;
     }
 
     try {
       setIsSaving(true);
+      setError(null);
 
       const payload = {
-        name,
-        slug,
-        description,
-        industry,
+        name: name.trim(),
+        slug: slug.trim(),
+        description: description.trim(),
+        industry: industry.trim(),
         timezone,
         ...(tenant && { is_active: isActivo }),
       };
@@ -99,94 +111,97 @@ export default function TenantsForm({
 
       onClose();
     } catch (err) {
-      alert(getApiErrorMessage(err, 'Error al guardar el negocio'));
+      setError(getApiErrorMessage(err, 'Error al guardar el negocio'));
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Negocio">
-      <div className="space-y-4">
+    <Modal
+      isOpen={isOpen}
+      onClose={() => {
+        if (!isSaving) onClose();
+      }}
+      title={isEditing ? 'Editar negocio' : 'Crear negocio'}
+      description="Configura los datos basicos del tenant."
+      footer={
+        <div className="flex items-center justify-end gap-3">
+          <Button variant="secondary" type="button" onClick={onClose} disabled={isSaving}>
+            Cancelar
+          </Button>
+          <Button type="submit" form="tenant-form" loading={isSaving}>
+            {isEditing ? 'Guardar cambios' : 'Crear negocio'}
+          </Button>
+        </div>
+      }
+    >
+      <form id="tenant-form" className="space-y-5" onSubmit={handleSubmit}>
+        {error ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
 
-        {/* NAME */}
-        <input
-          className="w-full border p-2 rounded"
-          placeholder="Nombre"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        {/* SLUG */}
-        <input
-          className="w-full border p-2 rounded"
-          placeholder="Slug"
-          value={slug}
-          onChange={(e) => {
-            setSlug(generateSlug(e.target.value));
-            setSlugTouched(true);
-          }}
-        />
-
-        {/* DESCRIPTION */}
-        <textarea
-          className="w-full border p-2 rounded"
-          placeholder="Descripcion"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-
-        {/* INDUSTRY */}
-        <input
-          className="w-full border p-2 rounded"
-          placeholder="Industria"
-          value={industry}
-          onChange={(e) => setIndustry(e.target.value)}
-        />
-
-        {/* TIMEZONE */}
-        <div className="space-y-1">
-          <label htmlFor="tenant-timezone" className="block text-sm font-medium text-slate-700">
-            Zona horaria
-          </label>
-          <select
-            id="tenant-timezone"
-            className="w-full rounded border border-slate-300 bg-white p-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Input
+            label="Nombre"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Acme S.A."
             required
-          >
-            {TENANT_TIMEZONE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          />
+          <Input
+            label="Slug"
+            value={slug}
+            onChange={(e) => {
+              setSlug(generateSlug(e.target.value));
+              setSlugTouched(true);
+            }}
+            placeholder="acme"
+            hint="Identificador unico para URLs"
+          />
         </div>
 
-        {/* ACTIVE */}
-        {tenant && (
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
+        <Textarea
+          label="Descripcion"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Que hace este negocio"
+          rows={3}
+        />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Input
+            label="Industria"
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
+            placeholder="Retail, salud, fintech..."
+          />
+          <Select
+            label="Zona horaria"
+            id="tenant-timezone"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            options={TENANT_TIMEZONE_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+            required
+          />
+        </div>
+
+        {tenant ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+            <Switch
+              label="Negocio activo"
+              description="Si esta inactivo, los usuarios no pueden usarlo."
               checked={isActivo}
               onChange={(e) => setIsActivo(e.target.checked)}
             />
-            Activo
-          </label>
-        )}
-
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose} variant="secondary">
-            Cancelar
-          </Button>
-
-          <Button onClick={handleSubmit} disabled={isSaving}>
-            {isSaving ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </div>
-      </div>
+          </div>
+        ) : null}
+      </form>
     </Modal>
   );
 }
-

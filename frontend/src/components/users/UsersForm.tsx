@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
-import Checkbox from '@/components/ui/Checkbox';
+import FormSection from '@/components/ui/FormSection';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import PermissionSelector from '@/components/permissions/PermissionSelector';
+import Select from '@/components/ui/Select';
 import { getApiErrorMessage } from '@/services/api';
-import { getPermissions } from '@/services/permissions';
 import { getRoles } from '@/services/roles';
 import { createUser, updateUser } from '@/services/users';
-import type { Permission, Role, User } from '@/types/access';
+import type { Role, User } from '@/types/access';
 
 interface UsersFormProps {
   isOpen: boolean;
@@ -25,7 +26,6 @@ interface FormState {
   password: string;
   confirmPassword: string;
   roleId: string;
-  isActive: boolean;
 }
 
 const initialForm: FormState = {
@@ -35,10 +35,9 @@ const initialForm: FormState = {
   password: '',
   confirmPassword: '',
   roleId: '',
-  isActive: true,
 };
 
-const INTERNAL_ROLE_NAMES = ['super_admin', 'system_admin', 'tenant_owner', 'internal', 'backdoor', 'root'];
+const INTERNAL_ROLE_NAMES = ['super_admin', 'system_admin', 'tenant_owner', 'internal', 'backdoor', 'root', 'administrador', 'admin'];
 
 function normalizeText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, '_');
@@ -57,12 +56,8 @@ function isStrongPassword(value: string): boolean {
   return value.length >= 8 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value);
 }
 
-function roleUiLabel(role: Role): string {
-  const normalized = normalizeText(role.name);
-  if (normalized.includes('admin')) return 'Administrador';
-  if (normalized.includes('supervisor')) return 'Supervisor';
-  if (normalized.includes('operator') || normalized.includes('operador')) return 'Operador';
-  return role.name;
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormProps) {
@@ -70,10 +65,8 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
   const [form, setForm] = useState<FormState>(initialForm);
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [isLoadingMeta, setIsLoadingMeta] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [customizePermissions, setCustomizePermissions] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -89,18 +82,15 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
       password: '',
       confirmPassword: '',
       roleId: user?.role?.id ?? '',
-      isActive: user?.is_active ?? true,
     });
     setSelectedPermissions((user?.permissions ?? []).map((permission) => permission.id));
-    setCustomizePermissions(false);
     setError(null);
 
     const fetchMeta = async () => {
       try {
         setIsLoadingMeta(true);
-        const [roleList, permissionList] = await Promise.all([getRoles(), getPermissions()]);
+        const roleList = await getRoles();
         setRoles(roleList.filter((role) => !isInternalRole(role)));
-        setAllPermissions(permissionList);
       } catch (requestError) {
         setError(getApiErrorMessage(requestError, 'No se pudieron cargar roles y permisos.'));
       } finally {
@@ -113,23 +103,11 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
 
   const selectedRole = useMemo(() => roles.find((role) => role.id === form.roleId) ?? null, [form.roleId, roles]);
 
-  const rolePermissionIds = useMemo(
-    () => new Set((selectedRole?.permissions ?? []).map((permission) => permission.id)),
-    [selectedRole],
-  );
-
-  const visiblePermissions = useMemo(() => {
-    const merged = new Map<string, Permission>();
-    allPermissions.forEach((permission) => merged.set(permission.id, permission));
-    selectedRole?.permissions.forEach((permission) => merged.set(permission.id, permission));
-    return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [allPermissions, selectedRole]);
-
-  const togglePermission = (permissionId: string) => {
-    setSelectedPermissions((prev) =>
-      prev.includes(permissionId) ? prev.filter((id) => id !== permissionId) : [...prev, permissionId],
-    );
-  };
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!selectedRole) return;
+    setSelectedPermissions((prev) => unique([...selectedRole.permissions.map((permission) => permission.id), ...prev]));
+  }, [isOpen, selectedRole?.id]);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -165,22 +143,17 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
     setIsSaving(true);
 
     try {
-      const normalizedPermissions = Array.from(new Set(selectedPermissions));
-      const permissionsToSend = !customizePermissions
-        ? []
-        : form.roleId
-          ? normalizedPermissions.filter((permissionId) => !rolePermissionIds.has(permissionId))
-          : normalizedPermissions;
+      const permissionsToSend = unique(selectedPermissions);
 
       if (isEditing && user) {
         await updateUser(user.id, {
           name: fullName,
           email,
-          is_active: form.isActive,
           role_id: form.roleId || null,
           permissions: permissionsToSend,
           ...(password ? { password } : {}),
           is_backdoor: false,
+          is_active: true,
         });
         onSaved('Usuario actualizado correctamente.');
       } else {
@@ -188,10 +161,10 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
           name: fullName,
           email,
           password,
-          is_active: form.isActive,
           role_id: form.roleId || null,
           permissions: permissionsToSend,
           is_backdoor: false,
+          is_active: true,
           user_type: 'User',
         });
         onSaved('Usuario creado correctamente.');
@@ -276,61 +249,28 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="role-select" className="block text-sm font-medium text-slate-700">
-                Rol
-              </label>
-              <select
-                id="role-select"
-                value={form.roleId}
-                onChange={(event) => setForm((prev) => ({ ...prev, roleId: event.target.value }))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-              >
-                <option value="">Sin rol</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {roleUiLabel(role)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <Checkbox
-                label="Personalizar permisos"
-                description="Opcional: agrega permisos puntuales sobre el rol seleccionado."
-                checked={customizePermissions}
-                onChange={(event) => setCustomizePermissions(event.target.checked)}
-              />
-
-              {customizePermissions ? (
-                <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
-                  {visiblePermissions.length === 0 ? (
-                    <p className="text-xs text-slate-500">No hay permisos disponibles.</p>
-                  ) : (
-                    visiblePermissions.map((permission) => (
-                      <Checkbox
-                        key={permission.id}
-                        label={permission.name}
-                        description={permission.code}
-                        checked={selectedPermissions.includes(permission.id)}
-                        onChange={() => togglePermission(permission.id)}
-                      />
-                    ))
-                  )}
-                </div>
-              ) : null}
-            </div>
-
-            <Checkbox
-              label="Usuario activo"
-              checked={form.isActive}
-              onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))}
+            <Select
+              label="Rol"
+              id="role-select"
+              value={form.roleId}
+              onChange={(event) => setForm((prev) => ({ ...prev, roleId: event.target.value }))}
+              options={roles.map((role) => ({ value: role.id, label: role.name }))}
+              placeholder="Sin rol"
             />
+
+            <FormSection
+              title="Permisos"
+              description={selectedRole ? `Permisos base heredados del rol: ${selectedRole.name}. Puedes sobrescribir por usuario.` : 'Selecciona permisos manuales para el usuario.'}
+            >
+              <PermissionSelector
+                value={selectedPermissions}
+                onChange={setSelectedPermissions}
+                disabled={isSaving}
+              />
+            </FormSection>
           </>
         )}
       </form>
     </Modal>
   );
 }
-

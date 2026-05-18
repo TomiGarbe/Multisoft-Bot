@@ -135,6 +135,7 @@ export interface Conversation {
   channelConfigId?: string;
   contactName: string;
   contactPhone?: string;
+  contactCurrentType?: string;
   status: 'open' | 'closed';
   mode: 'ai' | 'human';
   lastMessage?: string;
@@ -159,6 +160,12 @@ export interface Message {
   conversationType?: 'AI' | 'HUMAN' | string;
   conversationStatus?: string;
   isNewConversationBoundary?: boolean;
+}
+
+export interface UserTypeDefinition {
+  key: string;
+  label: string;
+  color: string;
 }
 
 export interface SendPayload {

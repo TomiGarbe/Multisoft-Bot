@@ -7,6 +7,7 @@ interface ApiConversation {
   contact_id: string;
   contact_name?: string | null;
   contact_phone?: string | null;
+  contact_current_type?: string | null;
   active_conversation_id?: string | null;
   active_conversation_status?: 'open' | 'closed' | null;
   active_conversation_mode?: 'ai' | 'human' | null;
@@ -16,6 +17,8 @@ interface ApiConversation {
   channel_provider?: string | null;
   channel_config_id?: string | null;
   last_message_at?: string | null;
+  last_message?: string | null;
+  unread_count?: number | null;
 }
 
 interface ApiMessage {
@@ -42,6 +45,7 @@ export interface SendMessagePayload {
 // ─── Mappers ───────────────────────────────────────────────────────────────────
 
 function mapConversation(raw: ApiConversation): Conversation {
+  const normalizedContactType = raw.contact_current_type === 'default' ? 'nuevo' : raw.contact_current_type;
   return {
     id: raw.contact_id,
     contactId: raw.contact_id,
@@ -55,9 +59,12 @@ function mapConversation(raw: ApiConversation): Conversation {
     // Use a neutral fallback to avoid exposing internal ids in UI.
     contactName: raw.contact_name ?? 'Contacto sin nombre',
     contactPhone: raw.contact_phone ?? undefined,
+    contactCurrentType: normalizedContactType ?? undefined,
     status: raw.active_conversation_status ?? 'closed',
     mode: raw.active_conversation_mode ?? 'ai',
+    lastMessage: raw.last_message ?? undefined,
     lastMessageAt: raw.last_message_at ?? undefined,
+    unreadCount: typeof raw.unread_count === 'number' ? raw.unread_count : 0,
   };
 }
 
@@ -104,5 +111,9 @@ export async function setConversationMode(
     { mode },
   );
   return data;
+}
+
+export async function setContactType(contactId: string, typeKey: string): Promise<void> {
+  await api.patch(`/conversations/contacts/${contactId}/type`, { type_key: typeKey });
 }
 

@@ -35,6 +35,7 @@ class ContactChatResponse(BaseModel):
     contact_id: uuid.UUID
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
+    contact_current_type: Optional[str] = None
     active_conversation_id: Optional[uuid.UUID] = None
     active_conversation_status: Optional[str] = None
     active_conversation_mode: Optional[Literal["ai", "human"]] = None
@@ -44,6 +45,7 @@ class ContactChatResponse(BaseModel):
     channel_provider: Optional[str] = None
     channel_config_id: Optional[uuid.UUID] = None
     last_message_at: Optional[datetime] = None
+    last_message: Optional[str] = None
     unread_count: int = 0
     conversations_count: int = 0
     messages_count: int = 0
@@ -56,3 +58,12 @@ class ConversationModeUpdateRequest(BaseModel):
 class ConversationModeUpdateResponse(BaseModel):
     id: str
     mode: Literal["ai", "human"]
+
+
+class ContactTypeUpdateRequest(BaseModel):
+    type_key: str
+
+
+class ContactTypeUpdateResponse(BaseModel):
+    contact_id: str
+    type_key: str

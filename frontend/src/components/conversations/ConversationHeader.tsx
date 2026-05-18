@@ -1,5 +1,7 @@
-import { Phone } from 'lucide-react';
-import { Conversation } from '@/types/chat';
+import { Bot, Phone, User } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import Select from '@/components/ui/Select';
+import { Conversation, UserTypeDefinition } from '@/types/chat';
 import type { ChannelMeta } from './channelMeta';
 
 interface Props {
@@ -10,6 +12,9 @@ interface Props {
   aiUnavailableReason?: string;
   onOpenConfig?: () => void;
   channelMeta: ChannelMeta;
+  userTypeOptions?: UserTypeDefinition[];
+  userTypeMap?: Record<string, UserTypeDefinition>;
+  onContactTypeChange?: (contactId: string, typeKey: string) => Promise<void>;
 }
 
 const AVATAR_COLORS = [
@@ -47,24 +52,51 @@ export default function ConversationHeader({
   aiUnavailableReason,
   onOpenConfig,
   channelMeta,
+  userTypeOptions = [],
+  userTypeMap = {},
+  onContactTypeChange,
 }: Props) {
   const initials = getInitials(conversation.contactName);
   const color = avatarColor(conversation.id);
 
-  const canClickToggle = !!onModeToggle && !isToggling && !(aiUnavailable && conversation.mode === 'human');
+  const canClickToggle =
+    !!onModeToggle && !isToggling && !(aiUnavailable && conversation.mode === 'human');
   const ChannelIcon = channelMeta.Icon;
+  const [updatingType, setUpdatingType] = useState(false);
+  const userTypeLabel = useMemo(() => {
+    const key = conversation.contactCurrentType ?? '';
+    return userTypeMap[key]?.label ?? key ?? 'Sin tipo';
+  }, [conversation.contactCurrentType, userTypeMap]);
+
+  const typeSelectOptions = useMemo(() => {
+    const base =
+      userTypeOptions.length > 0
+        ? userTypeOptions
+        : [{ key: '', label: 'Sin tipo', color: '#94a3b8' }];
+    return base.map((option) => ({
+      value: option.key,
+      label: option.label,
+      icon: (
+        <span
+          aria-hidden
+          className="h-3 w-3 rounded-full ring-2 ring-white shadow-sm"
+          style={{ backgroundColor: option.color }}
+        />
+      ),
+    }));
+  }, [userTypeOptions]);
 
   return (
-    <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3 border-b border-gray-200 bg-white shadow-sm">
+    <div className="flex min-h-[88px] flex-shrink-0 flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
       <div
-        className={`w-10 h-10 rounded-full ${color} flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 select-none`}
+        className={`flex h-10 w-10 flex-shrink-0 select-none items-center justify-center rounded-full text-sm font-semibold text-white ${color}`}
       >
         {initials}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="font-semibold text-gray-900 text-sm">{conversation.contactName}</h2>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold text-slate-900">{conversation.contactName}</h2>
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${channelMeta.badgeClassName}`}
           >
@@ -72,15 +104,15 @@ export default function ConversationHeader({
             {channelMeta.label}
           </span>
           <span
-            className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
               conversation.status === 'open'
-                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
-                : 'bg-gray-100 text-gray-500 ring-1 ring-gray-200'
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                : 'bg-slate-100 text-slate-500 ring-slate-200'
             }`}
           >
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                conversation.status === 'open' ? 'bg-emerald-500' : 'bg-gray-400'
+              className={`h-1.5 w-1.5 rounded-full ${
+                conversation.status === 'open' ? 'bg-emerald-500' : 'bg-slate-400'
               }`}
             />
             {conversation.status === 'open' ? 'Abierta' : 'Cerrada'}
@@ -88,45 +120,75 @@ export default function ConversationHeader({
         </div>
 
         {conversation.contactPhone && (
-          <div className="flex items-center gap-1 mt-0.5">
-            <Phone className="w-3 h-3 text-gray-400" />
-            <span className="text-xs text-gray-400">{conversation.contactPhone}</span>
+          <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
+            <Phone className="h-3 w-3" />
+            <span>{conversation.contactPhone}</span>
           </div>
         )}
       </div>
 
-      <button
-        onClick={
-          canClickToggle
-            ? () => onModeToggle?.(conversation.id, conversation.mode === 'ai' ? 'human' : 'ai')
-            : undefined
-        }
-        disabled={!canClickToggle}
-        title={onModeToggle ? 'Cambiar modo' : undefined}
-        aria-busy={isToggling ? true : undefined}
-        className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-opacity flex items-center gap-2 ${
-          aiUnavailable
-            ? 'bg-red-100 text-red-700'
-            : conversation.mode === 'ai'
-            ? 'bg-emerald-100 text-emerald-700'
-            : 'bg-blue-100 text-blue-700'
-        } ${canClickToggle ? 'cursor-pointer hover:opacity-75' : isToggling ? 'cursor-wait' : 'cursor-not-allowed opacity-90'}`}
-      >
-        <span
-          className={`h-2 w-2 rounded-full ${
-            aiUnavailable ? 'bg-red-600' : conversation.mode === 'ai' ? 'bg-emerald-600' : 'bg-gray-500'
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="w-44">
+          <Select
+            id={`contact-type-${conversation.id}`}
+            size="sm"
+            value={conversation.contactCurrentType ?? ''}
+            options={typeSelectOptions}
+            disabled={!onContactTypeChange || updatingType}
+            onChange={async (event) => {
+              if (!onContactTypeChange) return;
+              setUpdatingType(true);
+              try {
+                await onContactTypeChange(conversation.id, event.target.value);
+              } finally {
+                setUpdatingType(false);
+              }
+            }}
+            placeholder={userTypeLabel}
+          />
+        </div>
+
+        <button
+          onClick={
+            canClickToggle
+              ? () => onModeToggle?.(conversation.id, conversation.mode === 'ai' ? 'human' : 'ai')
+              : undefined
+          }
+          disabled={!canClickToggle}
+          title={onModeToggle ? 'Cambiar modo' : undefined}
+          aria-busy={isToggling ? true : undefined}
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all duration-150 ring-1 ring-inset ${
+            aiUnavailable
+              ? 'bg-rose-50 text-rose-700 ring-rose-200'
+              : conversation.mode === 'ai'
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                : 'bg-sky-50 text-sky-700 ring-sky-200'
+          } ${
+            canClickToggle
+              ? 'cursor-pointer hover:opacity-80 active:scale-95'
+              : isToggling
+                ? 'cursor-wait'
+                : 'cursor-not-allowed opacity-90'
           }`}
-        />
-        <span className="whitespace-nowrap">
-          {aiUnavailable ? 'IA no disponible' : conversation.mode === 'ai' ? 'IA activa' : 'Humano'}
-        </span>
-      </button>
+        >
+          {aiUnavailable ? (
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-600" />
+          ) : conversation.mode === 'ai' ? (
+            <Bot className="h-3 w-3" />
+          ) : (
+            <User className="h-3 w-3" />
+          )}
+          <span className="whitespace-nowrap">
+            {aiUnavailable ? 'IA no disponible' : conversation.mode === 'ai' ? 'IA activa' : 'Humano'}
+          </span>
+        </button>
+      </div>
 
       {aiUnavailable && (
         <button
           type="button"
           onClick={onOpenConfig}
-          className="text-xs text-red-700 underline underline-offset-2 hover:text-red-800"
+          className="basis-full text-xs text-rose-700 underline underline-offset-2 transition-colors hover:text-rose-800"
           title="Ir a configuracion"
         >
           {aiUnavailableReason ?? 'Completa la configuracion del bot para activar la IA'}

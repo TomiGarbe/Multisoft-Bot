@@ -1,8 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  BarChart3,
+  Cable,
+  KeyRound,
+  LayoutDashboard,
+  MessagesSquare,
+  Search,
+  ShieldCheck,
+  Sliders,
+  UserCog,
+  Users,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
-import Checkbox from '@/components/ui/Checkbox';
+import EmptyState from '@/components/ui/EmptyState';
+import Input from '@/components/ui/Input';
+import PermissionToggle from '@/components/ui/PermissionToggle';
 import { getApiErrorMessage } from '@/services/api';
 import { getPermissions } from '@/services/permissions';
 import type { Permission } from '@/types/access';
@@ -13,67 +28,123 @@ interface PermissionSelectorProps {
   disabled?: boolean;
 }
 
-const PERMISSION_GROUPS = ['users', 'roles', 'conversations', 'contacts', 'bot_config', 'channels', 'metrics', 'audit'] as const;
-type PermissionGroup = (typeof PERMISSION_GROUPS)[number] | 'other';
+interface PermissionCategory {
+  key: string;
+  title: string;
+  description?: string;
+  icon: ReactNode;
+  matchers: string[];
+}
 
-const PERMISSION_GROUP_LABELS: Record<PermissionGroup, string> = {
-  users: 'Usuarios',
-  roles: 'Roles',
-  conversations: 'Conversaciones',
-  contacts: 'Contactos',
-  bot_config: 'Configuracion del bot',
-  channels: 'Canales',
-  metrics: 'Metricas',
-  audit: 'Auditoria',
-  other: 'Otros',
+const HIDDEN_PERMISSION_PATTERNS = ['backdoor', 'tenant', 'tenants', 'admin permissions', 'ai test', 'realtime'];
+
+const CATEGORIES: PermissionCategory[] = [
+  {
+    key: 'dashboard',
+    title: 'Dashboard',
+    description: 'Metricas, analiticas y vistas generales.',
+    icon: <LayoutDashboard className="h-4 w-4" />,
+    matchers: ['analytics', 'metric', 'dashboard'],
+  },
+  {
+    key: 'general',
+    title: 'Configuracion general',
+    description: 'Ajustes globales, API keys y configuracion de bot.',
+    icon: <Sliders className="h-4 w-4" />,
+    matchers: ['config', 'api key', 'apikey', 'setting'],
+  },
+  {
+    key: 'integrations',
+    title: 'Integraciones',
+    description: 'Conexion con servicios externos y webhooks.',
+    icon: <Cable className="h-4 w-4" />,
+    matchers: ['integration', 'bot action', 'bot_action', 'webhook'],
+  },
+  {
+    key: 'conversations',
+    title: 'Conversaciones',
+    description: 'Mensajes, handoff y gestion de chats.',
+    icon: <MessagesSquare className="h-4 w-4" />,
+    matchers: ['conversation', 'message', 'handoff'],
+  },
+  {
+    key: 'users',
+    title: 'Usuarios',
+    description: 'Administracion de usuarios internos.',
+    icon: <Users className="h-4 w-4" />,
+    matchers: ['user'],
+  },
+  {
+    key: 'roles',
+    title: 'Roles y permisos',
+    description: 'Politicas de acceso y gestion de roles.',
+    icon: <ShieldCheck className="h-4 w-4" />,
+    matchers: ['role', 'permission'],
+  },
+];
+
+const CATEGORY_ACTION_ICONS: Record<string, ReactNode> = {
+  read: <BarChart3 className="h-4 w-4" />,
+  view: <BarChart3 className="h-4 w-4" />,
+  list: <BarChart3 className="h-4 w-4" />,
+  create: <Sliders className="h-4 w-4" />,
+  update: <UserCog className="h-4 w-4" />,
+  edit: <UserCog className="h-4 w-4" />,
+  delete: <KeyRound className="h-4 w-4" />,
+  manage: <ShieldCheck className="h-4 w-4" />,
 };
 
-function normalizePermissionCode(code: string): string {
-  return code.trim().toLowerCase();
+function normalize(value: string): string {
+  return value.trim().toLowerCase();
 }
 
-function isSystemAdminPermission(permission: Permission): boolean {
-  const code = normalizePermissionCode(permission.code);
-  return code === 'system.admin' || code === 'system_admin';
+function humanizePermission(permission: Permission): string {
+  const source = permission.name || permission.code;
+  const sanitized = source.replace(/[._]/g, ' ').replace(/\s+/g, ' ').trim();
+  return sanitized.charAt(0).toUpperCase() + sanitized.slice(1);
 }
 
-function getPermissionGroup(permissionCode: string): PermissionGroup {
-  const normalized = normalizePermissionCode(permissionCode);
-
-  for (const group of PERMISSION_GROUPS) {
-    if (normalized.startsWith(`${group}.`) || normalized.startsWith(`${group}_`)) {
-      return group;
-    }
-  }
-
-  return 'other';
+function resolvePermissionIcon(permission: Permission): ReactNode {
+  const haystack = `${normalize(permission.code)} ${normalize(permission.name)}`;
+  const found = Object.entries(CATEGORY_ACTION_ICONS).find(([key]) => haystack.includes(key));
+  return found ? found[1] : <ShieldCheck className="h-4 w-4" />;
 }
 
-function toUniqueIds(ids: string[]): string[] {
+function shouldHidePermission(permission: Permission): boolean {
+  const code = normalize(permission.code);
+  const name = normalize(permission.name);
+  const haystack = `${code} ${name}`;
+  const hiddenByPattern = HIDDEN_PERMISSION_PATTERNS.some((term) => haystack.includes(term));
+  const hiddenAdminUserCreate =
+    (haystack.includes('create') || haystack.includes('crear')) &&
+    (haystack.includes('admin') || haystack.includes('administrador')) &&
+    (haystack.includes('user') || haystack.includes('usuario'));
+
+  return hiddenByPattern || hiddenAdminUserCreate;
+}
+
+function findCategory(permission: Permission): string | null {
+  const haystack = `${normalize(permission.code)} ${normalize(permission.name)}`;
+  const category = CATEGORIES.find((item) => item.matchers.some((matcher) => haystack.includes(matcher)));
+  return category?.key ?? null;
+}
+
+function unique(ids: string[]): string[] {
   return Array.from(new Set(ids));
-}
-
-function haveSameMembers(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  const bSet = new Set(b);
-  return a.every((id) => bSet.has(id));
 }
 
 export default function PermissionSelector({ value, onChange, disabled = false }: PermissionSelectorProps) {
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previousNonSystemAdminPermissions, setPreviousNonSystemAdminPermissions] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
 
   const loadPermissions = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const permissionList = await getPermissions();
-      setAllPermissions(permissionList);
+      setAllPermissions(permissionList.filter((permission) => !shouldHidePermission(permission)));
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'No se pudieron cargar los permisos.'));
     } finally {
@@ -85,131 +156,67 @@ export default function PermissionSelector({ value, onChange, disabled = false }
     void loadPermissions();
   }, [loadPermissions]);
 
-  const allPermissionIds = useMemo(() => allPermissions.map((permission) => permission.id), [allPermissions]);
+  const normalizedValue = useMemo(() => unique(value), [value]);
+  const allowedIds = useMemo(() => new Set(allPermissions.map((permission) => permission.id)), [allPermissions]);
 
-  const systemAdminPermission = useMemo(
-    () => allPermissions.find((permission) => isSystemAdminPermission(permission)) ?? null,
-    [allPermissions],
-  );
+  useEffect(() => {
+    const filtered = normalizedValue.filter((id) => allowedIds.has(id));
+    if (filtered.length !== normalizedValue.length) {
+      onChange(filtered);
+    }
+  }, [allowedIds, normalizedValue, onChange]);
 
-  const normalizedValue = useMemo(() => toUniqueIds(value), [value]);
+  const categorizedPermissions = useMemo(() => {
+    const grouped = new Map<string, Permission[]>();
+    const q = search.trim().toLowerCase();
 
-  const isSystemAdminSelected = Boolean(
-    systemAdminPermission && normalizedValue.includes(systemAdminPermission.id),
-  );
-
-  const groupedPermissions = useMemo(() => {
-    const groupOrder: PermissionGroup[] = [...PERMISSION_GROUPS, 'other'];
-    const grouped = new Map<PermissionGroup, Permission[]>(groupOrder.map((group) => [group, [] as Permission[]]));
+    CATEGORIES.forEach((category) => grouped.set(category.key, []));
 
     allPermissions.forEach((permission) => {
-      if (isSystemAdminPermission(permission)) {
-        return;
+      const categoryKey = findCategory(permission);
+      if (!categoryKey) return;
+      if (q) {
+        const haystack = `${permission.code} ${permission.name}`.toLowerCase();
+        if (!haystack.includes(q)) return;
       }
-
-      const group = getPermissionGroup(permission.code);
-      grouped.get(group)?.push(permission);
+      grouped.get(categoryKey)?.push(permission);
     });
 
-    return groupOrder
-      .map((group) => ({
-        key: group,
-        label: PERMISSION_GROUP_LABELS[group],
-        permissions: (grouped.get(group) ?? []).sort((a, b) => a.code.localeCompare(b.code)),
-      }))
-      .filter((group) => group.permissions.length > 0);
-  }, [allPermissions]);
-
-  useEffect(() => {
-    if (allPermissionIds.length === 0) {
-      return;
-    }
-
-    const validIds = normalizedValue.filter((permissionId) => allPermissionIds.includes(permissionId));
-    if (!haveSameMembers(validIds, normalizedValue)) {
-      onChange(validIds);
-    }
-  }, [allPermissionIds, normalizedValue, onChange]);
-
-  useEffect(() => {
-    if (!isSystemAdminSelected || !systemAdminPermission) {
-      return;
-    }
-
-    const syncedValue = toUniqueIds([systemAdminPermission.id, ...allPermissionIds]);
-    if (!haveSameMembers(syncedValue, normalizedValue)) {
-      onChange(syncedValue);
-    }
-  }, [allPermissionIds, isSystemAdminSelected, normalizedValue, onChange, systemAdminPermission]);
-
-  useEffect(() => {
-    if (!systemAdminPermission || isSystemAdminSelected) {
-      return;
-    }
-
-    setPreviousNonSystemAdminPermissions(
-      normalizedValue.filter((permissionId) => permissionId !== systemAdminPermission.id),
-    );
-  }, [isSystemAdminSelected, normalizedValue, systemAdminPermission]);
+    return CATEGORIES.map((category) => ({
+      ...category,
+      permissions: (grouped.get(category.key) ?? []).sort((a, b) =>
+        humanizePermission(a).localeCompare(humanizePermission(b)),
+      ),
+    })).filter((category) => category.permissions.length > 0);
+  }, [allPermissions, search]);
 
   const togglePermission = (permissionId: string) => {
-    if (disabled) {
+    if (disabled) return;
+    if (normalizedValue.includes(permissionId)) {
+      onChange(normalizedValue.filter((id) => id !== permissionId));
       return;
     }
-
-    if (isSystemAdminSelected && permissionId !== systemAdminPermission?.id) {
-      return;
-    }
-
-    const updated = normalizedValue.includes(permissionId)
-      ? normalizedValue.filter((id) => id !== permissionId)
-      : [...normalizedValue, permissionId];
-
-    onChange(updated);
+    onChange([...normalizedValue, permissionId]);
   };
 
-  const toggleSystemAdmin = (checked: boolean) => {
-    if (disabled || !systemAdminPermission) {
-      return;
+  const toggleCategory = (categoryKey: string, permissions: Permission[], allSelected: boolean) => {
+    if (disabled) return;
+    const ids = permissions.map((permission) => permission.id);
+    if (allSelected) {
+      onChange(normalizedValue.filter((id) => !ids.includes(id)));
+    } else {
+      onChange(unique([...normalizedValue, ...ids]));
     }
-
-    if (checked) {
-      setPreviousNonSystemAdminPermissions(normalizedValue.filter((id) => id !== systemAdminPermission.id));
-      onChange(toUniqueIds([systemAdminPermission.id, ...allPermissionIds]));
-      return;
-    }
-
-    const restored = previousNonSystemAdminPermissions.filter(
-      (permissionId) => permissionId !== systemAdminPermission.id && allPermissionIds.includes(permissionId),
-    );
-    onChange(restored);
-  };
-
-  const togglePermissionGroup = (permissionIds: string[], checked: boolean) => {
-    if (disabled || isSystemAdminSelected) {
-      return;
-    }
-
-    if (checked) {
-      onChange(toUniqueIds([...normalizedValue, ...permissionIds]));
-      return;
-    }
-
-    const groupPermissionIdSet = new Set(permissionIds);
-    onChange(normalizedValue.filter((permissionId) => !groupPermissionIdSet.has(permissionId)));
+    void categoryKey;
   };
 
   if (isLoading) {
-    return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-8 text-center text-sm text-slate-500">
-        Cargando permisos...
-      </div>
-    );
+    return <EmptyState title="Cargando permisos..." description="Obteniendo catalogo de permisos del negocio." />;
   }
 
   if (error) {
     return (
-      <div className="space-y-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-3">
+      <div className="space-y-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
         <p className="text-sm text-rose-700">{error}</p>
         <Button type="button" variant="secondary" onClick={() => void loadPermissions()} disabled={disabled}>
           Reintentar
@@ -218,68 +225,90 @@ export default function PermissionSelector({ value, onChange, disabled = false }
     );
   }
 
+  if (allPermissions.length === 0) {
+    return (
+      <EmptyState
+        title="No hay permisos visibles"
+        description="No se encontraron permisos aptos para exponer en el frontend."
+      />
+    );
+  }
+
   return (
-    <div className="space-y-3">
-      {systemAdminPermission ? (
-        <Checkbox
-          label="Administrador del sistema"
-          description={`Acceso completo del tenant actual (${systemAdminPermission.code})`}
-          checked={isSystemAdminSelected}
-          onChange={(event) => toggleSystemAdmin(event.target.checked)}
-          disabled={disabled}
+    <div className="space-y-4">
+      <Input
+        id="permissions-search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Buscar permisos..."
+        leadingIcon={<Search />}
+      />
+
+      {categorizedPermissions.length === 0 ? (
+        <EmptyState
+          title="Sin resultados"
+          description="No hay permisos que coincidan con la busqueda."
+          compact
         />
-      ) : null}
+      ) : (
+        categorizedPermissions.map((category) => {
+          const selectedInCategory = category.permissions.filter((permission) =>
+            normalizedValue.includes(permission.id),
+          ).length;
+          const allSelected = selectedInCategory === category.permissions.length;
 
-      {isSystemAdminSelected ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Administrador del sistema activo. Se habilitan todos los permisos del tenant.
-        </div>
-      ) : null}
-
-      {!isSystemAdminSelected ? (
-        <div className="space-y-3">
-          {groupedPermissions.map((group) => {
-            const groupPermissionIds = group.permissions.map((permission) => permission.id);
-            const isGroupChecked =
-              groupPermissionIds.length > 0 &&
-              groupPermissionIds.every((permissionId) => normalizedValue.includes(permissionId));
-
-            return (
-              <div key={group.key} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                <div className="mb-3">
-                  <Checkbox
-                    label={group.label}
-                    description={`Seleccionar los ${group.permissions.length} permisos`}
-                    checked={isGroupChecked}
-                    onChange={(event) => togglePermissionGroup(groupPermissionIds, event.target.checked)}
-                    disabled={disabled}
+          return (
+            <section
+              key={category.key}
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+            >
+              <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-sky-600 ring-1 ring-inset ring-slate-200">
+                    {category.icon}
+                  </span>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold text-slate-900">{category.title}</h4>
+                    {category.description ? (
+                      <p className="text-xs text-slate-500">{category.description}</p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    tone={selectedInCategory > 0 ? 'info' : 'neutral'}
+                    label={`${selectedInCategory}/${category.permissions.length}`}
+                    variant="soft"
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={() => toggleCategory(category.key, category.permissions, allSelected)}
+                  >
+                    {allSelected ? 'Quitar todos' : 'Seleccionar todos'}
+                  </Button>
                 </div>
+              </header>
 
-                <div className="grid grid-cols-1 gap-3 pl-2 md:grid-cols-2">
-                  {group.permissions.map((permission) => (
-                    <Checkbox
-                      key={permission.id}
-                      label={permission.name}
-                      description={permission.code}
-                      checked={normalizedValue.includes(permission.id)}
-                      onChange={() => togglePermission(permission.id)}
-                      disabled={disabled}
-                    />
-                  ))}
-                </div>
+              <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-2">
+                {category.permissions.map((permission) => (
+                  <PermissionToggle
+                    key={permission.id}
+                    label={humanizePermission(permission)}
+                    description={permission.code}
+                    checked={normalizedValue.includes(permission.id)}
+                    onChange={() => togglePermission(permission.id)}
+                    disabled={disabled}
+                    icon={resolvePermissionIcon(permission)}
+                  />
+                ))}
               </div>
-            );
-          })}
-
-          {groupedPermissions.length === 0 ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              No hay permisos agrupados disponibles.
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+            </section>
+          );
+        })
+      )}
     </div>
   );
 }
-

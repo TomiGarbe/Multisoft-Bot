@@ -1,8 +1,9 @@
-import { Link2 } from 'lucide-react';
+import { Cable, Lock, Plus } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import IntegrationForm from '@/components/integrations/IntegrationForm';
 import IntegrationsTable from '@/components/integrations/IntegrationsTable';
 import Button from '@/components/ui/Button';
+import EmptyState from '@/components/ui/EmptyState';
 import PageHeader from '@/components/ui/PageHeader';
 import { ToastViewport, useToast } from '@/components/ui/toast';
 import { useIntegrations } from '@/hooks/useIntegrations';
@@ -40,37 +41,44 @@ export default function IntegracionesPage() {
       <ToastViewport toasts={toast.items} onClose={toast.remove} />
       <div className="space-y-6 p-6 md:p-8">
         <PageHeader
+          icon={<Cable className="h-6 w-6" />}
           title="Integraciones"
           description="Gestiona integraciones HTTP por tenant con auth, headers, body y pruebas seguras via backend."
           actions={
-            <Button onClick={openCreate} disabled={!canCreate}>
-              <Link2 className="mr-2 h-4 w-4" /> Nueva integracion
+            <Button leadingIcon={<Plus />} onClick={openCreate} disabled={!canCreate}>
+              Nueva integracion
             </Button>
           }
         />
 
         {!canRead ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            No tienes permiso bot_actions.read para ver integraciones.
+          <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>No tienes permiso bot_actions.read para ver integraciones.</span>
           </div>
         ) : null}
 
-        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+        {error ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
 
-        {canRead && (loading ? (
-          <div className="text-center text-sm text-slate-500">Cargando integraciones...</div>
-        ) : (
-          <IntegrationsTable
-            items={items}
-            workingId={workingId}
-            canUpdate={canUpdate}
-            canDelete={canDelete}
-            onEdit={openEdit}
-            onToggle={toggleEnabled}
-            onTest={openEdit}
-            onDelete={remove}
-          />
-        ))}
+        {canRead &&
+          (loading ? (
+            <EmptyState title="Cargando integraciones..." description="Obteniendo la lista." compact />
+          ) : (
+            <IntegrationsTable
+              items={items}
+              workingId={workingId}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+              onEdit={openEdit}
+              onToggle={toggleEnabled}
+              onTest={openEdit}
+              onDelete={remove}
+            />
+          ))}
       </div>
 
       <IntegrationForm

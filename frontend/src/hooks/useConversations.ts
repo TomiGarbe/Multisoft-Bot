@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Attachment, Conversation, Message, SendPayload } from '@/types/chat';
+import type { Attachment, Conversation, Message, SendPayload, UserTypeDefinition } from '@/types/chat';
 import {
   getConversations,
   getMessages,
+  setContactType,
   sendMessage,
   setConversationMode,
 } from '@/services/conversations';
@@ -15,6 +16,7 @@ import { invalidateAttachmentProcessingCache } from '@/hooks/useAttachmentProces
 import type { ChannelConfigValidationStatus } from '@/types/channelConfig';
 import type { Channel } from '@/types/channel';
 import { getChannelMeta } from '@/components/conversations/channelMeta';
+import { getChannelConfigBundle } from '@/services/channels';
 
 const attachmentCache = new Map<string, Attachment[]>();
 const attachmentInFlight = new Map<string, Promise<Attachment[]>>();
@@ -50,6 +52,9 @@ export function useConversations() {
   const [search, setSearch] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [selectedMode, setSelectedMode] = useState<'all' | 'ai' | 'human'>('all');
+  const [selectedUserTypes, setSelectedUserTypes] = useState<string[]>([]);
+  const [userTypesByChannel, setUserTypesByChannel] = useState<Record<string, UserTypeDefinition[]>>({});
 
   const hydrateConfigStatus = useCallback(async (nextConversations: Conversation[]) => {
     const statusEntries = await Promise.all(
@@ -80,9 +85,12 @@ export function useConversations() {
     const query = search.trim().toLowerCase();
 
     return conversations.filter((conversation) => {
-      if (selectedStatus !== 'all' && conversation.status !== selectedStatus) return false;
-
       if (selectedChannel !== 'all' && conversation.channelId !== selectedChannel) return false;
+      if (selectedMode !== 'all' && conversation.mode !== selectedMode) return false;
+      if (selectedUserTypes.length > 0) {
+        const currentType = (conversation.contactCurrentType ?? '').trim();
+        if (!currentType || !selectedUserTypes.includes(currentType)) return false;
+      }
 
       if (!query) return true;
 
@@ -91,7 +99,7 @@ export function useConversations() {
       const lastMessage = (conversation.lastMessage ?? '').toLowerCase();
       return name.includes(query) || phone.includes(query) || lastMessage.includes(query);
     });
-  }, [conversations, search, selectedChannel, selectedStatus]);
+  }, [conversations, search, selectedChannel, selectedMode, selectedUserTypes]);
   const selectedConversation = useMemo(
     () => filteredConversations.find((c) => c.id === selectedId),
     [filteredConversations, selectedId],
@@ -116,7 +124,35 @@ export function useConversations() {
   const clearFilters = useCallback(() => {
     setSearch('');
     setSelectedChannel('all');
-    setSelectedStatus('all');
+    setSelectedMode('all');
+    setSelectedUserTypes([]);
+  }, []);
+
+  const hydrateUserTypes = useCallback(async (nextConversations: Conversation[]) => {
+    const uniqueChannelIds = Array.from(
+      new Set(nextConversations.map((conversation) => conversation.channelId).filter(Boolean) as string[]),
+    );
+    const entries = await Promise.all(
+      uniqueChannelIds.map(async (channelId) => {
+        try {
+          const bundle = await getChannelConfigBundle(channelId);
+          const raw = bundle.user_types as { types?: Array<{ key?: string; label?: string; color?: string }> };
+          const parsed = Array.isArray(raw?.types)
+            ? raw.types
+                .filter((item) => typeof item?.key === 'string' && item.key.trim().length > 0)
+                .map((item) => ({
+                  key: String(item.key),
+                  label: typeof item?.label === 'string' && item.label.trim().length > 0 ? item.label : String(item?.key),
+                  color: typeof item?.color === 'string' && item.color.trim().length > 0 ? item.color : '#2563eb',
+                }))
+            : [];
+          return [channelId, parsed] as const;
+        } catch {
+          return [channelId, []] as const;
+        }
+      }),
+    );
+    setUserTypesByChannel(Object.fromEntries(entries));
   }, []);
 
   const resolveConversationChannel = useCallback(
@@ -145,7 +181,7 @@ export function useConversations() {
       const [nextConversations, nextChannels] = await Promise.all([getConversations(), getChannels()]);
       setConversations(nextConversations);
       setChannels(nextChannels);
-      await hydrateConfigStatus(nextConversations);
+      await Promise.all([hydrateConfigStatus(nextConversations), hydrateUserTypes(nextConversations)]);
       setSelectedId((currentSelected) => {
         if (!nextConversations.length) return '';
         if (currentSelected && nextConversations.some((conversation) => conversation.id === currentSelected)) {
@@ -158,7 +194,7 @@ export function useConversations() {
     } finally {
       setLoadingConversations(false);
     }
-  }, [hydrateConfigStatus]);
+  }, [hydrateConfigStatus, hydrateUserTypes]);
 
   useEffect(() => {
     void loadConversationsData().catch(() => {});
@@ -176,7 +212,9 @@ export function useConversations() {
       setError(null);
       setSearch('');
       setSelectedChannel('all');
-      setSelectedStatus('all');
+      setSelectedMode('all');
+      setSelectedUserTypes([]);
+      setUserTypesByChannel({});
       void loadConversationsData().catch(() => {});
     };
     window.addEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
@@ -300,6 +338,9 @@ export function useConversations() {
       void loadConversationsData().catch(() => {});
     });
     source.addEventListener('conversation_changed', () => {
+      void loadConversationsData().catch(() => {});
+    });
+    source.addEventListener('contact_type_updated', () => {
       void loadConversationsData().catch(() => {});
     });
     return () => source.close();
@@ -480,6 +521,49 @@ export function useConversations() {
 
   const dismissError = useCallback(() => setError(null), []);
 
+  const userTypeMap = useMemo(() => {
+    const flattened = Object.values(userTypesByChannel).flat();
+    return flattened.reduce<Record<string, UserTypeDefinition>>((acc, item) => {
+      if (!acc[item.key]) acc[item.key] = item;
+      return acc;
+    }, {});
+  }, [userTypesByChannel]);
+
+  const userTypeOptions = useMemo(() => {
+    const list = Object.values(userTypeMap);
+    return [...list].sort((a, b) => a.label.localeCompare(b.label));
+  }, [userTypeMap]);
+
+  const selectedConversationUserTypes = useMemo(() => {
+    if (!selectedConversation?.channelId) return userTypeOptions;
+    const scoped = userTypesByChannel[selectedConversation.channelId] ?? [];
+    return scoped.length > 0 ? scoped : userTypeOptions;
+  }, [selectedConversation?.channelId, userTypesByChannel, userTypeOptions]);
+
+  const updateContactCurrentType = useCallback(
+    async (contactId: string, typeKey: string) => {
+      const previous = conversations.find((conversation) => conversation.id === contactId)?.contactCurrentType;
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === contactId ? { ...conversation, contactCurrentType: typeKey } : conversation,
+        ),
+      );
+      try {
+        await setContactType(contactId, typeKey);
+      } catch (err: unknown) {
+        setConversations((prev) =>
+          prev.map((conversation) =>
+            conversation.id === contactId
+              ? { ...conversation, contactCurrentType: previous }
+              : conversation,
+          ),
+        );
+        setError(getApiErrorMessage(err, 'No se pudo actualizar el tipo de usuario'));
+      }
+    },
+    [conversations],
+  );
+
   return {
     conversations: filteredConversations,
     allConversations: conversations,
@@ -494,14 +578,22 @@ export function useConversations() {
     search,
     selectedChannel,
     selectedStatus,
+    selectedMode,
+    selectedUserTypes,
     channelOptions,
+    userTypeOptions,
+    userTypeMap,
+    selectedConversationUserTypes,
     stats,
     selectConversation,
     setSearch,
     setSelectedChannel,
     setSelectedStatus,
+    setSelectedMode,
+    setSelectedUserTypes,
     clearFilters,
     resolveConversationChannel,
+    updateContactCurrentType,
     handleSend,
     retryMessage,
     toggleMode,

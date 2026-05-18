@@ -1,8 +1,9 @@
-import Button from '@/components/ui/Button';
+import { AlertTriangle, Clock3, Pencil, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
+import Badge from '@/components/ui/Badge';
+import IconButton from '@/components/ui/IconButton';
 import Table from '@/components/ui/Table';
 import { CHANNEL_TYPE_LABELS, type ChannelType } from '@/components/channels/channelFormConfig';
 import { CHANNEL_PROVIDER_LABELS } from '@/constants/channelProviders';
-import { Pencil, RefreshCw, Trash, Wifi, WifiOff, AlertTriangle, Clock3 } from 'lucide-react';
 import type { Channel } from '@/types/channel';
 
 interface Props {
@@ -14,20 +15,15 @@ interface Props {
 
 type ConnectionState = 'connected' | 'disconnected' | 'error' | 'syncing' | 'pending';
 
-const connectionStateStyles: Record<ConnectionState, string> = {
-  connected: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  disconnected: 'border-slate-200 bg-slate-100 text-slate-700',
-  error: 'border-rose-200 bg-rose-50 text-rose-700',
-  syncing: 'border-sky-200 bg-sky-50 text-sky-700',
-  pending: 'border-amber-200 bg-amber-50 text-amber-700',
-};
-
-const connectionStateLabel: Record<ConnectionState, string> = {
-  connected: 'Conectado',
-  disconnected: 'Desconectado',
-  error: 'Error',
-  syncing: 'Sincronizando',
-  pending: 'Pendiente',
+const stateConfig: Record<
+  ConnectionState,
+  { tone: 'success' | 'neutral' | 'danger' | 'info' | 'warning'; icon: React.ReactNode; label: string }
+> = {
+  connected: { tone: 'success', icon: <Wifi className="h-3 w-3" />, label: 'Conectado' },
+  disconnected: { tone: 'neutral', icon: <WifiOff className="h-3 w-3" />, label: 'Desconectado' },
+  error: { tone: 'danger', icon: <AlertTriangle className="h-3 w-3" />, label: 'Error' },
+  syncing: { tone: 'info', icon: <RefreshCw className="h-3 w-3 animate-spin" />, label: 'Sincronizando' },
+  pending: { tone: 'warning', icon: <Clock3 className="h-3 w-3" />, label: 'Pendiente' },
 };
 
 function resolveConnectionState(channel: Channel): ConnectionState {
@@ -38,23 +34,6 @@ function resolveConnectionState(channel: Channel): ConnectionState {
   }
 
   return channel.is_active ? 'connected' : 'disconnected';
-}
-
-function ConnectionStateBadge({ state }: { state: ConnectionState }) {
-  const icon = {
-    connected: <Wifi size={12} />,
-    disconnected: <WifiOff size={12} />,
-    error: <AlertTriangle size={12} />,
-    syncing: <RefreshCw size={12} className="animate-spin" />,
-    pending: <Clock3 size={12} />,
-  }[state];
-
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${connectionStateStyles[state]}`}>
-      {icon}
-      {connectionStateLabel[state]}
-    </span>
-  );
 }
 
 function resolveTypeLabel(type: string) {
@@ -89,7 +68,7 @@ function formatDate(value?: string) {
 export default function ChannelsTable({ channels, isDeletingId, onEdit, onDelete }: Props) {
   return (
     <Table
-      headers={['Nombre', 'Tipo', 'Provider', 'Telefono', 'Estado', 'Webhook', 'Ultima sincronizacion', 'Acciones']}
+      headers={['Nombre', 'Tipo', 'Provider', 'Telefono', 'Estado', 'Webhook', 'Ultima sincronizacion', '']}
       hasRows={channels.length > 0}
       emptyMessage="No se encontraron canales."
     >
@@ -100,39 +79,46 @@ export default function ChannelsTable({ channels, isDeletingId, onEdit, onDelete
         const lastSync = typeof channel.config?.last_sync_at === 'string' ? channel.config.last_sync_at : undefined;
         const phone = channel.type === 'whatsapp' ? channel.external_id : '-';
         const state = resolveConnectionState(channel);
+        const cfg = stateConfig[state];
 
         return (
           <tr key={channel.id}>
             <td className="px-4 py-3 text-sm font-medium text-slate-900">{channel.name}</td>
 
-            <td className="px-4 py-3 text-sm text-slate-700">
-              <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                {resolveTypeLabel(channel.type)}
-              </span>
+            <td className="px-4 py-3 text-sm">
+              <Badge tone="info" label={resolveTypeLabel(channel.type)} variant="soft" />
             </td>
 
-            <td className="px-4 py-3 text-sm text-slate-700">{provider}</td>
-            <td className="px-4 py-3 text-sm text-slate-700">{phone}</td>
-            <td className="px-4 py-3 text-sm"><ConnectionStateBadge state={state} /></td>
-            <td className="max-w-[280px] truncate px-4 py-3 text-sm text-slate-700" title={webhook}>{webhook}</td>
-            <td className="px-4 py-3 text-sm text-slate-700">{formatDate(lastSync)}</td>
+            <td className="px-4 py-3 text-sm text-slate-600">{provider}</td>
+            <td className="px-4 py-3 text-sm text-slate-600">{phone}</td>
+            <td className="px-4 py-3 text-sm">
+              <Badge tone={cfg.tone} label={cfg.label} icon={cfg.icon} variant="soft" />
+            </td>
+            <td
+              className="max-w-[280px] truncate px-4 py-3 text-sm text-slate-600"
+              title={webhook}
+            >
+              {webhook}
+            </td>
+            <td className="px-4 py-3 text-sm text-slate-600">{formatDate(lastSync)}</td>
 
             <td className="px-4 py-3 text-sm">
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" className="p-2" onClick={() => onEdit(channel)} title="Editar" aria-label="Editar">
-                  <Pencil size={16} />
-                </Button>
-
-                <Button
+              <div className="flex items-center justify-end gap-1.5">
+                <IconButton
+                  icon={<Pencil />}
+                  label="Editar"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onEdit(channel)}
+                />
+                <IconButton
+                  icon={<Trash2 />}
+                  label="Eliminar"
+                  size="sm"
                   variant="danger"
-                  className="p-2"
                   onClick={() => onDelete(channel)}
                   disabled={isDeletingId === channel.id}
-                  title="Eliminar"
-                  aria-label="Eliminar"
-                >
-                  <Trash size={16} />
-                </Button>
+                />
               </div>
             </td>
           </tr>
@@ -141,4 +127,3 @@ export default function ChannelsTable({ channels, isDeletingId, onEdit, onDelete
     </Table>
   );
 }
-

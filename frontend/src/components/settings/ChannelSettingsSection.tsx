@@ -1,5 +1,10 @@
+import { AlertTriangle, CheckCircle2, Plus, Radio as RadioIcon, Tag, Trash2, Users } from 'lucide-react';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import IconButton from '@/components/ui/IconButton';
 import Input from '@/components/ui/Input';
+import Textarea from '@/components/ui/Textarea';
 import type { Channel } from '@/types/channel';
 import type { ChannelConfigValidationStatus } from '@/types/channelConfig';
 import type { ChannelSettingsEditable, UserTypesEditable } from '@/types/settings';
@@ -31,59 +36,118 @@ export default function ChannelSettingsSection({
 }: ChannelSettingsSectionProps) {
   if (!channel) {
     return (
-      <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-        Canal no configurado. Conecta un canal para editar su configuracion.
-      </section>
+      <Card
+        className="border-amber-200 bg-amber-50/70"
+        icon={<AlertTriangle className="h-5 w-5 text-amber-600" />}
+        title="Canal no configurado"
+        description="Conecta un canal para editar su configuracion."
+      >
+        <span className="sr-only">Estado del canal</span>
+      </Card>
     );
   }
 
   return (
     <section className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Canales</h2>
-            <p className="text-sm text-slate-500">Ajustes especificos para {channel.name}.</p>
-          </div>
-          <Button onClick={onSave} disabled={!isDirty || saving}>{saving ? 'Guardando...' : 'Guardar canal'}</Button>
-        </div>
-
-        <div className="mb-4 flex flex-wrap gap-2 text-xs font-semibold">
-          <span className={`rounded-lg border px-3 py-1 ${status.is_valid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-            {status.is_valid ? 'Configuracion valida' : 'Configuracion incompleta'}
-          </span>
+      <Card
+        icon={<RadioIcon className="h-5 w-5" />}
+        title="Canales"
+        description={`Ajustes especificos para ${channel.name}.`}
+        actions={
+          <Button onClick={onSave} loading={saving} disabled={!isDirty}>
+            Guardar canal
+          </Button>
+        }
+      >
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Badge
+            tone={status.is_valid ? 'success' : 'warning'}
+            label={status.is_valid ? 'Configuracion valida' : 'Configuracion incompleta'}
+            icon={
+              status.is_valid ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : (
+                <AlertTriangle className="h-3 w-3" />
+              )
+            }
+            variant="soft"
+          />
           {!status.is_valid && missingFields.length > 0 ? (
-            <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">Falta: {missingFields.join(', ')}</span>
+            <Badge tone="warning" label={`Falta: ${missingFields.join(', ')}`} variant="outline" />
           ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Input label="Maximo de mensajes del bot" value={String(value.max_bot_messages)} onChange={(event) => onChannelSettingsChange({ max_bot_messages: Number(event.target.value) || 0 })} />
-          <Input label="Horas para reset humano" value={String(value.human_handoff_reset_hours)} onChange={(event) => onChannelSettingsChange({ human_handoff_reset_hours: Number(event.target.value) || 0 })} />
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700">Respuesta automatica al derivar</label>
-            <textarea value={value.max_bot_messages_message} onChange={(event) => onChannelSettingsChange({ max_bot_messages_message: event.target.value })} className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200" />
+          <Input
+            label="Maximo de mensajes del bot"
+            value={String(value.max_bot_messages)}
+            onChange={(event) =>
+              onChannelSettingsChange({ max_bot_messages: Number(event.target.value) || 0 })
+            }
+          />
+          <Input
+            label="Horas para reset humano"
+            value={String(value.human_handoff_reset_hours)}
+            onChange={(event) =>
+              onChannelSettingsChange({
+                human_handoff_reset_hours: Number(event.target.value) || 0,
+              })
+            }
+          />
+          <div className="md:col-span-2">
+            <Textarea
+              label="Respuesta automatica al derivar"
+              value={value.max_bot_messages_message}
+              onChange={(event) => onChannelSettingsChange({ max_bot_messages_message: event.target.value })}
+              rows={3}
+            />
           </div>
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700">Respuesta contenido no soportado</label>
-            <textarea value={value.unsupported_content_message} onChange={(event) => onChannelSettingsChange({ unsupported_content_message: event.target.value })} className="min-h-20 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200" />
+          <div className="md:col-span-2">
+            <Textarea
+              label="Respuesta contenido no soportado"
+              value={value.unsupported_content_message}
+              onChange={(event) =>
+                onChannelSettingsChange({ unsupported_content_message: event.target.value })
+              }
+              rows={3}
+            />
           </div>
         </div>
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-800">Tipos de usuario</h3>
+      <Card
+        icon={<Users className="h-5 w-5" />}
+        title="Tipos de usuario"
+        description="Define las categorias de usuario que reconoce el bot."
+        actions={
           <Button
             variant="secondary"
-            onClick={() => onUserTypesChange({ ...userTypes, types: [...userTypes.types, { key: `type_${userTypes.types.length + 1}`, label: '', color: '#2563eb', is_default: false }] })}
+            leadingIcon={<Plus />}
+            onClick={() =>
+              onUserTypesChange({
+                ...userTypes,
+                types: [
+                  ...userTypes.types,
+                  {
+                    key: `type_${userTypes.types.length + 1}`,
+                    label: '',
+                    color: '#2563eb',
+                    is_default: false,
+                  },
+                ],
+              })
+            }
           >
             Agregar tipo
           </Button>
-        </div>
+        }
+      >
         <div className="space-y-3">
           {userTypes.types.map((userType, index) => (
-            <div key={userType.key || `user-type-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_140px_140px_auto]">
+            <div
+              key={userType.key || `user-type-${index}`}
+              className="grid grid-cols-1 items-end gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3 md:grid-cols-[1fr_120px_160px_auto]"
+            >
               <Input
                 label="Label"
                 value={userType.label}
@@ -92,35 +156,58 @@ export default function ChannelSettingsSection({
                   next[index] = { ...next[index], label: event.target.value };
                   onUserTypesChange({ ...userTypes, types: next });
                 }}
+                leadingIcon={<Tag className="h-4 w-4" />}
               />
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-slate-700">Color</label>
-                <input type="color" value={userType.color} onChange={(event) => { const next = [...userTypes.types]; next[index] = { ...next[index], color: event.target.value }; onUserTypesChange({ ...userTypes, types: next }); }} className="h-10 w-full rounded-lg border border-slate-300" />
+                <div className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-1 transition-colors hover:border-slate-400">
+                  <input
+                    type="color"
+                    value={userType.color}
+                    onChange={(event) => {
+                      const next = [...userTypes.types];
+                      next[index] = { ...next[index], color: event.target.value };
+                      onUserTypesChange({ ...userTypes, types: next });
+                    }}
+                    className="h-7 w-7 cursor-pointer rounded border-0 bg-transparent"
+                  />
+                  <code className="font-mono text-xs text-slate-600">{userType.color}</code>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-slate-700">Default</label>
                 <Button
                   variant={userType.is_default ? 'primary' : 'secondary'}
+                  size="md"
+                  className="w-full"
                   onClick={() => {
-                    const next = userTypes.types.map((item, currentIndex) => ({ ...item, is_default: currentIndex === index }));
+                    const next = userTypes.types.map((item, currentIndex) => ({
+                      ...item,
+                      is_default: currentIndex === index,
+                    }));
                     onUserTypesChange({ ...userTypes, types: next, default_type: next[index].key });
                   }}
                 >
-                  {userType.is_default ? 'Seleccionado' : 'Seleccionar'}
+                  {userType.is_default ? 'Seleccionado' : 'Marcar default'}
                 </Button>
               </div>
-              <div className="flex items-end">
-                <Button
+              <div className="flex items-end justify-end">
+                <IconButton
+                  icon={<Trash2 />}
+                  label="Eliminar tipo"
                   variant="danger"
-                  onClick={() => onUserTypesChange({ ...userTypes, types: userTypes.types.filter((_, currentIndex) => currentIndex !== index) })}
-                >
-                  Eliminar
-                </Button>
+                  onClick={() =>
+                    onUserTypesChange({
+                      ...userTypes,
+                      types: userTypes.types.filter((_, currentIndex) => currentIndex !== index),
+                    })
+                  }
+                />
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </section>
   );
 }

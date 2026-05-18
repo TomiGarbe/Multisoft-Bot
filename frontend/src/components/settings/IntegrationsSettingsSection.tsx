@@ -1,4 +1,9 @@
+import { Cable, Plug } from 'lucide-react';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import EmptyState from '@/components/ui/EmptyState';
+import Switch from '@/components/ui/Switch';
 import type { IntegrationListItem } from '@/types/integration';
 
 interface IntegrationsSettingsSectionProps {
@@ -22,6 +27,14 @@ function resolveProvider(url: string): string {
   }
 }
 
+const METHOD_TONE: Record<string, 'info' | 'success' | 'warning' | 'danger' | 'accent' | 'neutral'> = {
+  GET: 'info',
+  POST: 'success',
+  PUT: 'warning',
+  PATCH: 'accent',
+  DELETE: 'danger',
+};
+
 export default function IntegrationsSettingsSection({
   items,
   selectedActionIds,
@@ -35,69 +48,77 @@ export default function IntegrationsSettingsSection({
 }: IntegrationsSettingsSectionProps) {
   return (
     <section className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Integraciones</h2>
-            <p className="mt-1 text-sm text-slate-500">Controla integraciones HTTP por canal. Alcance actual: {scopeLabel}.</p>
-          </div>
-          <Button onClick={onSave} disabled={!dirty || saving || loading}>
-            {saving ? 'Guardando...' : 'Guardar integraciones'}
+      <Card
+        icon={<Cable className="h-5 w-5" />}
+        title="Integraciones"
+        description={`Controla integraciones HTTP por canal. Alcance actual: ${scopeLabel}.`}
+        actions={
+          <Button onClick={onSave} loading={saving} disabled={!dirty || loading}>
+            Guardar integraciones
           </Button>
-        </div>
-      </div>
+        }
+      >
+        <span className="sr-only">Controles de integraciones</span>
+      </Card>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-6">
-        {loading ? <p className="text-sm text-slate-500">Cargando integraciones...</p> : null}
-        {!loading && !items.length ? <p className="text-sm text-slate-500">No hay integraciones disponibles.</p> : null}
-        {!loading && items.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-2 py-2">Integracion</th>
-                  <th className="px-2 py-2">Descripcion</th>
-                  <th className="px-2 py-2">Metodo</th>
-                  <th className="px-2 py-2">Provider</th>
-                  <th className="px-2 py-2">Estado global</th>
-                  <th className="px-2 py-2">Habilitada en alcance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => {
-                  const isSelected = selectedActionIds.has(item.id);
-                  const isMixed = mixedActionIds.has(item.id);
-                  return (
-                    <tr key={item.id} className="border-b border-slate-100 align-top">
-                      <td className="px-2 py-3 font-medium text-slate-900">{item.name}</td>
-                      <td className="px-2 py-3 text-slate-600">{item.description || '-'}</td>
-                      <td className="px-2 py-3 text-slate-700">{item.method}</td>
-                      <td className="px-2 py-3 text-slate-700">{resolveProvider(item.url)}</td>
-                      <td className="px-2 py-3">
-                        <span className={`rounded-lg px-2 py-1 text-xs font-semibold ${item.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                          {item.enabled ? 'Activa' : 'Inactiva'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-3">
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => onToggle(item.id)}
-                            disabled={saving || loading}
-                          />
-                          {isSelected ? 'Habilitada' : 'Deshabilitada'}
-                        </label>
-                        {isMixed ? <p className="mt-1 text-xs text-amber-700">Override detectado entre canales</p> : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </div>
+      <Card padding="sm">
+        {loading ? (
+          <p className="px-3 py-6 text-sm text-slate-500">Cargando integraciones...</p>
+        ) : !items.length ? (
+          <EmptyState
+            icon={<Plug />}
+            title="Sin integraciones disponibles"
+            description="Crea una integracion HTTP en la pestana correspondiente."
+          />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {items.map((item) => {
+              const isSelected = selectedActionIds.has(item.id);
+              const isMixed = mixedActionIds.has(item.id);
+              return (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-3 py-3 transition-colors hover:bg-slate-50/60"
+                >
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <Badge
+                      tone={METHOD_TONE[item.method] ?? 'neutral'}
+                      label={item.method}
+                      variant="soft"
+                      size="sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium text-slate-900">{item.name}</p>
+                        <Badge
+                          tone={item.enabled ? 'success' : 'neutral'}
+                          label={item.enabled ? 'Activa' : 'Inactiva'}
+                          variant="dot"
+                          size="sm"
+                        />
+                        {isMixed ? (
+                          <Badge tone="warning" label="Override mixto" variant="soft" size="sm" />
+                        ) : null}
+                      </div>
+                      <p className="truncate text-xs text-slate-500">
+                        {item.description || resolveProvider(item.url)}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    layout="inline"
+                    label={isSelected ? 'Habilitada' : 'Deshabilitada'}
+                    size="sm"
+                    checked={isSelected}
+                    onChange={() => onToggle(item.id)}
+                    disabled={saving || loading}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </section>
   );
 }

@@ -30,41 +30,63 @@ function PreviewItem({
   onRemove: (localId: string) => void;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50 p-2">
-      <div className="flex items-start gap-2">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+      <div className="flex items-start gap-2.5">
         {item.type === 'image' && item.previewUrl ? (
-          <img src={item.previewUrl} alt={item.file.name} className="h-14 w-14 rounded-lg object-cover" />
+          <img
+            src={item.previewUrl}
+            alt={item.file.name}
+            className="h-14 w-14 rounded-lg object-cover ring-1 ring-slate-200"
+          />
         ) : (
-          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">
             <FileText className="h-5 w-5" />
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-gray-800">{item.file.name}</p>
-          <p className="text-[11px] text-gray-500">
+          <p className="truncate text-xs font-semibold text-slate-800">{item.file.name}</p>
+          <p className="text-[11px] text-slate-500">
             {formatBytes(item.file.size)}
-            {typeof item.durationMs === 'number' ? ` - ${Math.round(item.durationMs / 1000)}s` : ''}
+            {typeof item.durationMs === 'number' ? ` · ${Math.round(item.durationMs / 1000)}s` : ''}
           </p>
-          <p className="text-[11px] text-gray-600">{renderUploadState(item.uploadState)}</p>
+          <p className="text-[11px] font-medium text-slate-600">{renderUploadState(item.uploadState)}</p>
           {item.uploadState === 'uploading' && item.progress ? (
-            <div className="mt-1 h-1.5 w-full rounded bg-gray-200">
-              <div className="h-1.5 rounded bg-blue-500" style={{ width: `${item.progress.percent}%` }} />
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-1.5 rounded-full bg-sky-500 transition-all"
+                style={{ width: `${item.progress.percent}%` }}
+              />
             </div>
           ) : null}
-          {item.error ? <p className="mt-1 text-[11px] text-red-600">{item.error.message}</p> : null}
+          {item.error ? <p className="mt-1 text-[11px] text-rose-600">{item.error.message}</p> : null}
         </div>
         <div className="flex items-center gap-1">
           {item.uploadState === 'uploading' ? (
-            <button type="button" onClick={() => onCancelUpload(item.localId)} className="rounded p-1 text-gray-500 hover:bg-gray-200" aria-label="Cancelar upload">
+            <button
+              type="button"
+              onClick={() => onCancelUpload(item.localId)}
+              className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
+              aria-label="Cancelar upload"
+            >
               <Square className="h-3.5 w-3.5" />
             </button>
           ) : null}
           {(item.uploadState === 'failed' || item.uploadState === 'canceled') && item.error?.retryable ? (
-            <button type="button" onClick={() => onRetryUpload(item.localId)} className="rounded p-1 text-gray-500 hover:bg-gray-200" aria-label="Reintentar upload">
+            <button
+              type="button"
+              onClick={() => onRetryUpload(item.localId)}
+              className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
+              aria-label="Reintentar upload"
+            >
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
           ) : null}
-          <button type="button" onClick={() => onRemove(item.localId)} className="rounded p-1 text-gray-500 hover:bg-gray-200" aria-label="Quitar archivo">
+          <button
+            type="button"
+            onClick={() => onRemove(item.localId)}
+            className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
+            aria-label="Quitar archivo"
+          >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -170,17 +192,24 @@ export default function MessageComposer({ onSend }: Props) {
         </div>
       ) : null}
 
-      <div className="flex items-end gap-2 px-4 py-3">
+      <div className="flex items-end gap-2 px-4 pb-4 pt-3.5">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-800 active:scale-95"
           aria-label="Adjuntar archivo"
         >
           <Paperclip className="h-5 w-5" />
         </button>
 
-        <input ref={fileInputRef} type="file" multiple hidden accept={MULTIMEDIA_ACCEPT} onChange={handleFileChange} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          accept={MULTIMEDIA_ACCEPT}
+          onChange={handleFileChange}
+        />
 
         <textarea
           ref={textareaRef}
@@ -190,7 +219,7 @@ export default function MessageComposer({ onSend }: Props) {
           onKeyDown={handleKeyDown}
           rows={1}
           placeholder="Escribi un mensaje... (Enter para enviar)"
-          className="flex-1 resize-none overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 resize-none overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition-all duration-150 focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
           style={{ lineHeight: '1.5', maxHeight: '120px' }}
         />
 
@@ -198,9 +227,7 @@ export default function MessageComposer({ onSend }: Props) {
           type="button"
           onClick={handleMicOrSend}
           disabled={isSending || hasUploading}
-          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-            canSend ? 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
-          }`}
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-sky-600 text-white shadow-sm transition-all duration-150 hover:bg-sky-700 active:scale-95 active:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
           aria-label={canSend ? 'Enviar' : 'Grabar audio'}
         >
           {canSend ? <Send className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
