@@ -55,9 +55,47 @@ def _to_int_or_none(value: Any) -> Optional[int]:
         return None
 
 
+def _normalize_mime_type(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    raw = str(value).strip().lower()
+    if not raw:
+        return None
+    normalized = raw.split(";", maxsplit=1)[0].strip()
+    return normalized or None
+
+
+def _attachment_type_from_mime(mime_type: Optional[str]) -> Optional[AttachmentType]:
+    if not mime_type:
+        return None
+    if mime_type.startswith("image/"):
+        return AttachmentType.IMAGE
+    if mime_type.startswith("audio/"):
+        return AttachmentType.AUDIO
+    if mime_type.startswith("video/"):
+        return AttachmentType.VIDEO
+    if mime_type in {
+        "application/pdf",
+        "text/plain",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }:
+        return AttachmentType.DOCUMENT
+    return None
+
+
 def _coalesce_attachment_type(raw: dict[str, Any], fallback: MessageType) -> AttachmentType:
     raw_type = resolve_message_type(dict_get_any_case(raw, "type", "attachment_type", default=fallback.value))
-    return attachment_type_from_message_type(raw_type)
+    by_raw = attachment_type_from_message_type(raw_type)
+    mime_type = _normalize_mime_type(dict_get_any_case(raw, "mime_type", "mimeType", "mimetype", "contentType", "content_type"))
+    by_mime = _attachment_type_from_mime(mime_type)
+    if by_mime is not None and by_raw == AttachmentType.FILE:
+        return by_mime
+    if by_mime is not None and raw_type in {MessageType.MEDIA, MessageType.FILE, MessageType.TEXT, MessageType.UNKNOWN}:
+        return by_mime
+    return by_raw
 
 
 def _coalesce_extension(filename: Optional[str], extension: Optional[str], mime_type: Optional[str]) -> Optional[str]:
@@ -90,7 +128,7 @@ def normalize_attachment(
     fallback_message_type: MessageType,
     fallback_caption: Optional[str] = None,
 ) -> NormalizedAttachment:
-    mime_type = dict_get_any_case(raw, "mime_type", "mimeType", "mimetype", "contentType", "content_type")
+    mime_type = _normalize_mime_type(dict_get_any_case(raw, "mime_type", "mimeType", "mimetype", "contentType", "content_type"))
     filename = dict_get_any_case(raw, "filename", "file_name", "name")
     extension = dict_get_any_case(raw, "extension", "ext")
     provider_media_id = dict_get_any_case(raw, "provider_media_id", "media_id", "id", "file_id", "providerFileId")
@@ -107,7 +145,7 @@ def normalize_attachment(
     )
     normalized = NormalizedAttachment(
         type=_coalesce_attachment_type(raw, fallback_message_type),
-        mime_type=str(mime_type) if mime_type is not None else None,
+        mime_type=mime_type,
         filename=str(filename) if filename is not None else None,
         extension=_coalesce_extension(
             str(filename) if filename is not None else None,

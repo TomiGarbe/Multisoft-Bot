@@ -81,6 +81,25 @@ function toAttachmentType(value: ApiAttachmentType): AttachmentType {
   return value;
 }
 
+function inferAttachmentTypeFromMime(current: AttachmentType, mimeType?: string | null): AttachmentType {
+  if (current !== 'file') return current;
+  const mime = (mimeType ?? '').toLowerCase().split(';')[0].trim();
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('video/')) return 'video';
+  if (
+    mime === 'application/pdf' ||
+    mime === 'text/plain' ||
+    mime === 'application/msword' ||
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mime === 'application/vnd.ms-excel' ||
+    mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ) {
+    return 'document';
+  }
+  return current;
+}
+
 function toAttachmentStatus(
   downloadStatus: ApiDownloadStatus,
   blobAvailable: boolean,
@@ -128,12 +147,14 @@ export async function fetchAttachmentDownloadBlob(
 
 function mapAttachment(raw: ApiAttachmentDTO): Attachment {
   const providerUrl = raw.metadata.provider_url ?? undefined;
+  const mimeType = raw.metadata.mime_type ?? undefined;
+  const normalizedType = inferAttachmentTypeFromMime(toAttachmentType(raw.metadata.attachment_type), mimeType);
   return {
     id: raw.metadata.id,
     messageId: raw.metadata.message_id,
-    type: toAttachmentType(raw.metadata.attachment_type),
+    type: normalizedType,
     status: toAttachmentStatus(raw.metadata.download_status, raw.blob_available, providerUrl),
-    mimeType: raw.metadata.mime_type ?? undefined,
+    mimeType,
     filename: raw.metadata.filename ?? undefined,
     extension: raw.metadata.extension ?? undefined,
     sizeBytes: raw.metadata.size_bytes ?? undefined,
