@@ -41,14 +41,30 @@ export default function ConversationMessages({ messages, loading = false, onRetr
         <>
           {messages.map((msg, idx) => {
             const prev = idx > 0 ? messages[idx - 1] : null;
+            const showBoundary =
+              Boolean(msg.isNewConversationBoundary) ||
+              (prev ? prev.conversationId !== msg.conversationId : false);
             const grouped = prev?.direction === msg.direction;
             return (
-              <ConversationMessage
-                key={msg.id}
-                message={msg}
-                grouped={grouped}
-                onRetry={onRetry}
-              />
+              <div key={msg.id}>
+                {showBoundary && (
+                  <div className="my-4 rounded-md border border-slate-200 bg-white px-3 py-2 text-center">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Nueva conversacion {msg.conversationType ? `(${msg.conversationType})` : ''}
+                    </p>
+                    {msg.conversationStartedAt && (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {new Date(msg.conversationStartedAt).toLocaleString('es-AR')}
+                      </p>
+                    )}
+                  </div>
+                )}
+                <ConversationMessage
+                  message={msg}
+                  grouped={grouped && !showBoundary}
+                  onRetry={onRetry}
+                />
+              </div>
             );
           })}
         </>

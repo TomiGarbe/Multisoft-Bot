@@ -454,6 +454,28 @@ class MessageService:
         messages = self.repository.list_messages(conversation_id=conversation_id, tenant_id=tenant_id)
         return [self._to_response(m) for m in messages]
 
+    def list_messages_by_contact(
+        self,
+        contact_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+    ) -> list[MessageResponse]:
+        contact = self.repository.get_contact_by_id_and_tenant(contact_id, tenant_id)
+        if contact is None:
+            raise ValueError(f"Contact not found: {contact_id}")
+        messages = self.repository.list_messages_by_contact(contact_id=contact_id, tenant_id=tenant_id)
+        responses: list[MessageResponse] = []
+        previous_conversation_id: Optional[uuid.UUID] = None
+        for message in messages:
+            response = self._to_response(message)
+            conversation = message.conversation
+            response.conversation_started_at = conversation.started_at if conversation else None
+            response.conversation_type = (conversation.mode.upper() if conversation and conversation.mode else None)
+            response.conversation_status = conversation.status if conversation else None
+            response.is_new_conversation_boundary = previous_conversation_id != message.conversation_id
+            previous_conversation_id = message.conversation_id
+            responses.append(response)
+        return responses
+
     def get_contact_by_id(self, contact_id: uuid.UUID) -> Optional[Contact]:
         return self.repository.get_contact_by_id(contact_id)
 
@@ -557,6 +579,8 @@ class MessageService:
 
     def _publish_new_message_event(self, message: Message) -> None:
         serialized = jsonable_encoder(self._to_response(message))
+        usage = self.repository.get_contact_usage_by_conversation(message.conversation_id)
+        contact_id = str(usage.contact_id) if usage else None
         logger.warning(
             "[PIPELINE][SOCKET_EMIT] event=new_message message_id=%s conversation_id=%s message_type=%s has_media=%s content_chars=%s",
             message.id,
@@ -570,6 +594,7 @@ class MessageService:
             {
                 "type": "new_message",
                 "conversation_id": str(message.conversation_id),
+                "contact_id": contact_id,
                 "message": serialized,
             },
             tenant_id=message.tenant_id,
@@ -720,6 +745,10 @@ class MessageService:
                     attachment_row.id,
                     attachment_row.download_status.value,
                     attachment_row.storage_backend.value,
+                )
+                MediaProcessingOrchestrator(self.db).orchestrate_for_attachment(
+                    attachment_id=attachment_row.id,
+                    tenant_id=message.tenant_id,
                 )
                 event_bus.publish(
                     "attachment_updated",

@@ -27,6 +27,10 @@ class MessageResponse(BaseModel):
     replied_to_message_id: Optional[str] = None
     has_media: bool = False
     created_at: Optional[datetime] = None
+    conversation_started_at: Optional[datetime] = None
+    conversation_type: Optional[str] = None
+    conversation_status: Optional[str] = None
+    is_new_conversation_boundary: bool = False
 
 
 class MessageSendResponse(BaseModel):

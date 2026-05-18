@@ -126,6 +126,8 @@ export interface OutboundAttachment {
 
 export interface Conversation {
   id: string;
+  contactId?: string;
+  activeConversationId?: string;
   channelId?: string;
   channelName?: string;
   channelType?: string;
@@ -153,6 +155,10 @@ export interface Message {
   createdAt: string;
   attachments?: Attachment[];
   status?: MessageStatus;
+  conversationStartedAt?: string;
+  conversationType?: 'AI' | 'HUMAN' | string;
+  conversationStatus?: string;
+  isNewConversationBoundary?: boolean;
 }
 
 export interface SendPayload {

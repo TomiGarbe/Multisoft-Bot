@@ -54,15 +54,16 @@ export function useConversations() {
   const hydrateConfigStatus = useCallback(async (nextConversations: Conversation[]) => {
     const statusEntries = await Promise.all(
       nextConversations.map(async (conversation) => {
+        const key = conversation.activeConversationId ?? conversation.id;
         if (!conversation.channelConfigId) {
-          return [conversation.id, { is_valid: false, missing_fields: [] }] as const;
+          return [key, { is_valid: false, missing_fields: [] }] as const;
         }
 
         try {
           const status = await getChannelConfigStatus(conversation.channelConfigId);
-          return [conversation.id, status] as const;
+          return [key, status] as const;
         } catch {
-          return [conversation.id, { is_valid: false, missing_fields: [] }] as const;
+          return [key, { is_valid: false, missing_fields: [] }] as const;
         }
       }),
     );
@@ -91,6 +92,11 @@ export function useConversations() {
       return name.includes(query) || phone.includes(query) || lastMessage.includes(query);
     });
   }, [conversations, search, selectedChannel, selectedStatus]);
+  const selectedConversation = useMemo(
+    () => filteredConversations.find((c) => c.id === selectedId),
+    [filteredConversations, selectedId],
+  );
+  const activeConversationId = selectedConversation?.activeConversationId;
 
   const channelOptions = useMemo(() => {
     return channels
@@ -250,7 +256,14 @@ export function useConversations() {
     if (typeof window === 'undefined') return;
     const baseUrl = (api.defaults.baseURL ?? '').replace(/\/$/, '');
     if (!baseUrl) return;
-    const source = new EventSource(`${baseUrl}/realtime/events`);
+    const token = window.localStorage.getItem('access_token');
+    const tenantId = window.localStorage.getItem('active_tenant_id');
+    if (!token) return;
+    const query = new URLSearchParams({ access_token: token });
+    if (tenantId && tenantId.trim().length > 0) {
+      query.set('tenant_id', tenantId);
+    }
+    const source = new EventSource(`${baseUrl}/realtime/events?${query.toString()}`);
     source.addEventListener('attachment_updated', (event) => {
       try {
         const data = JSON.parse((event as MessageEvent).data ?? '{}') as {
@@ -277,8 +290,20 @@ export function useConversations() {
         // Ignore malformed realtime payloads.
       }
     });
+    source.addEventListener('new_message', () => {
+      void loadConversationsData().catch(() => {});
+    });
+    source.addEventListener('conversation_opened', () => {
+      void loadConversationsData().catch(() => {});
+    });
+    source.addEventListener('conversation_closed', () => {
+      void loadConversationsData().catch(() => {});
+    });
+    source.addEventListener('conversation_changed', () => {
+      void loadConversationsData().catch(() => {});
+    });
     return () => source.close();
-  }, []);
+  }, [loadConversationsData]);
 
   const selectConversation = useCallback((id: string) => {
     setSelectedId(id);
@@ -289,12 +314,14 @@ export function useConversations() {
       const trimmed = text.trim();
       if ((!trimmed && attachments.length === 0) || !selectedId) return;
 
+      if (!activeConversationId) return;
+
       const tempId = `temp_${crypto.randomUUID()}`;
       const now = new Date().toISOString();
 
       const optimistic: Message = {
         id: tempId,
-        conversationId: selectedId,
+        conversationId: activeConversationId,
         direction: 'outbound',
         senderType: 'agent',
         content: trimmed,
@@ -328,7 +355,7 @@ export function useConversations() {
 
       try {
         await sendMessage({
-          conversation_id: selectedId,
+          conversation_id: activeConversationId,
           content: trimmed,
           attachments,
         });
@@ -378,12 +405,13 @@ export function useConversations() {
         setError(getApiErrorMessage(err, 'Error al enviar mensaje'));
       }
     },
-    [selectedId, messages],
+    [selectedId, activeConversationId, messages],
   );
 
   const retryMessage = useCallback(
     async (messageId: string) => {
       if (!selectedId) return;
+      if (!activeConversationId) return;
       const msg = messages[selectedId]?.find((m) => m.id === messageId);
       if (!msg || msg.status !== 'error') return;
 
@@ -396,7 +424,7 @@ export function useConversations() {
 
       try {
         await sendMessage({
-          conversation_id: selectedId,
+          conversation_id: activeConversationId,
           content: msg.content,
         });
         setMessages((prev) => ({
@@ -415,11 +443,13 @@ export function useConversations() {
         setError(getApiErrorMessage(err, 'Error al reenviar mensaje'));
       }
     },
-    [selectedId, messages],
+    [selectedId, activeConversationId, messages],
   );
 
   const toggleMode = useCallback(
-    async (conversationId: string, mode: 'ai' | 'human') => {
+    async (_contactId: string, mode: 'ai' | 'human') => {
+      const conversationId = activeConversationId;
+      if (!conversationId) return;
       setTogglingModes((prev) => ({ ...prev, [conversationId]: true }));
 
       const status = configStatusByConversation[conversationId];
@@ -430,9 +460,8 @@ export function useConversations() {
       }
 
       try {
-        const updated = await setConversationMode(conversationId, mode);
+        await setConversationMode(conversationId, mode);
         await loadConversationsData();
-        setSelectedId(updated.id);
       } catch (err: unknown) {
         const apiMsg = getApiErrorMessage(err, 'Error al cambiar modo');
 
@@ -446,7 +475,7 @@ export function useConversations() {
         setTogglingModes((prev) => ({ ...prev, [conversationId]: false }));
       }
     },
-    [configStatusByConversation, loadConversationsData],
+    [configStatusByConversation, loadConversationsData, activeConversationId],
   );
 
   const dismissError = useCallback(() => setError(null), []);
@@ -455,7 +484,7 @@ export function useConversations() {
     conversations: filteredConversations,
     allConversations: conversations,
     selectedId,
-    selectedConversation: filteredConversations.find((c) => c.id === selectedId),
+    selectedConversation,
     messages,
     loadingConversations,
     loadingMessages,

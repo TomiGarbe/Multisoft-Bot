@@ -16,7 +16,7 @@ from app.repositories.tenant_repository import get_by_id as get_tenant_by_id
 from app.services.auth.access_service import can_access_tenant, get_effective_permissions, is_super_admin
 from app.services.auth_service import verify_token
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 _DEFAULT_DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001"
 logger = logging.getLogger(__name__)
 
@@ -47,10 +47,17 @@ def _parse_requested_tenant_id(
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    access_token: Optional[str] = Query(default=None, alias="access_token"),
     db: Session = Depends(get_db),
 ) -> User:
-    token = credentials.credentials
+    token = credentials.credentials if credentials is not None else access_token
+    if token is None or not str(token).strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(
@@ -103,13 +110,17 @@ async def get_current_tenant_context(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     x_tenant_id: Optional[str] = Header(default=None, alias="X-Tenant-Id"),
+    tenant_id_query: Optional[str] = Query(default=None, alias="tenant_id"),
     scope: str = Query(default="tenant"),
 ) -> TenantContext:
     normalized_scope = str(scope).strip().lower()
     if normalized_scope not in {"tenant", "global"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid scope")
 
-    requested_tenant_id = _parse_requested_tenant_id(tenant_id_query=None, tenant_id_header=x_tenant_id)
+    requested_tenant_id = _parse_requested_tenant_id(
+        tenant_id_query=tenant_id_query,
+        tenant_id_header=x_tenant_id,
+    )
     user_is_super_admin = is_super_admin(current_user)
 
     if normalized_scope == "global":

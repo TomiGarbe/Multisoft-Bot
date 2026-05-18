@@ -27,6 +27,20 @@ async def send_message_endpoint(
     return MessageSendResponse(status="sent")
 
 
+@router.get("/contacts/{contact_id}", response_model=list[MessageResponse])
+async def get_contact_messages_endpoint(
+    contact_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    _: None = Depends(require_permission("messages.read")),
+):
+    service = MessageService(db)
+    try:
+        return service.list_messages_by_contact(contact_id, tenant_id=current_tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
 @router.get("/{conversation_id}", response_model=list[MessageResponse])
 async def get_messages_endpoint(
     conversation_id: uuid.UUID,

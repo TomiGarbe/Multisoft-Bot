@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.auth import TenantUser
 from app.models.config import ChannelBotConfig
 from app.models.conversation import Conversation, ChatThread
+from app.models.contact import Contact
+from app.models.metrics import ContactUsage
 from app.repositories.base_repository import BaseRepository
 
 
@@ -42,6 +44,14 @@ class ConversationRepository(BaseRepository):
             .order_by(Conversation.last_message_at.desc())
         )
         return self.db.execute(stmt).scalars().all()
+
+    def get_contact_for_conversation(self, conversation_id: uuid.UUID) -> Optional[Contact]:
+        stmt = (
+            select(Contact)
+            .join(ContactUsage, ContactUsage.contact_id == Contact.id)
+            .where(ContactUsage.conversation_id == conversation_id)
+        )
+        return self.db.execute(stmt).scalar_one_or_none()
 
     def get_all_by_tenants(self, tenant_ids: list[uuid.UUID]) -> list[Conversation]:
         if not tenant_ids:

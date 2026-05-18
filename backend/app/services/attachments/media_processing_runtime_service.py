@@ -37,7 +37,7 @@ class MediaProcessingRuntimeService:
         self._validate_limits(attachment=attachment, payload=binary_data, capability=capability)
 
         if capability == MediaProcessingCapability.TRANSCRIPTION:
-            normalized_mime = (attachment.mime_type or "").split(";")[0].strip().lower() or None
+            normalized_mime = self._normalize_mime(attachment.mime_type)
             logger.info(
                 "[AI][TRANSCRIPTION][FILE_FOUND] attachment_id=%s message_id=%s mime_type=%s audio_path=%s provider=%s model=%s bytes=%s",
                 attachment.id,
@@ -61,6 +61,8 @@ class MediaProcessingRuntimeService:
                     payload=binary_data,
                     filename=attachment.filename,
                     mime_type=attachment.mime_type,
+                    attachment_id=attachment.id,
+                    message_id=attachment.message_id,
                 )
             except MediaProcessingError:
                 logger.warning(
@@ -109,13 +111,33 @@ class MediaProcessingRuntimeService:
         payload: bytes,
         filename: str | None,
         mime_type: str | None,
+        attachment_id,
+        message_id,
     ) -> dict:
         suffix = self._resolve_audio_suffix(filename=filename, mime_type=mime_type)
         temp_path: Path | None = None
+        normalized_mime = self._normalize_mime(mime_type)
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 temp_file.write(payload)
                 temp_path = Path(temp_file.name)
+            if not temp_path.exists():
+                raise MediaProcessingError("audio_file_not_found", f"temporary audio file does not exist: {temp_path}", retryable=False)
+            file_size = int(temp_path.stat().st_size)
+            if file_size <= 0:
+                raise MediaProcessingError("audio_file_empty", f"temporary audio file is empty: {temp_path}", retryable=False)
+            if not os.access(temp_path, os.R_OK):
+                raise MediaProcessingError("audio_file_unreadable", f"temporary audio file is not readable: {temp_path}", retryable=False)
+            logger.info(
+                "[AI][TRANSCRIPTION][FILE_FOUND] attachment_id=%s message_id=%s mime_type=%s local_path=%s provider=%s model=%s bytes=%s",
+                attachment_id,
+                message_id,
+                normalized_mime,
+                str(temp_path),
+                "whisper_transcription",
+                "faster_whisper",
+                file_size,
+            )
             result = self.whisper_service.transcribe_file(audio_path=temp_path)
             return {
                 "text": result.text,
@@ -128,10 +150,11 @@ class MediaProcessingRuntimeService:
             }
         except TranscriptionError as exc:
             logger.warning(
-                "[AI][TRANSCRIPTION][FAILED] attachment_id=%s message_id=%s mime_type=%s provider=%s model=%s code=%s retryable=%s detail=%s",
-                None,
-                None,
-                (mime_type or "").split(";")[0].strip().lower() or None,
+                "[AI][TRANSCRIPTION][FAILED] attachment_id=%s message_id=%s mime_type=%s local_path=%s provider=%s model=%s code=%s retryable=%s detail=%s",
+                attachment_id,
+                message_id,
+                normalized_mime,
+                str(temp_path) if temp_path else None,
                 "whisper_transcription",
                 "faster_whisper",
                 exc.code,
@@ -156,7 +179,7 @@ class MediaProcessingRuntimeService:
                 raise MediaProcessingError("audio_size_exceeded", str(attachment.size_bytes), retryable=False)
             if attachment.duration_ms and attachment.duration_ms > settings.MEDIA_MAX_AUDIO_DURATION_MS:
                 raise MediaProcessingError("audio_duration_exceeded", str(attachment.duration_ms), retryable=False)
-            normalized_mime = (attachment.mime_type or "").split(";")[0].strip().lower()
+            normalized_mime = self._normalize_mime(attachment.mime_type) or ""
             if normalized_mime and not (normalized_mime.startswith("audio/") or normalized_mime.startswith("video/")):
                 raise MediaProcessingError("audio_mime_invalid", normalized_mime, retryable=False)
         if capability == MediaProcessingCapability.DOCUMENT_EXTRACTION:
@@ -222,3 +245,8 @@ class MediaProcessingRuntimeService:
         }
         normalized = (mime_type or "").split(";")[0].strip().lower()
         return by_mime.get(normalized, ".bin")
+
+    @staticmethod
+    def _normalize_mime(mime_type: str | None) -> str | None:
+        normalized = (mime_type or "").split(";")[0].strip().lower()
+        return normalized or None

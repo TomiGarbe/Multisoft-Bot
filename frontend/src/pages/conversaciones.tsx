@@ -38,7 +38,9 @@ export default function ConversationsPage() {
     resolveConversationChannel,
   } = useConversations();
 
-  const selectedConversationStatus = selectedId ? configStatusByConversation[selectedId] : undefined;
+  const selectedConversationStatus = selectedConversation?.activeConversationId
+    ? configStatusByConversation[selectedConversation.activeConversationId]
+    : undefined;
   const isAiUnavailable = !!selectedConversationStatus && !selectedConversationStatus.is_valid;
   const aiUnavailableReason = isAiUnavailable
     ? selectedConversationStatus?.missing_fields?.length
@@ -99,7 +101,11 @@ export default function ConversationsPage() {
               onRetry={retryMessage}
               loading={loadingMessages}
               onModeToggle={toggleMode}
-              isToggling={togglingModes[selectedId]}
+              isToggling={
+                selectedConversation?.activeConversationId
+                  ? togglingModes[selectedConversation.activeConversationId]
+                  : false
+              }
               aiUnavailable={isAiUnavailable}
               aiUnavailableReason={aiUnavailableReason}
               channelMeta={selectedConversation ? resolveConversationChannel(selectedConversation) : undefined}

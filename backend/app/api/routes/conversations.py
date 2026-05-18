@@ -8,6 +8,7 @@ from app.api.dependencies.permissions import require_permission
 from app.db.session import get_db
 from app.models import User
 from app.schemas.conversation import (
+    ContactChatResponse,
     ConversationModeUpdateRequest,
     ConversationModeUpdateResponse,
     ConversationResponse,
@@ -26,6 +27,17 @@ async def read_conversations(
 ):
     service = ConversationService(db)
     return service.get_conversations(user_id=current_user.id, tenant_id=current_tenant_id)
+
+
+@router.get("/contacts", response_model=list[ContactChatResponse])
+async def read_contact_chats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    _: None = Depends(require_permission("conversations.read")),
+):
+    service = ConversationService(db)
+    return service.get_contact_chats(user_id=current_user.id, tenant_id=current_tenant_id)
 
 
 @router.patch("/{id}/mode", response_model=ConversationModeUpdateResponse)

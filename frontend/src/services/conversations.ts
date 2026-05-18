@@ -4,17 +4,18 @@ import type { Conversation, Message, OutboundAttachment } from '@/types/chat';
 // ─── Backend raw shapes ────────────────────────────────────────────────────────
 
 interface ApiConversation {
-  id: string;
-  status: 'open' | 'closed';
-  mode?: 'ai' | 'human';
+  contact_id: string;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  active_conversation_id?: string | null;
+  active_conversation_status?: 'open' | 'closed' | null;
+  active_conversation_mode?: 'ai' | 'human' | null;
   channel_id?: string | null;
   channel_name?: string | null;
   channel_type?: string | null;
   channel_provider?: string | null;
   channel_config_id?: string | null;
-  started_at: string;
-  last_message_at: string | null;
-  chat_thread_id?: string | null;
+  last_message_at?: string | null;
 }
 
 interface ApiMessage {
@@ -26,6 +27,10 @@ interface ApiMessage {
   content: string | null;
   has_media?: boolean;
   created_at: string;
+  conversation_started_at?: string | null;
+  conversation_type?: string | null;
+  conversation_status?: string | null;
+  is_new_conversation_boundary?: boolean;
 }
 
 export interface SendMessagePayload {
@@ -38,7 +43,9 @@ export interface SendMessagePayload {
 
 function mapConversation(raw: ApiConversation): Conversation {
   return {
-    id: raw.id,
+    id: raw.contact_id,
+    contactId: raw.contact_id,
+    activeConversationId: raw.active_conversation_id ?? undefined,
     channelId: raw.channel_id ?? undefined,
     channelName: raw.channel_name ?? undefined,
     channelType: raw.channel_type ?? undefined,
@@ -46,10 +53,10 @@ function mapConversation(raw: ApiConversation): Conversation {
     channelConfigId: raw.channel_config_id ?? undefined,
     // contactName and contactPhone are not yet returned by GET /conversations.
     // Use a neutral fallback to avoid exposing internal ids in UI.
-    contactName: 'Contacto sin nombre',
-    status: raw.status,
-    // mode is part of the backend model but not yet in GET /conversations response.
-    mode: raw.mode ?? 'ai',
+    contactName: raw.contact_name ?? 'Contacto sin nombre',
+    contactPhone: raw.contact_phone ?? undefined,
+    status: raw.active_conversation_status ?? 'closed',
+    mode: raw.active_conversation_mode ?? 'ai',
     lastMessageAt: raw.last_message_at ?? undefined,
   };
 }
@@ -64,18 +71,22 @@ function mapMessage(raw: ApiMessage): Message {
     content: raw.content ?? '',
     hasMedia: Boolean(raw.has_media),
     createdAt: raw.created_at,
+    conversationStartedAt: raw.conversation_started_at ?? undefined,
+    conversationType: raw.conversation_type ?? undefined,
+    conversationStatus: raw.conversation_status ?? undefined,
+    isNewConversationBoundary: Boolean(raw.is_new_conversation_boundary),
   };
 }
 
 // ─── Service functions ─────────────────────────────────────────────────────────
 
 export async function getConversations(): Promise<Conversation[]> {
-  const { data } = await api.get<ApiConversation[]>('/conversations');
+  const { data } = await api.get<ApiConversation[]>('/conversations/contacts');
   return data.map(mapConversation);
 }
 
-export async function getMessages(conversationId: string): Promise<Message[]> {
-  const { data } = await api.get<ApiMessage[]>(`/messages/${conversationId}`);
+export async function getMessages(contactId: string): Promise<Message[]> {
+  const { data } = await api.get<ApiMessage[]>(`/messages/contacts/${contactId}`);
   return data.map(mapMessage);
 }
 

@@ -187,6 +187,20 @@ class MessageRepository(BaseRepository):
         )
         return self.db.execute(stmt).scalars().all()
 
+    def list_messages_by_contact(self, contact_id: uuid.UUID, tenant_id: uuid.UUID) -> list[Message]:
+        stmt = (
+            select(Message)
+            .join(Conversation, Conversation.id == Message.conversation_id)
+            .join(ContactUsage, ContactUsage.conversation_id == Conversation.id)
+            .where(
+                Message.tenant_id == tenant_id,
+                Conversation.tenant_id == tenant_id,
+                ContactUsage.contact_id == contact_id,
+            )
+            .order_by(Message.created_at.asc())
+        )
+        return self.db.execute(stmt).scalars().all()
+
     def refresh(self, entity: object) -> None:
         self.db.refresh(entity)
 

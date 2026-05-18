@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation
+from app.models.metrics import ContactUsage
 from app.services.realtime_service import event_bus
 
 
@@ -103,9 +104,28 @@ class ConversationLifecycleService:
             thread_id=conversation.chat_thread_id,
             mode=target_mode,
         )
+        self._carry_contact_usage(previous_conversation_id=conversation.id, opened_conversation_id=opened.id)
         self.db.commit()
         self.db.refresh(opened)
         return opened
+
+    def _carry_contact_usage(self, *, previous_conversation_id: uuid.UUID, opened_conversation_id: uuid.UUID) -> None:
+        source_stmt = select(ContactUsage).where(ContactUsage.conversation_id == previous_conversation_id)
+        source_usage = self.db.execute(source_stmt).scalar_one_or_none()
+        if source_usage is None:
+            return
+        existing_stmt = select(ContactUsage).where(ContactUsage.conversation_id == opened_conversation_id)
+        existing = self.db.execute(existing_stmt).scalar_one_or_none()
+        if existing is not None:
+            return
+        self.db.add(
+            ContactUsage(
+                contact_id=source_usage.contact_id,
+                conversation_id=opened_conversation_id,
+                bot_message_count=0,
+            )
+        )
+        self.db.flush()
 
     def _emit_lifecycle_event(self, event_name: str, conversation: Conversation, extra: dict[str, str]) -> None:
         payload = {
