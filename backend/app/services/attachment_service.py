@@ -136,6 +136,9 @@ class AttachmentService:
             storage_backend=storage_backend,
         )
 
+    def update_attachment_metadata(self, *, attachment: MessageAttachment, metadata_json: dict) -> MessageAttachment:
+        return self.repository.update_metadata_json(attachment=attachment, metadata_json=metadata_json)
+
     @staticmethod
     def _validate_transition(*, current: AttachmentDownloadStatus, target: AttachmentDownloadStatus) -> None:
         if current == target:

@@ -87,7 +87,11 @@ export async function sendMessage(payload: SendMessagePayload): Promise<void> {
 export async function setConversationMode(
   conversationId: string,
   mode: 'ai' | 'human',
-): Promise<void> {
-  await api.patch(`/conversations/${conversationId}/mode`, { mode });
+): Promise<{ id: string; mode: 'ai' | 'human' }> {
+  const { data } = await api.patch<{ id: string; mode: 'ai' | 'human' }>(
+    `/conversations/${conversationId}/mode`,
+    { mode },
+  );
+  return data;
 }
 

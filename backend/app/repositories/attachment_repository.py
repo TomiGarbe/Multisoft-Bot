@@ -207,3 +207,9 @@ class AttachmentRepository(BaseRepository):
             attachment.storage_backend = storage_backend
         self.db.flush()
         return attachment
+
+    def update_metadata_json(self, *, attachment: MessageAttachment, metadata_json: dict) -> MessageAttachment:
+        attachment.metadata_json = metadata_json
+        attachment.metadata_jsonb = metadata_json
+        self.db.flush()
+        return attachment

@@ -8,8 +8,10 @@ import {
 } from '@/services/conversations';
 import { getChannels } from '@/services/channels';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
+import api from '@/services/api';
 import { getChannelConfigStatus } from '@/services/channelConfig';
 import { getAttachmentsByMessageId } from '@/services/attachments';
+import { invalidateAttachmentProcessingCache } from '@/hooks/useAttachmentProcessing';
 import type { ChannelConfigValidationStatus } from '@/types/channelConfig';
 import type { Channel } from '@/types/channel';
 import { getChannelMeta } from '@/components/conversations/channelMeta';
@@ -244,6 +246,40 @@ export function useConversations() {
     };
   }, [selectedId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const baseUrl = (api.defaults.baseURL ?? '').replace(/\/$/, '');
+    if (!baseUrl) return;
+    const source = new EventSource(`${baseUrl}/realtime/events`);
+    source.addEventListener('attachment_updated', (event) => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data ?? '{}') as {
+          message_id?: string;
+          attachment_id?: string;
+        };
+        const messageId = (data.message_id ?? '').trim();
+        const attachmentId = (data.attachment_id ?? '').trim();
+        if (!messageId) return;
+        if (attachmentId) invalidateAttachmentProcessingCache(attachmentId);
+        void getAttachmentsByMessageId(messageId).then((response) => {
+          attachmentCache.set(messageId, response.attachments);
+          setMessages((prev) => {
+            const next = { ...prev };
+            for (const [conversationId, list] of Object.entries(next)) {
+              next[conversationId] = list.map((msg) =>
+                msg.id === messageId ? { ...msg, attachments: response.attachments } : msg,
+              );
+            }
+            return next;
+          });
+        });
+      } catch {
+        // Ignore malformed realtime payloads.
+      }
+    });
+    return () => source.close();
+  }, []);
+
   const selectConversation = useCallback((id: string) => {
     setSelectedId(id);
   }, []);
@@ -394,8 +430,9 @@ export function useConversations() {
       }
 
       try {
-        await setConversationMode(conversationId, mode);
-        setConversations((prev) => prev.map((conv) => (conv.id === conversationId ? { ...conv, mode } : conv)));
+        const updated = await setConversationMode(conversationId, mode);
+        await loadConversationsData();
+        setSelectedId(updated.id);
       } catch (err: unknown) {
         const apiMsg = getApiErrorMessage(err, 'Error al cambiar modo');
 
@@ -409,7 +446,7 @@ export function useConversations() {
         setTogglingModes((prev) => ({ ...prev, [conversationId]: false }));
       }
     },
-    [configStatusByConversation],
+    [configStatusByConversation, loadConversationsData],
   );
 
   const dismissError = useCallback(() => setError(null), []);

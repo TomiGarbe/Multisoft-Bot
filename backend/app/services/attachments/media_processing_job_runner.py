@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.services.attachment_service import AttachmentService
 from app.interfaces.media import MediaProcessingError
+from app.services.realtime_service import event_bus
 from app.services.attachments.media_processing_runtime_service import MediaProcessingRuntimeService
 from app.services.media_processing_service import MediaProcessingService
 from app.services.retry_policy import RetryPolicy, run_with_retries
@@ -84,7 +85,14 @@ class MediaProcessingJobRunner:
                         started_at=started_at,
                     ),
                 )
+                self._sync_transcription_metadata(
+                    attachment=attachment,
+                    job_capability=job.capability,
+                    artifact=artifact,
+                    job_status="completed",
+                )
             self.db.commit()
+            self._publish_transcription_update(attachment=attachment, job_capability=job.capability, job_status="completed")
             logger.info(
                 "[MULTIMEDIA][PROCESSING] completed job_id=%s capability=%s duration_ms=%s",
                 job.id,
@@ -102,7 +110,15 @@ class MediaProcessingJobRunner:
                 error_message=str(exc),
                 retry_count=job.retry_count + 1,
             )
+            self._sync_transcription_metadata(
+                attachment=attachment,
+                job_capability=job.capability,
+                artifact=None,
+                job_status="failed",
+                error_code=self._error_code(exc),
+            )
             self.db.commit()
+            self._publish_transcription_update(attachment=attachment, job_capability=job.capability, job_status="failed")
             logger.warning(
                 "[MULTIMEDIA][PROCESSING] failed job_id=%s capability=%s error=%s",
                 job.id,
@@ -165,3 +181,46 @@ class MediaProcessingJobRunner:
         if isinstance(exc, MediaProcessingError):
             return exc.code
         return "processing_error"
+
+    def _sync_transcription_metadata(
+        self,
+        *,
+        attachment,
+        job_capability: MediaProcessingCapability,
+        artifact: ProcessedArtifactCreate | None,
+        job_status: str,
+        error_code: str | None = None,
+    ) -> None:
+        if job_capability != MediaProcessingCapability.TRANSCRIPTION:
+            return
+        metadata = dict(attachment.metadata_json or {})
+        if job_status == "completed" and artifact is not None:
+            provider_meta = dict((artifact.metadata_json or {}))
+            payload_json = dict((artifact.payload_json or {}))
+            transcription_text = (artifact.payload_text or "").strip()
+            metadata["transcription"] = transcription_text or None
+            metadata["transcription_status"] = "completed"
+            metadata["transcription_provider"] = str(provider_meta.get("provider") or "whisper_transcription")
+            metadata["transcription_language"] = payload_json.get("language") or provider_meta.get("detected_language")
+            metadata["transcription_model"] = provider_meta.get("transcription_model") or "faster_whisper"
+        elif job_status == "failed":
+            metadata["transcription_status"] = "failed"
+            if error_code:
+                metadata["transcription_error_code"] = error_code
+        self.attachment_service.update_attachment_metadata(attachment=attachment, metadata_json=metadata)
+
+    def _publish_transcription_update(self, *, attachment, job_capability: MediaProcessingCapability, job_status: str) -> None:
+        if job_capability != MediaProcessingCapability.TRANSCRIPTION:
+            return
+        event_bus.publish(
+            "attachment_updated",
+            {
+                "type": "attachment_updated",
+                "conversation_id": str(getattr(getattr(attachment, "message", None), "conversation_id", "") or ""),
+                "message_id": str(attachment.message_id),
+                "attachment_id": str(attachment.id),
+                "processing_capability": "transcription",
+                "processing_status": job_status,
+            },
+            tenant_id=attachment.tenant_id,
+        )

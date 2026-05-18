@@ -37,20 +37,49 @@ class MediaProcessingRuntimeService:
         self._validate_limits(attachment=attachment, payload=binary_data, capability=capability)
 
         if capability == MediaProcessingCapability.TRANSCRIPTION:
+            normalized_mime = (attachment.mime_type or "").split(";")[0].strip().lower() or None
             logger.info(
-                "[AI][TRANSCRIPTION][START] attachment_id=%s mime=%s",
+                "[AI][TRANSCRIPTION][FILE_FOUND] attachment_id=%s message_id=%s mime_type=%s audio_path=%s provider=%s model=%s bytes=%s",
                 attachment.id,
-                attachment.mime_type,
+                attachment.message_id,
+                normalized_mime,
+                f"attachment_blob://{attachment.id}",
+                "whisper_transcription",
+                "faster_whisper",
+                len(binary_data),
             )
-            result = self._transcribe_audio_with_whisper(
-                payload=binary_data,
-                filename=attachment.filename,
-                mime_type=attachment.mime_type,
+            logger.info(
+                "[AI][TRANSCRIPTION][START] attachment_id=%s message_id=%s mime_type=%s provider=%s model=%s",
+                attachment.id,
+                attachment.message_id,
+                normalized_mime,
+                "whisper_transcription",
+                "faster_whisper",
             )
+            try:
+                result = self._transcribe_audio_with_whisper(
+                    payload=binary_data,
+                    filename=attachment.filename,
+                    mime_type=attachment.mime_type,
+                )
+            except MediaProcessingError:
+                logger.warning(
+                    "[AI][TRANSCRIPTION][FAILED] attachment_id=%s message_id=%s mime_type=%s provider=%s model=%s",
+                    attachment.id,
+                    attachment.message_id,
+                    normalized_mime,
+                    "whisper_transcription",
+                    "faster_whisper",
+                )
+                raise
             payload_text = str(result.get("text") or "") or None
             logger.info(
-                "[AI][TRANSCRIPTION][SUCCESS] attachment_id=%s language=%s segments=%s text_chars=%s",
+                "[AI][TRANSCRIPTION][SUCCESS] attachment_id=%s message_id=%s mime_type=%s provider=%s model=%s language=%s segments=%s text_chars=%s",
                 attachment.id,
+                attachment.message_id,
+                normalized_mime,
+                "whisper_transcription",
+                (result.get("provider_response") or {}).get("metadata", {}).get("model") or "faster_whisper",
                 result.get("language"),
                 len(result.get("segments") or []),
                 len(payload_text or ""),
@@ -99,7 +128,12 @@ class MediaProcessingRuntimeService:
             }
         except TranscriptionError as exc:
             logger.warning(
-                "[AI][TRANSCRIPTION][FAILED] code=%s retryable=%s detail=%s",
+                "[AI][TRANSCRIPTION][FAILED] attachment_id=%s message_id=%s mime_type=%s provider=%s model=%s code=%s retryable=%s detail=%s",
+                None,
+                None,
+                (mime_type or "").split(";")[0].strip().lower() or None,
+                "whisper_transcription",
+                "faster_whisper",
                 exc.code,
                 exc.retryable,
                 exc.message,

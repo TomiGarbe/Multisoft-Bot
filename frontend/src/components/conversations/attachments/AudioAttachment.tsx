@@ -14,6 +14,7 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
   const [hasError, setHasError] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [showTranscription, setShowTranscription] = useState(false);
 
   const label = useMemo(() => `${formatMediaTime(currentTime)} / ${formatMediaTime(duration)}`, [currentTime, duration]);
   const { loading, error, status, transcription } = useAttachmentProcessing(attachment);
@@ -116,16 +117,31 @@ export default function AudioAttachment({ attachment }: { attachment: Attachment
           {failedReason ? <span className="ml-1 text-red-600">({failedReason})</span> : null}
         </div>
       ) : null}
-      {transcription?.payloadText ? (
+      <button
+        type="button"
+        onClick={() => setShowTranscription((prev) => !prev)}
+        className="mt-2 text-xs font-medium text-blue-700 hover:text-blue-800"
+      >
+        [ Ver transcripción ]
+      </button>
+      {showTranscription ? (
         <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-2">
-          <p className="mb-1 text-[11px] font-semibold text-gray-700">Transcripcion</p>
-          <p className="max-h-44 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700">{transcription.payloadText}</p>
+          <p className="mb-1 text-[11px] font-semibold text-gray-700">Transcripción</p>
+          {transcription?.payloadText ? (
+            <p className="max-h-44 overflow-y-auto whitespace-pre-wrap text-xs text-gray-700">{transcription.payloadText}</p>
+          ) : isTranscriptionProcessing ? (
+            <p className="text-xs text-amber-700">Transcribiendo audio...</p>
+          ) : isTranscriptionFailed ? (
+            <p className="text-xs text-red-700">No se pudo transcribir el audio</p>
+          ) : (
+            <p className="text-xs text-gray-600">Transcripción no disponible</p>
+          )}
         </div>
       ) : null}
-      {error && attachment.status === 'processing' ? (
+      {error ? (
         <p className="mt-1 text-[11px] text-red-600">No se pudo consultar el estado de transcripcion.</p>
       ) : null}
-      {loading && attachment.status === 'processing' ? (
+      {loading ? (
         <p className="mt-1 text-[11px] text-amber-700">Cargando estado de transcripcion...</p>
       ) : null}
     </div>

@@ -162,7 +162,7 @@ def normalize_attachment(
         caption=str(caption) if caption is not None else None,
         metadata=metadata,
     )
-    logger.warning(
+    logger.debug(
         "[MULTIMEDIA][NORMALIZE] attachment type=%s mime=%s size_bytes=%s provider_media_id=%s has_provider_url=%s has_base64=%s storage_backend=%s",
         normalized.type.value,
         normalized.mime_type,
@@ -219,7 +219,7 @@ def normalize_attachments_from_payload(
             )
 
     if normalized:
-        logger.warning(
+        logger.debug(
             "[MULTIMEDIA][NORMALIZE] attachments_array_detected count=%s provider=%s fallback_message_type=%s",
             len(normalized),
             provider,
@@ -244,7 +244,7 @@ def normalize_attachments_from_payload(
     has_any_media_source = any([legacy["provider_url"], legacy["provider_media_id"], legacy["base64_data"]])
     if not has_any_media_source:
         return []
-    logger.warning(
+    logger.debug(
         "[MULTIMEDIA][NORMALIZE] legacy_media_payload_detected provider=%s fallback_message_type=%s",
         provider,
         fallback_message_type.value,

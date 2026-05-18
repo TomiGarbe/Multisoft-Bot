@@ -13,8 +13,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation
+from app.services.conversation.lifecycle_service import ConversationLifecycleService
 from app.services.conversation.guards import is_config_valid
-import app.services.message_service as message_service
 
 logger = logging.getLogger(__name__)
 
@@ -36,5 +36,11 @@ def disable_ai(db: Session, conversation: Conversation) -> None:
 
 
 def _set_mode(db: Session, conversation: Conversation, mode: str) -> None:
-    message_service.set_conversation_mode(db, conversation, mode)
-    logger.info("Set mode='%s' for conversation: %s", mode, conversation.id)
+    if conversation.mode == mode and conversation.status == "open":
+        return
+    opened = ConversationLifecycleService(db).switch_mode_with_new_session(
+        conversation=conversation,
+        target_mode=mode,
+        resolution="legacy_mode_switch",
+    )
+    logger.info("Set mode='%s' with new session: old=%s new=%s", mode, conversation.id, opened.id)

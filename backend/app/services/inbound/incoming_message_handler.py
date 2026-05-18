@@ -27,6 +27,7 @@ from app.services.channel_config_service import ChannelConfigService
 from app.services.conversation.guards import should_use_ai
 from app.services.inbound.message_processor import MessageProcessor
 import app.services.message_service as message_service
+from app.services.conversation.lifecycle_service import ConversationLifecycleService
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +99,15 @@ async def handle_incoming_message(db: Session, message: NormalizedMessage, tenan
             "Failed to dispatch outbound message %s for conversation %s",
             outbound.id, conversation.id,
         )
+        return
+
+    if bool(getattr(conversation, "_handoff_after_reply", False)):
+        try:
+            ConversationLifecycleService(db).switch_mode_with_new_session(
+                conversation=conversation,
+                target_mode="human",
+                resolution=str(getattr(conversation, "_handoff_reason", "human_handoff")),
+            )
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to perform deferred handoff for conversation: %s", conversation.id)

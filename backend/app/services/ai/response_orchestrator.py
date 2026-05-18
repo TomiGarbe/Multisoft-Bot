@@ -32,7 +32,6 @@ from app.utils.ai_tool_constants import MAX_TOOL_CALLS_PER_MESSAGE
 import app.services.message_service as message_service
 from app.services.conversation.context_builder import build_conversation_context
 from app.services.conversation.guards import should_use_ai
-from app.services.conversation.mode_service import disable_ai
 from app.services.config_structure import section_entries
 from app.services.attachment_service import AttachmentService
 
@@ -476,14 +475,12 @@ class AIResponseOrchestrator:
 
         if bot_message_count is not None and bot_message_count >= max_messages:
             logger.warning(
-                "Bot message limit (%d) reached for conversation: %s - switching to human mode",
+                "Bot message limit (%d) reached for conversation: %s - scheduling human handoff",
                 max_messages, conversation.id,
             )
             response = limit_message or fallback_message
-            try:
-                disable_ai(db, conversation)
-            except Exception:
-                logger.exception("Failed to set human mode for conversation: %s", conversation.id)
+            setattr(conversation, "_handoff_after_reply", True)
+            setattr(conversation, "_handoff_reason", "max_bot_messages")
 
         self._apply_user_type_on_completion(db, contact_id, config)
 

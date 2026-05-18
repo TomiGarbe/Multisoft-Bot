@@ -29,6 +29,7 @@ from app.services.attachments.attachment_download_dispatcher import (
 from app.services.attachments.media_processing_orchestrator import MediaProcessingOrchestrator
 from app.services.message_persistence_service import MessagePersistenceService
 from app.services.realtime_service import event_bus
+from app.services.conversation.lifecycle_service import ConversationLifecycleService
 
 logger = logging.getLogger(__name__)
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;,]+)?(?:;charset=[^;,]+)?;base64,(?P<payload>.+)$", re.IGNORECASE)
@@ -102,11 +103,19 @@ class MessageService:
 
         contact_id = self._resolve_or_create_contact_id(channel, normalized)
         thread = self._get_or_create_thread(channel, normalized)
-        conversation = self.repository.get_open_conversation_by_thread(thread.id, tenant_id)
+        lifecycle = ConversationLifecycleService(self.db)
+        conversation = lifecycle.ensure_single_open_conversation(
+            tenant_id=tenant_id,
+            thread_id=thread.id,
+        )
         if conversation:
             return conversation
 
-        conversation = self.repository.create_conversation(tenant_id=channel.tenant_id, thread_id=thread.id)
+        conversation = lifecycle.create_conversation(
+            tenant_id=channel.tenant_id,
+            thread_id=thread.id,
+            mode="ai",
+        )
         if contact_id:
             self.repository.create_contact_usage(contact_id=contact_id, conversation_id=conversation.id)
 
@@ -658,8 +667,8 @@ class MessageService:
             payload = (normalized_item.base64_data or "").strip()
             if not payload:
                 continue
-            logger.warning(
-                "[MULTIMEDIA][BASE64_DETECTED] message_id=%s attachment_id=%s mime=%s declared_size=%s",
+            logger.debug(
+                "[MULTIMEDIA][INLINE_PAYLOAD] message_id=%s attachment_id=%s mime=%s declared_size=%s",
                 message.id,
                 attachment_row.id,
                 normalized_item.mime_type,
@@ -667,8 +676,8 @@ class MessageService:
             )
             try:
                 decoded, inferred_mime = self._decode_inbound_base64_payload(payload)
-                logger.warning(
-                    "[MULTIMEDIA][DECODE_SUCCESS] attachment_id=%s decoded_bytes=%s inferred_mime=%s",
+                logger.debug(
+                    "[MULTIMEDIA][INLINE_PAYLOAD_DECODED] attachment_id=%s decoded_bytes=%s inferred_mime=%s",
                     attachment_row.id,
                     len(decoded),
                     inferred_mime,

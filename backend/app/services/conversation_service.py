@@ -9,7 +9,9 @@ from app.repositories.conversation_repository import ConversationRepository
 from app.schemas.conversation import ConversationResponse
 from app.services.auth.access_service import can_access_tenant_resource
 from app.services.channel_config_service import ChannelConfigService
-from app.services.conversation.mode_service import InvalidChannelConfigError, disable_ai, enable_ai
+from app.services.conversation.mode_service import InvalidChannelConfigError
+from app.services.conversation.lifecycle_service import ConversationLifecycleService
+from app.services.conversation.guards import is_config_valid
 
 
 class ConversationService:
@@ -63,17 +65,22 @@ class ConversationService:
         if user is not None and not can_access_tenant_resource(self.db, user, conversation.tenant_id):
             raise LookupError(f"Conversation not found: {conversation_id}")
 
+        lifecycle = ConversationLifecycleService(self.db)
         if mode == "ai":
-            channel_config = ChannelConfigService.get_channel_config(
-                self.db,
-                conversation.chat_thread.channel_id,
+            channel_config = ChannelConfigService.get_channel_config(self.db, conversation.chat_thread.channel_id)
+            if not is_config_valid(channel_config):
+                raise InvalidChannelConfigError("Config incompleta")
+            conversation = lifecycle.switch_mode_with_new_session(
+                conversation=conversation,
+                target_mode="ai",
+                resolution="manual_ai_reactivation",
             )
-            try:
-                enable_ai(self.db, conversation, channel_config)
-            except InvalidChannelConfigError as exc:
-                raise ValueError("Config incompleta") from exc
         else:
-            disable_ai(self.db, conversation)
+            conversation = lifecycle.switch_mode_with_new_session(
+                conversation=conversation,
+                target_mode="human",
+                resolution="human_handoff",
+            )
 
         return conversation
 

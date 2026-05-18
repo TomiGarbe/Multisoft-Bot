@@ -13,7 +13,7 @@ from app.services.attachments.media_processing_feature_service import MediaProce
 from app.services.attachments.media_processing_security_service import MediaProcessingSecurityService
 from app.services.media_processing_service import MediaProcessingService
 from app.schemas.internal.media_processing import AttachmentProcessingJobCreate, ProcessingLifecycleSnapshot
-from app.schemas.internal.message_enums import MediaProcessingStatus
+from app.schemas.internal.message_enums import MediaProcessingCapability, MediaProcessingStatus
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,13 @@ class MediaProcessingOrchestrator:
         filtered_capabilities = []
         channel_id = getattr(getattr(attachment, "message", None), "channel_id", None)
         for capability in capabilities:
+            if (
+                attachment.attachment_type.value == "audio"
+                and getattr(getattr(attachment, "message", None), "direction", None) == "inbound"
+                and capability == MediaProcessingCapability.TRANSCRIPTION
+            ):
+                filtered_capabilities.append(capability)
+                continue
             decision = self.feature_service.is_capability_enabled(
                 tenant_id=tenant_id,
                 channel_id=channel_id,
@@ -110,10 +117,14 @@ class MediaProcessingOrchestrator:
             )
             if job.capability.value == "transcription":
                 logger.info(
-                    "[AI][TRANSCRIPTION][JOB_CREATED] job_id=%s tenant_id=%s attachment_id=%s",
+                    "[AI][TRANSCRIPTION][JOB_CREATED] job_id=%s tenant_id=%s attachment_id=%s message_id=%s mime_type=%s provider=%s model=%s",
                     job.id,
                     tenant_id,
                     attachment_id,
+                    getattr(attachment, "message_id", None),
+                    attachment.mime_type,
+                    "whisper_transcription",
+                    "faster_whisper",
                 )
             media_processing_dispatcher.enqueue(MediaProcessingJobDispatch(job_id=job.id, tenant_id=tenant_id))
 

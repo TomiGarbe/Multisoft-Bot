@@ -29,6 +29,12 @@ function shouldFetchInitialState(attachmentId: string, status: Attachment['statu
   return status === 'processing';
 }
 
+function isTranscriptionCandidate(attachment: Attachment): boolean {
+  if (attachment.type === 'audio' || attachment.type === 'video') return true;
+  const normalizedMime = (attachment.mimeType ?? '').toLowerCase().split(';')[0].trim();
+  return normalizedMime.startsWith('audio/') || normalizedMime.startsWith('video/');
+}
+
 async function fetchState(attachmentId: string): Promise<State> {
   const status = await getAttachmentProcessingStatus(attachmentId).catch((error: unknown) => {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
@@ -76,7 +82,7 @@ export function useAttachmentProcessing(attachment: Attachment) {
       setState({ loading: false, error: null, status: null, artifacts: [] });
       return;
     }
-    if (!shouldFetchInitialState(attachment.id, attachment.status)) {
+    if (!shouldFetchInitialState(attachment.id, attachment.status) && !isTranscriptionCandidate(attachment)) {
       setState(
         stateCache.get(attachment.id) ?? {
           loading: false,
@@ -161,4 +167,10 @@ export function useAttachmentProcessing(attachment: Attachment) {
     artifacts: state.artifacts,
     ...derived,
   };
+}
+
+export function invalidateAttachmentProcessingCache(attachmentId: string): void {
+  stateCache.delete(attachmentId);
+  inFlight.delete(attachmentId);
+  notFoundUntil.delete(attachmentId);
 }
