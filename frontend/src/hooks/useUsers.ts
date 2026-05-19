@@ -1,13 +1,13 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
-import { getToken } from '@/services/auth';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { deleteUser, getUsers, updateUser } from '@/services/users';
 import type { User } from '@/types/access';
 
 export function useUsers(toast?: { success: (message: string) => void; error: (message: string) => void }) {
   const router = useRouter();
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
 
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,10 +19,11 @@ export function useUsers(toast?: { success: (message: string) => void; error: (m
   const [selectedUsuario, setSelectedUsuario] = useState<User | null>(null);
 
   useEffect(() => {
+    if (!authResolved) return;
     if (!hasToken) {
       router.replace('/login');
     }
-  }, [hasToken, router]);
+  }, [authResolved, hasToken, router]);
 
   const fetchUsuarios = useCallback(async () => {
     try {
@@ -120,6 +121,7 @@ export function useUsers(toast?: { success: (message: string) => void; error: (m
   const statusLabel = useMemo(() => (usuario: User) => (usuario.is_active === false ? 'Inactivo' : 'Activo'), []);
 
   return {
+    authResolved,
     hasToken,
     usuarios,
     loading,

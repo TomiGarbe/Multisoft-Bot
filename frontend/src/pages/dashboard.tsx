@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import Button from '@/components/ui/Button';
 import PageHeader from '@/components/ui/PageHeader';
 import StatCard from '@/components/ui/StatCard';
-import { getToken } from '@/services/auth';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { useTenantContext } from '@/context/tenant-context';
 import ChannelDistributionChart from '@/dashboard/components/ChannelDistributionChart';
 import ChartCard from '@/dashboard/components/ChartCard';
@@ -25,18 +25,29 @@ function isSuperAdmin(userType?: string, isBackdoor?: boolean): boolean {
 }
 
 export default function DashboardPage() {
+  const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
   const router = useRouter();
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
   const { user } = useTenantContext();
   const canUseGlobalScope = isSuperAdmin(user?.user_type, user?.is_backdoor);
   const [dashboardScope, setDashboardScope] = useState<DashboardScope>('tenant');
-  const { data, loading, error, retry } = useDashboardData(dashboardScope, canUseGlobalScope);
+  const { data, loading, error, retry } = useDashboardData(
+    dashboardScope,
+    canUseGlobalScope,
+    authResolved && hasToken,
+  );
 
   useEffect(() => {
+    if (!hydrationDebugEnabled) return;
+    console.info('[RENDER] Dashboard', { authResolved, hasToken, dashboardScope, canUseGlobalScope });
+  }, [hydrationDebugEnabled, authResolved, hasToken, dashboardScope, canUseGlobalScope]);
+
+  useEffect(() => {
+    if (!authResolved) return;
     if (!hasToken) {
       router.replace('/login');
     }
-  }, [hasToken, router]);
+  }, [authResolved, hasToken, router]);
 
   useEffect(() => {
     if (!canUseGlobalScope && dashboardScope === 'global') {
@@ -67,6 +78,10 @@ export default function DashboardPage() {
       },
     ];
   }, [data]);
+
+  if (!authResolved) {
+    return <div className="min-h-screen bg-slate-50" />;
+  }
 
   if (!hasToken) {
     return null;

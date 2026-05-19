@@ -11,6 +11,7 @@ import { useUsers } from '@/hooks/useUsers';
 export default function UsersPage() {
   const toast = useToast();
   const {
+    authResolved,
     hasToken,
     usuarios,
     loading,
@@ -29,6 +30,7 @@ export default function UsersPage() {
     statusLabel,
   } = useUsers(toast);
 
+  if (!authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!hasToken) return null;
 
   return (

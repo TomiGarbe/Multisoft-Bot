@@ -11,6 +11,7 @@ import { useNegocios } from '@/hooks/useNegocios';
 export default function TenantsPage() {
   const toast = useToast();
   const {
+    authResolved,
     hasToken,
     negocios,
     loading,
@@ -25,6 +26,7 @@ export default function TenantsPage() {
     fetchNegocios,
   } = useNegocios(toast);
 
+  if (!authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!hasToken) return null;
 
   return (

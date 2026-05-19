@@ -1,13 +1,6 @@
-import { useState, type ReactNode } from 'react';
-import dynamic from 'next/dynamic';
-
-const Sidebar = dynamic(() => import('@/components/layout/Sidebar'), {
-  ssr: false,
-});
-
-const Header = dynamic(() => import('@/components/layout/Header'), {
-  ssr: false,
-});
+import { useEffect, useState, type ReactNode } from 'react';
+import Sidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -16,6 +9,12 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, scrollMain = true }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
+
+  useEffect(() => {
+    if (!hydrationDebugEnabled) return;
+    console.info('[HYDRATION] client mounted app layout');
+  }, [hydrationDebugEnabled]);
 
   return (
     <div className="app flex h-full min-h-0 overflow-hidden bg-slate-50">

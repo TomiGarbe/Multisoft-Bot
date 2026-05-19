@@ -12,8 +12,8 @@ import PermissionToggle from '@/components/ui/PermissionToggle';
 import Radio from '@/components/ui/Radio';
 import Table from '@/components/ui/Table';
 import { ToastViewport, useToast } from '@/components/ui/toast';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
-import { getToken } from '@/services/auth';
 import { getTenants } from '@/services/tenants';
 import { createAdminUser, createBackdoorUser, getGlobalUsers } from '@/services/users';
 import type { User } from '@/types/access';
@@ -36,7 +36,7 @@ function isStrongPassword(value: string): boolean {
 
 export default function GlobalUsersPage() {
   const toast = useToast();
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
   const [users, setUsers] = useState<User[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,6 +159,7 @@ export default function GlobalUsersPage() {
     }
   };
 
+  if (!authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!hasToken) return null;
 
   const businessNamesFor = (user: User): string[] => {
@@ -431,4 +432,3 @@ export default function GlobalUsersPage() {
     </AppLayout>
   );
 }
-

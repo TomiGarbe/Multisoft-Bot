@@ -78,6 +78,7 @@ export function useAttachmentProcessing(attachment: Attachment) {
       }
     );
   });
+  const [hasTimedOutPending, setHasTimedOutPending] = useState(false);
 
   useEffect(() => {
     if (!isBackendAttachmentId) {
@@ -136,6 +137,22 @@ export function useAttachmentProcessing(attachment: Attachment) {
   }, [attachment.id, state.status?.status]);
 
   useEffect(() => {
+    const startedAt = pendingSince.get(attachment.id);
+    if (!startedAt) {
+      setHasTimedOutPending(false);
+      return;
+    }
+
+    const updateTimeout = () => {
+      setHasTimedOutPending(Date.now() - startedAt >= TRANSCRIPTION_PENDING_TIMEOUT_MS);
+    };
+
+    updateTimeout();
+    const timer = window.setInterval(updateTimeout, 1000);
+    return () => window.clearInterval(timer);
+  }, [attachment.id, state.status?.status]);
+
+  useEffect(() => {
     if (!isBackendAttachmentId) return;
     if (notFoundUntil.get(attachment.id) && Date.now() < (notFoundUntil.get(attachment.id) ?? 0)) return;
     if (!isPollingNeeded(attachment.status, state.status)) return;
@@ -172,12 +189,6 @@ export function useAttachmentProcessing(attachment: Attachment) {
     const extracted = state.artifacts.find((item) => item.capability === 'document_extraction' && item.payloadText);
     return { transcription, extracted };
   }, [state.artifacts]);
-
-  const hasTimedOutPending = useMemo(() => {
-    const startedAt = pendingSince.get(attachment.id);
-    if (!startedAt) return false;
-    return Date.now() - startedAt >= TRANSCRIPTION_PENDING_TIMEOUT_MS;
-  }, [attachment.id, state.status?.status, state.artifacts.length]);
 
   return {
     loading: state.loading,

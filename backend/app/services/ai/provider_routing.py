@@ -11,7 +11,11 @@ _PRIMARY_PROVIDER = "deepseek"
 
 @dataclass(frozen=True)
 class AIProviderCapabilities:
+    supports_text: bool
+    supports_audio: bool
     supports_vision: bool
+    supports_documents: bool
+    supports_video: bool
     supports_streaming: bool
     supports_tools: bool
 
@@ -24,9 +28,28 @@ class AIProviderRoute:
     capabilities: AIProviderCapabilities
 
 
-def resolve_provider_route(channel_settings: dict[str, Any] | None = None) -> AIProviderRoute:
+def resolve_provider_route(
+    channel_settings: dict[str, Any] | None = None,
+    *,
+    requires_multimodal: bool = False,
+) -> AIProviderRoute:
     settings_jsonb = channel_settings if isinstance(channel_settings, dict) else {}
-    provider_candidate = str(settings_jsonb.get("ai_provider") or settings.AI_PROVIDER or _PRIMARY_PROVIDER).strip().lower()
+    media_enabled = requires_multimodal
+    if media_enabled:
+        provider_candidate = str(
+            settings_jsonb.get("ai_provider_vision")
+            or settings_jsonb.get("ai_provider_multimodal")
+            or settings_jsonb.get("ai_provider")
+            or settings.AI_PROVIDER
+            or _PRIMARY_PROVIDER
+        ).strip().lower()
+    else:
+        provider_candidate = str(
+            settings_jsonb.get("ai_provider_text")
+            or settings_jsonb.get("ai_provider")
+            or settings.AI_PROVIDER
+            or _PRIMARY_PROVIDER
+        ).strip().lower()
     if provider_candidate not in _SUPPORTED_PROVIDERS:
         raise ValueError(
             f"Unsupported AI provider: {provider_candidate}. "
@@ -34,7 +57,19 @@ def resolve_provider_route(channel_settings: dict[str, Any] | None = None) -> AI
         )
 
     if provider_candidate == "deepseek":
-        model = str(settings_jsonb.get("ai_model") or settings.DEEPSEEK_MODEL).strip() or settings.DEEPSEEK_MODEL
+        if media_enabled:
+            model = str(
+                settings_jsonb.get("ai_model_vision")
+                or settings_jsonb.get("ai_model_multimodal")
+                or settings_jsonb.get("ai_model")
+                or settings.DEEPSEEK_MODEL
+            ).strip() or settings.DEEPSEEK_MODEL
+        else:
+            model = str(
+                settings_jsonb.get("ai_model_text")
+                or settings_jsonb.get("ai_model")
+                or settings.DEEPSEEK_MODEL
+            ).strip() or settings.DEEPSEEK_MODEL
         normalized_model = model.lower()
         supports_vision = any(token in normalized_model for token in ("vl", "vision", "v4"))
         return AIProviderRoute(
@@ -42,7 +77,11 @@ def resolve_provider_route(channel_settings: dict[str, Any] | None = None) -> AI
             model=model,
             timeout_seconds=settings.DEEPSEEK_TIMEOUT_SECONDS,
             capabilities=AIProviderCapabilities(
+                supports_text=True,
+                supports_audio=supports_vision,
                 supports_vision=supports_vision,
+                supports_documents=supports_vision,
+                supports_video=supports_vision,
                 supports_streaming=False,
                 supports_tools=True,
             ),
@@ -54,13 +93,29 @@ def resolve_provider_route(channel_settings: dict[str, Any] | None = None) -> AI
             model="mock",
             timeout_seconds=None,
             capabilities=AIProviderCapabilities(
+                supports_text=True,
+                supports_audio=False,
                 supports_vision=False,
+                supports_documents=False,
+                supports_video=False,
                 supports_streaming=False,
                 supports_tools=False,
             ),
         )
 
-    model = str(settings_jsonb.get("ai_model") or settings.OLLAMA_MODEL).strip() or settings.OLLAMA_MODEL
+    if media_enabled:
+        model = str(
+            settings_jsonb.get("ai_model_vision")
+            or settings_jsonb.get("ai_model_multimodal")
+            or settings_jsonb.get("ai_model")
+            or settings.OLLAMA_MODEL
+        ).strip() or settings.OLLAMA_MODEL
+    else:
+        model = str(
+            settings_jsonb.get("ai_model_text")
+            or settings_jsonb.get("ai_model")
+            or settings.OLLAMA_MODEL
+        ).strip() or settings.OLLAMA_MODEL
     normalized_model = model.lower()
     supports_vision = any(token in normalized_model for token in ("vision", "vl", "llava", "qwen2.5vl", "gemma3"))
     return AIProviderRoute(
@@ -68,7 +123,11 @@ def resolve_provider_route(channel_settings: dict[str, Any] | None = None) -> AI
         model=model,
         timeout_seconds=settings.OLLAMA_TIMEOUT_SECONDS,
         capabilities=AIProviderCapabilities(
+            supports_text=True,
+            supports_audio=supports_vision,
             supports_vision=supports_vision,
+            supports_documents=supports_vision,
+            supports_video=supports_vision,
             supports_streaming=False,
             supports_tools=True,
         ),

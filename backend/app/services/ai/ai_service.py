@@ -80,6 +80,18 @@ class AIService:
     def supports_vision(self) -> bool:
         return self.provider.supports_vision()
 
+    def supports_text(self) -> bool:
+        return self.provider.supports_text()
+
+    def supports_audio(self) -> bool:
+        return self.provider.supports_audio()
+
+    def supports_documents(self) -> bool:
+        return self.provider.supports_documents()
+
+    def supports_video(self) -> bool:
+        return self.provider.supports_video()
+
     def supports_streaming(self) -> bool:
         return self.provider.supports_streaming()
 

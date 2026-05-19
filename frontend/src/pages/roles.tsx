@@ -11,6 +11,7 @@ import { useRoles } from '@/hooks/useRoles';
 export default function RolesPage() {
   const toast = useToast();
   const {
+    authResolved,
     hasToken,
     roles,
     loading,
@@ -25,6 +26,7 @@ export default function RolesPage() {
     fetchRoles,
   } = useRoles(toast);
 
+  if (!authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!hasToken) return null;
 
   return (

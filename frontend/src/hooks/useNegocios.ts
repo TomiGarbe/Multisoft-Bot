@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
-import { getToken } from '@/services/auth';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { deleteTenant, getTenants } from '@/services/tenants';
 import type { Tenant } from '@/types/tenant';
 
 export function useNegocios(toast?: { success: (message: string) => void; error: (message: string) => void }) {
   const router = useRouter();
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
 
   const [negocios, setNegocios] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,10 +18,11 @@ export function useNegocios(toast?: { success: (message: string) => void; error:
   const [selectedNegocio, setSelectedNegocio] = useState<Tenant | null>(null);
 
   useEffect(() => {
+    if (!authResolved) return;
     if (!hasToken) {
       router.replace('/login');
     }
-  }, [hasToken, router]);
+  }, [authResolved, hasToken, router]);
 
   const fetchNegocios = useCallback(async () => {
     try {
@@ -78,6 +79,7 @@ export function useNegocios(toast?: { success: (message: string) => void; error:
   };
 
   return {
+    authResolved,
     hasToken,
     negocios,
     loading,

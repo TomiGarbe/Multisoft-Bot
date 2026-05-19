@@ -21,8 +21,19 @@ interface TenantContextValue {
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null);
+const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
+
+function hydrationLog(message: string, payload?: Record<string, unknown>) {
+  if (!hydrationDebugEnabled) return;
+  if (payload) {
+    console.info(`[HYDRATION] ${message}`, payload);
+    return;
+  }
+  console.info(`[HYDRATION] ${message}`);
+}
 
 export function TenantProvider({ children }: { children: ReactNode }) {
+  hydrationLog(typeof window === 'undefined' ? 'server render tenant provider' : 'client render tenant provider');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -30,11 +41,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    hydrationLog('tenant refresh start');
     if (!getToken()) {
       setUser(null);
       setTenants([]);
       setActiveTenantId(null);
       setLoading(false);
+      hydrationLog('tenant refresh no token');
       return;
     }
 
@@ -53,17 +66,20 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
       setActiveTenantId(nextTenantId);
       setActiveTenantContext(nextTenantId);
+      hydrationLog('tenant loaded', { tenantCount: tenantList.length, activeTenantId: nextTenantId });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el contexto de tenant');
       setUser(null);
       setTenants([]);
       setActiveTenantId(null);
+      hydrationLog('tenant refresh error');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    hydrationLog('client mounted tenant provider');
     void refresh();
   }, [refresh]);
 

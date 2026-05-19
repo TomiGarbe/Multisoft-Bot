@@ -1,6 +1,6 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { getToken } from '@/services/auth';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { deleteRole, getRoles } from '@/services/roles';
 import type { Role } from '@/types/access';
@@ -16,7 +16,7 @@ function isTenantRole(role: Role): boolean {
 
 export function useRoles(toast?: { success: (message: string) => void; error: (message: string) => void }) {
   const router = useRouter();
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +27,9 @@ export function useRoles(toast?: { success: (message: string) => void; error: (m
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
   useEffect(() => {
+    if (!authResolved) return;
     if (!hasToken) router.replace('/login');
-  }, [hasToken, router]);
+  }, [authResolved, hasToken, router]);
 
   const fetchRoles = useCallback(async () => {
     try {
@@ -85,6 +86,7 @@ export function useRoles(toast?: { success: (message: string) => void; error: (m
   };
 
   return {
+    authResolved,
     hasToken,
     roles,
     loading,

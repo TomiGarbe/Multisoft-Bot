@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTenantContext } from '@/context/tenant-context';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
-import { getToken } from '@/services/auth';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import {
   createIntegration,
   deleteIntegration,
@@ -17,7 +17,7 @@ import type { IntegrationItem, IntegrationListItem, IntegrationPayload, Integrat
 export function useIntegrations(toast?: { success: (message: string) => void; error: (message: string) => void }) {
   const router = useRouter();
   const { user } = useTenantContext();
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
 
   const permissionSet = useMemo(() => new Set((user?.permissions ?? []).map((p) => p.code)), [user?.permissions]);
   const canRead = permissionSet.has('bot_actions.read');
@@ -37,10 +37,11 @@ export function useIntegrations(toast?: { success: (message: string) => void; er
   const [testResult, setTestResult] = useState<IntegrationTestResponse | null>(null);
 
   useEffect(() => {
+    if (!authResolved) return;
     if (!hasToken) {
       router.replace('/login');
     }
-  }, [hasToken, router]);
+  }, [authResolved, hasToken, router]);
 
   const fetchItems = useCallback(async () => {
     if (!hasToken || !canRead) {
@@ -164,6 +165,7 @@ export function useIntegrations(toast?: { success: (message: string) => void; er
   }, [toast]);
 
   return {
+    authResolved,
     hasToken,
     loading,
     error,

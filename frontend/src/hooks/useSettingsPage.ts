@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useTenantContext } from '@/context/tenant-context';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
-import { getToken } from '@/services/auth';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { getChannelConfigStatus, updateChannelConfig } from '@/services/channelConfig';
 import { getChannelBotConfigActions, replaceChannelBotConfigActions } from '@/services/channelBotConfigActions';
 import { getChannelConfigBundle, getChannels } from '@/services/channels';
@@ -129,7 +129,7 @@ export function useSettingsPage(toast: ToastApi) {
   const router = useRouter();
   const { activeTenant, refresh, user } = useTenantContext();
   const channelIdFromQuery = typeof router.query.id === 'string' ? router.query.id : '';
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
   const permissionSet = useMemo(() => new Set((user?.permissions ?? []).map((p) => p.code)), [user?.permissions]);
   const canReadIntegrations = permissionSet.has('bot_actions.read');
   const canUpdateIntegrations = permissionSet.has('channel_config.update');
@@ -163,8 +163,9 @@ export function useSettingsPage(toast: ToastApi) {
   const loadedChannelRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!authResolved) return;
     if (!hasToken) router.replace('/login');
-  }, [hasToken, router]);
+  }, [authResolved, hasToken, router]);
 
   const fetchChannels = useCallback(async () => {
     setChannelsLoading(true);
@@ -546,6 +547,7 @@ export function useSettingsPage(toast: ToastApi) {
   );
 
   return {
+    authResolved,
     hasToken,
     channels,
     channelOptions,

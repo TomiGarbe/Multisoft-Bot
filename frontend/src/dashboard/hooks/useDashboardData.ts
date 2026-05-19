@@ -3,12 +3,18 @@ import { TENANT_CONTEXT_CHANGED_EVENT, getApiErrorMessage } from '@/services/api
 import { loadDashboardData } from '@/dashboard/services/dashboard';
 import type { DashboardData, DashboardScope } from '@/dashboard/types';
 
-export function useDashboardData(scope: DashboardScope, canUseGlobalScope: boolean) {
+const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
+
+export function useDashboardData(scope: DashboardScope, canUseGlobalScope: boolean, enabled = true) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!enabled) return;
+    if (hydrationDebugEnabled) {
+      console.info('[QUERY] analytics usage series', { scope, canUseGlobalScope });
+    }
     setLoading(true);
     setError(null);
     try {
@@ -19,13 +25,18 @@ export function useDashboardData(scope: DashboardScope, canUseGlobalScope: boole
     } finally {
       setLoading(false);
     }
-  }, [scope, canUseGlobalScope]);
+  }, [enabled, scope, canUseGlobalScope]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [enabled, load]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (typeof window === 'undefined') return;
     const handler = () => {
       void load();
@@ -35,7 +46,7 @@ export function useDashboardData(scope: DashboardScope, canUseGlobalScope: boole
     return () => {
       window.removeEventListener(TENANT_CONTEXT_CHANGED_EVENT, handler);
     };
-  }, [load]);
+  }, [enabled, load]);
 
   return {
     data,

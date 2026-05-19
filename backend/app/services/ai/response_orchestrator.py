@@ -185,7 +185,23 @@ class AIResponseOrchestrator:
     ) -> Optional[str]:
         config = channel_config.config_jsonb or {}
         channel_settings = channel_config.settings_jsonb or {}
-        route = resolve_provider_route(channel_settings if isinstance(channel_settings, dict) else None)
+        route = resolve_provider_route(
+            channel_settings if isinstance(channel_settings, dict) else None,
+            requires_multimodal=bool(inbound_has_media),
+        )
+        if inbound_has_media and not route.capabilities.supports_vision:
+            fallback_multimodal_route = resolve_provider_route(
+                channel_settings if isinstance(channel_settings, dict) else None,
+                requires_multimodal=True,
+            )
+            if fallback_multimodal_route.capabilities.supports_vision:
+                logger.info(
+                    "[AI][VISION][ROUTED] conversation_id=%s strategy=multimodal_fallback provider=%s model=%s",
+                    conversation.id,
+                    fallback_multimodal_route.provider,
+                    fallback_multimodal_route.model,
+                )
+                route = fallback_multimodal_route
         provider_name = route.provider
         if inbound_has_media and not route.capabilities.supports_vision:
             logger.warning(
@@ -209,6 +225,14 @@ class AIResponseOrchestrator:
             message_id=message_id,
             conversation_id=conversation.id,
             route=route,
+        )
+        logger.info(
+            "[AI][VISION][MODEL_SELECTED] conversation_id=%s provider=%s model=%s supports_vision=%s inbound_has_media=%s",
+            conversation.id,
+            route.provider,
+            route.model,
+            route.capabilities.supports_vision,
+            inbound_has_media,
         )
 
         behavior = config.get("behavior")
@@ -263,7 +287,16 @@ class AIResponseOrchestrator:
                         channel_id,
                         len(available_tools),
                     )
+                    use_multimodal_chat = bool(inbound_has_media)
                     if available_tools and route.capabilities.supports_tools:
+                        logger.info(
+                            "[AI][VISION][REQUEST_SENT] conversation_id=%s provider=%s model=%s mode=chat tools=%s inbound_has_media=%s",
+                            conversation.id,
+                            route.provider,
+                            route.model,
+                            len(available_tools),
+                            inbound_has_media,
+                        )
                         ai_payload = await self.call_ai_chat(
                             db=db,
                             tenant_id=tenant_id,
@@ -378,19 +411,52 @@ class AIResponseOrchestrator:
                             conversation.id,
                             provider_name,
                         )
+                        logger.info(
+                            "[AI][VISION][REQUEST_SENT] conversation_id=%s provider=%s model=%s mode=generate reason=provider_no_tools inbound_has_media=%s",
+                            conversation.id,
+                            route.provider,
+                            route.model,
+                            inbound_has_media,
+                        )
                         ai_payload = await self.call_ai(prompt, route=route)
                         response = str((ai_payload or {}).get("response") or "")
                     else:
-                        logger.info(
-                            "AI WITHOUT TOOLS (conversation_id=%s provider=%s reason=no_tools_configured_for_channel)",
-                            conversation.id,
-                            provider_name,
-                        )
-                        ai_payload = await self.call_ai(prompt, route=route)
+                        logger.info("AI WITHOUT TOOLS (conversation_id=%s provider=%s reason=no_tools_configured_for_channel)", conversation.id, provider_name)
+                        if use_multimodal_chat:
+                            logger.info(
+                                "[AI][VISION][REQUEST_SENT] conversation_id=%s provider=%s model=%s mode=chat tools=0 inbound_has_media=true",
+                                conversation.id,
+                                route.provider,
+                                route.model,
+                            )
+                            ai_payload = await self.call_ai_chat(
+                                db=db,
+                                tenant_id=tenant_id,
+                                message_id=message_id,
+                                prompt=prompt,
+                                current_user_message=self._extract_current_user_message(prompt),
+                                route=route,
+                                tools=None,
+                            )
+                        else:
+                            logger.info(
+                                "[AI][VISION][REQUEST_SENT] conversation_id=%s provider=%s model=%s mode=generate inbound_has_media=false",
+                                conversation.id,
+                                route.provider,
+                                route.model,
+                            )
+                            ai_payload = await self.call_ai(prompt, route=route)
                         response = str((ai_payload or {}).get("response") or "")
             except Exception:
                 db.rollback()
                 logger.exception("AI generation failed for conversation: %s", conversation.id)
+                logger.error(
+                    "[AI][VISION][FAILED] conversation_id=%s provider=%s model=%s inbound_has_media=%s",
+                    conversation.id,
+                    route.provider,
+                    route.model,
+                    inbound_has_media,
+                )
         else:
             logger.info("AI gate blocked execution for conversation: %s", conversation.id)
 
@@ -432,7 +498,21 @@ class AIResponseOrchestrator:
                 response = tool_failure_message
             else:
                 logger.warning("Empty AI response for conversation: %s - using fallback", conversation.id)
-                response = fallback_message
+                if inbound_has_media and not route.capabilities.supports_vision:
+                    unsupported_media_message = (
+                        channel_settings.get("multimodal_unavailable_message")
+                        if isinstance(channel_settings, dict)
+                        else None
+                    ) or "La capacidad de analisis de imagenes y archivos no esta disponible actualmente para este canal."
+                    response = unsupported_media_message
+                    logger.warning(
+                        "[AI][VISION][FAILED] conversation_id=%s reason=no_multimodal_provider provider=%s model=%s",
+                        conversation.id,
+                        route.provider,
+                        route.model,
+                    )
+                else:
+                    response = fallback_message
         elif is_out_of_scope(response):
             if inbound_has_media:
                 unsupported = (
@@ -485,6 +565,14 @@ class AIResponseOrchestrator:
         self._apply_user_type_on_completion(db, contact_id, config)
 
         logger.info("Response ready for conversation: %s", conversation.id)
+        logger.info(
+            "[AI][VISION][SUCCESS] conversation_id=%s provider=%s model=%s inbound_has_media=%s response_chars=%s",
+            conversation.id,
+            route.provider,
+            route.model,
+            inbound_has_media,
+            len((response or "").strip()),
+        )
         return response
 
     def _log_inbound_media_trace(
@@ -515,14 +603,13 @@ class AIResponseOrchestrator:
             supports_multimodal,
         )
         for attachment in attachments:
-            skip_reason = "context_text_only_pipeline"
-            if attachment.attachment_type.value == "audio" and not supports_multimodal:
-                skip_reason = "model_not_multimodal"
+            skipped = not supports_multimodal
+            skip_reason = "none" if not skipped else "model_not_multimodal"
             logger.debug(
                 "[AI][MULTIMEDIA] attachment_id=%s type=%s skipped=%s reason=%s",
                 attachment.id,
                 attachment.attachment_type.value,
-                True,
+                skipped,
                 skip_reason,
             )
 

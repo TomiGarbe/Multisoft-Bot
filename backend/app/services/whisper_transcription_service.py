@@ -122,7 +122,7 @@ class WhisperTranscriptionService:
             return cls._model
 
     @classmethod
-    def validate_startup_dependencies(cls) -> tuple[bool, str, str]:
+    def validate_startup_dependencies(cls, *, check_model_load: bool = False) -> tuple[bool, str, str]:
         ffmpeg_path = shutil.which("ffmpeg")
         if not ffmpeg_path:
             return False, "dependency_missing", "ffmpeg binary not found in PATH"
@@ -137,9 +137,10 @@ class WhisperTranscriptionService:
         except Exception as exc:
             return False, "dependency_missing", f"faster_whisper import failed: {exc}"
 
-        try:
-            cls._get_or_create_model()
-        except Exception as exc:
-            return False, "model_not_ready", str(exc)
+        if check_model_load:
+            try:
+                cls._get_or_create_model()
+            except Exception as exc:
+                return False, "model_not_ready", str(exc)
 
         return True, "ready", "ok"

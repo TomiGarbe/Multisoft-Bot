@@ -12,8 +12,8 @@ import PageHeader from '@/components/ui/PageHeader';
 import Select from '@/components/ui/Select';
 import Table from '@/components/ui/Table';
 import { ToastViewport, useToast } from '@/components/ui/toast';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { getApiErrorMessage } from '@/services/api';
-import { getToken } from '@/services/auth';
 import { getRoles } from '@/services/roles';
 import { createBusinessUser, getBusinessUsers } from '@/services/users';
 import type { Role, User } from '@/types/access';
@@ -35,7 +35,7 @@ export default function BusinessUsersPage() {
   const toast = useToast();
   const router = useRouter();
   const businessId = String(router.query.id ?? '');
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +121,7 @@ export default function BusinessUsersPage() {
     }
   };
 
+  if (!authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!hasToken) return null;
 
   const selectedRole = roles.find((role) => role.id === roleId) ?? null;

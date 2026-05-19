@@ -50,6 +50,18 @@ class AIInterface(ABC):
     def supports_vision(self) -> bool:
         return False
 
+    def supports_text(self) -> bool:
+        return True
+
+    def supports_audio(self) -> bool:
+        return self.supports_vision()
+
+    def supports_documents(self) -> bool:
+        return self.supports_vision()
+
+    def supports_video(self) -> bool:
+        return self.supports_vision()
+
     def supports_streaming(self) -> bool:
         return False
 

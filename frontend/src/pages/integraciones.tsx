@@ -11,6 +11,7 @@ import { useIntegrations } from '@/hooks/useIntegrations';
 export default function IntegracionesPage() {
   const toast = useToast();
   const {
+    authResolved,
     hasToken,
     loading,
     error,
@@ -34,6 +35,7 @@ export default function IntegracionesPage() {
     runTest,
   } = useIntegrations(toast);
 
+  if (!authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!hasToken) return null;
 
   return (

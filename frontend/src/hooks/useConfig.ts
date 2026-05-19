@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
-import { getToken } from '@/services/auth';
+import { useAuthToken } from '@/hooks/useAuthToken';
 import { deleteChannel, getChannels } from '@/services/channels';
 import type { Channel } from '@/types/channel';
 
 export function useConfig(toast?: { success: (message: string) => void; error: (message: string) => void }) {
   const router = useRouter();
-  const hasToken = Boolean(getToken());
+  const { authResolved, hasToken } = useAuthToken();
 
   const [configItems, setConfigItems] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,8 +18,9 @@ export function useConfig(toast?: { success: (message: string) => void; error: (
   const [selectedConfigItem, setSelectedConfigItem] = useState<Channel | null>(null);
 
   useEffect(() => {
+    if (!authResolved) return;
     if (!hasToken) router.replace('/login');
-  }, [hasToken, router]);
+  }, [authResolved, hasToken, router]);
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -76,6 +77,7 @@ export function useConfig(toast?: { success: (message: string) => void; error: (
   };
 
   return {
+    authResolved,
     hasToken,
     configItems,
     loading,

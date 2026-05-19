@@ -11,6 +11,7 @@ import { useConfig } from '@/hooks/useConfig';
 export default function CanalesPage() {
   const toast = useToast();
   const {
+    authResolved,
     hasToken,
     configItems,
     loading,
@@ -25,6 +26,7 @@ export default function CanalesPage() {
     fetchConfig,
   } = useConfig(toast);
 
+  if (!authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!hasToken) return null;
 
   return (

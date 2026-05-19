@@ -23,6 +23,7 @@ export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState('general');
   const settings = useSettingsPage(toast);
 
+  if (!settings.authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!settings.hasToken) return null;
 
   return (

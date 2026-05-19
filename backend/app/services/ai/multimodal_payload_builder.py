@@ -28,10 +28,14 @@ class AIMultimodalPayloadBuilder:
         supports_vision: bool,
     ) -> tuple[str | list[dict[str, Any]], dict[str, int]]:
         text_value = (user_text or "").strip()
-        if not supports_vision or not message_id:
+        if not message_id:
             return text_value, {"images_included": 0, "images_skipped": 0, "included_image_bytes": 0}
 
-        image_parts, stats = self._load_image_parts(tenant_id=tenant_id, message_id=message_id)
+        image_parts, stats = self._load_image_parts(
+            tenant_id=tenant_id,
+            message_id=message_id,
+            supports_vision=supports_vision,
+        )
         if not image_parts:
             return text_value, stats
 
@@ -39,8 +43,16 @@ class AIMultimodalPayloadBuilder:
         content_parts.extend(image_parts)
         return content_parts, stats
 
-    def _load_image_parts(self, *, tenant_id: uuid.UUID, message_id: uuid.UUID) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    def _load_image_parts(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        message_id: uuid.UUID,
+        supports_vision: bool,
+    ) -> tuple[list[dict[str, Any]], dict[str, int]]:
         attachments = self._attachment_service.list_by_message_id_and_tenant(message_id=message_id, tenant_id=tenant_id)
+        if not supports_vision:
+            return [], {"images_included": 0, "images_skipped": 0, "included_image_bytes": 0}
         image_attachments = [item for item in attachments if item.attachment_type == AttachmentType.IMAGE]
         if not image_attachments:
             return [], {"images_included": 0, "images_skipped": 0, "included_image_bytes": 0}
