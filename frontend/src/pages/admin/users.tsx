@@ -19,6 +19,7 @@ import { useAuthToken } from '@/hooks/useAuthToken';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { createAdminUser, createBackdoorUser, deleteGlobalUser, getGlobalUsers, updateGlobalUser } from '@/services/users';
 import type { User } from '@/types/access';
+import type { Tenant } from '@/types/tenant';
 
 type GlobalUserType = 'Administrador' | 'Backdoor';
 
