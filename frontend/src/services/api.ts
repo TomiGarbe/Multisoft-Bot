@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL?.trim() ||
+  (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:8000/api/v1'
+    : 'https://chatbotapi.multisoft.ar/api/v1');
 const ACTIVE_TENANT_ID_KEY = 'active_tenant_id';
 const LAST_SELECTED_TENANT_ID_KEY = 'last_selected_tenant_id';
 export const TENANT_CONTEXT_CHANGED_EVENT = 'tenant-context-changed';

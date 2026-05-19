@@ -81,12 +81,9 @@ services:
       # NEXT_PUBLIC_* is exposed to the browser (which runs on the host),
       # so this must be a URL the host can reach — not the docker service name.
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-      CHOKIDAR_USEPOLLING: "true"
+      NODE_ENV: production
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     networks:
       - multisoft_network
     restart: unless-stopped
