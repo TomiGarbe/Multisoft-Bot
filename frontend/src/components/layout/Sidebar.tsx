@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { X } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { NAV_ITEMS } from '@/lib/navigation';
+import { logout } from '@/services/auth';
+import { useTenantContext } from '@/context/tenant-context';
+import { NAV_ITEMS, canAccessSection } from '@/lib/navigation';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -10,8 +11,10 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { pathname } = useRouter();
-  const { user, logout } = useAuth();
+  const router = useRouter();
+  const { pathname } = router;
+  const { user, permissionCodes, isSuperAdmin } = useTenantContext();
+  const visibleNavItems = NAV_ITEMS.filter((item) => canAccessSection(permissionCodes, item, isSuperAdmin));
 
   const initials = (user?.name ?? 'U')
     .split(' ')
@@ -52,7 +55,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         <nav className="flex-1 overflow-y-auto space-y-1.5 p-4">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive =
               pathname === item.path || (item.path === '/dashboard' && pathname === '/');
             const Icon = item.icon;
@@ -86,7 +89,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
 
           <button
-            onClick={logout}
+            onClick={() => {
+              logout();
+              void router.replace('/login');
+            }}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-rose-600"
           >
             Cerrar sesion

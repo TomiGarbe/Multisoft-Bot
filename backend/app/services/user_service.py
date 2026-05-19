@@ -2,12 +2,28 @@ import uuid
 from typing import Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import DataError, IntegrityError, StatementError
 
 from app.models import Permission, Role, Tenant, User
 from app.models.user import UserType
+from app.repositories.auth_repository import AuthRepository
 from app.repositories import user_repository
 from app.schemas.user import TenantSummary, UserPermissionSummary, UserResponse, UserRoleSummary
 from app.services.auth_service import hash_password
+
+ADMIN_ROLE_NAME = "Administrador"
+
+
+def _normalize_db_error(exc: Exception) -> ValueError:
+    raw_detail = str(getattr(exc, "orig", exc))
+    detail = raw_detail.lower()
+    if "user_type_enum" in detail and "invalid input value for enum" in detail:
+        return ValueError(
+            "Invalid user_type value. Expected one of: Administrador, Backdoor, User"
+        )
+    if "unique" in detail and "users_email_key" in detail:
+        return ValueError("Email already registered")
+    return ValueError("Invalid user data")
 
 
 def get_user_by_id(db: Session, user_id: uuid.UUID) -> Optional[User]:
@@ -45,6 +61,13 @@ def _validate_tenant(db: Session, tenant_id: uuid.UUID) -> Tenant:
     if tenant is None:
         raise LookupError("Tenant not found")
     return tenant
+
+
+def _get_admin_role(db: Session) -> Role:
+    role = user_repository.get_global_role_by_name(db, ADMIN_ROLE_NAME)
+    if role is None:
+        raise LookupError("Admin role not found")
+    return role
 
 
 def _normalize_user_type(user_type: Optional[UserType], is_backdoor: bool) -> UserType:
@@ -109,7 +132,17 @@ def get_user_response_by_id(db: Session, user_id: uuid.UUID) -> UserResponse:
     user = _load_user_with_relations(db, user_id)
     if user is None:
         raise LookupError("User not found")
-    return _build_user_response(user)
+    response = _build_user_response(user)
+    if response.permissions or user.user_type != UserType.ADMINISTRADOR:
+        return response
+
+    fallback_codes = AuthRepository(db).get_global_role_permission_codes(ADMIN_ROLE_NAME)
+    fallback_permissions = user_repository.get_permissions_by_codes(db, list(fallback_codes))
+    response.permissions = [
+        UserPermissionSummary(id=permission.id, code=permission.code, name=permission.name)
+        for permission in fallback_permissions
+    ]
+    return response
 
 
 def can_access_tenant(user: User, tenant_id: uuid.UUID) -> bool:
@@ -153,6 +186,7 @@ def create_user(
 
         role = _validate_role(db, role_id)
         permission_records = _validate_permissions(db, permissions or [])
+        admin_role = _get_admin_role(db) if final_user_type == UserType.ADMINISTRADOR else None
 
         user = user_repository.add_user(
             db,
@@ -168,6 +202,15 @@ def create_user(
         if final_user_type in (UserType.ADMINISTRADOR, UserType.USER):
             for tenant_link_id in final_tenant_ids:
                 user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=tenant_link_id)
+
+        if final_user_type == UserType.ADMINISTRADOR:
+            for tenant_link_id in final_tenant_ids:
+                user_repository.add_tenant_user(
+                    db,
+                    tenant_id=tenant_link_id,
+                    user_id=user.id,
+                    role_id=admin_role.id if admin_role else None,
+                )
 
         if final_user_type == UserType.USER:
             tenant_user = user_repository.add_tenant_user(
@@ -191,6 +234,9 @@ def create_user(
         if loaded_user is None:
             raise LookupError("User not found after creation")
         return _build_user_response(loaded_user)
+    except (DataError, IntegrityError, StatementError) as exc:
+        user_repository.rollback(db)
+        raise _normalize_db_error(exc) from exc
     except Exception:
         user_repository.rollback(db)
         raise
@@ -242,6 +288,7 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
             admin_tenant_ids = requested_tenant_ids or [link.tenant_id for link in user.tenant_scopes]
             if not admin_tenant_ids:
                 raise ValueError("Admin user must have at least one tenant assigned")
+            admin_role = _get_admin_role(db)
 
             user.user_type = UserType.ADMINISTRADOR
             user.is_backdoor = False
@@ -249,6 +296,12 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
             user_repository.delete_user_tenant_links_by_user_id(db, user.id)
             for tenant_link_id in admin_tenant_ids:
                 user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=tenant_link_id)
+                user_repository.add_tenant_user(
+                    db,
+                    tenant_id=tenant_link_id,
+                    user_id=user.id,
+                    role_id=admin_role.id,
+                )
 
         else:
             user_tenant_ids = requested_tenant_ids
@@ -298,6 +351,9 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
         if loaded_user is None:
             return None
         return _build_user_response(loaded_user)
+    except (DataError, IntegrityError, StatementError) as exc:
+        user_repository.rollback(db)
+        raise _normalize_db_error(exc) from exc
     except Exception:
         user_repository.rollback(db)
         raise
@@ -319,11 +375,13 @@ def delete_user(db: Session, user_id: uuid.UUID) -> bool:
 
 def get_users(
     db: Session,
+    tenant_id: uuid.UUID,
     skip: int = 0,
     limit: int = 100,
     current_user_id: Optional[uuid.UUID] = None,
 ) -> list[UserResponse]:
-    users = user_repository.list_users(db, skip=skip, limit=limit)
+    _validate_tenant(db, tenant_id)
+    users = user_repository.list_tenant_business_users(db, tenant_id=tenant_id, skip=skip, limit=limit)
     return [_build_user_response(user) for user in users]
 
 

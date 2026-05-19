@@ -14,6 +14,9 @@ interface TenantContextValue {
   error: string | null;
   user: User | null;
   tenants: Tenant[];
+  permissionCodes: string[];
+  isSuperAdmin: boolean;
+  canSwitchTenant: boolean;
   activeTenantId: string | null;
   activeTenant: Tenant | null;
   setTenant: (tenantId: string) => void;
@@ -102,18 +105,26 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   const setTenant = useCallback((tenantId: string) => {
     const nextTenantId = tenantId.trim();
+    if (!nextTenantId) return;
+    if (!tenants.some((tenant) => tenant.id === nextTenantId)) return;
     setActiveTenantId(nextTenantId);
     setActiveTenantContext(nextTenantId);
-  }, []);
+  }, [tenants]);
 
   const value = useMemo<TenantContextValue>(() => {
     const activeTenant = tenants.find((tenant) => tenant.id === activeTenantId) ?? null;
+    const permissionCodes = (user?.permissions ?? []).map((permission) => permission.code);
+    const isSuperAdmin = user?.user_type === 'Backdoor' || user?.is_backdoor === true;
+    const canSwitchTenant = isSuperAdmin || tenants.length > 1;
 
     return {
       loading,
       error,
       user,
       tenants,
+      permissionCodes,
+      isSuperAdmin,
+      canSwitchTenant,
       activeTenantId,
       activeTenant,
       setTenant,

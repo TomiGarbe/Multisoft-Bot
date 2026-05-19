@@ -1,6 +1,5 @@
 import { Cable, Plug } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import EmptyState from '@/components/ui/EmptyState';
 import Switch from '@/components/ui/Switch';
@@ -13,9 +12,7 @@ interface IntegrationsSettingsSectionProps {
   scopeLabel: string;
   loading: boolean;
   saving: boolean;
-  dirty: boolean;
   onToggle: (actionId: string) => void;
-  onSave: () => void;
 }
 
 function resolveProvider(url: string): string {
@@ -42,9 +39,7 @@ export default function IntegrationsSettingsSection({
   scopeLabel,
   loading,
   saving,
-  dirty,
   onToggle,
-  onSave,
 }: IntegrationsSettingsSectionProps) {
   return (
     <section className="space-y-6">
@@ -52,11 +47,6 @@ export default function IntegrationsSettingsSection({
         icon={<Cable className="h-5 w-5" />}
         title="Integraciones"
         description={`Controla integraciones HTTP por canal. Alcance actual: ${scopeLabel}.`}
-        actions={
-          <Button onClick={onSave} loading={saving} disabled={!dirty || loading}>
-            Guardar integraciones
-          </Button>
-        }
       >
         <span className="sr-only">Controles de integraciones</span>
       </Card>

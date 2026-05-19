@@ -3,6 +3,10 @@ export interface Permission {
   code: string;
   name: string;
   description?: string | null;
+  assignable?: boolean;
+  internal_only?: boolean;
+  backdoor_only?: boolean;
+  tenant_visible?: boolean;
 }
 
 export interface Role {

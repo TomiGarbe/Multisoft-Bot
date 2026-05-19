@@ -40,6 +40,15 @@ export async function updateUser(userId: string, payload: UpdateUserInput): Prom
   return data;
 }
 
+export async function updateGlobalUser(userId: string, payload: UpdateUserInput): Promise<User> {
+  const { data } = await api.put<User>(`/users/global/${userId}`, payload);
+  return data;
+}
+
 export async function deleteUser(userId: string): Promise<void> {
   await api.delete(`/users/${userId}`);
+}
+
+export async function deleteGlobalUser(userId: string): Promise<void> {
+  await api.delete(`/users/global/${userId}`);
 }

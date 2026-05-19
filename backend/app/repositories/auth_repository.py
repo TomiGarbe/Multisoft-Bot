@@ -99,6 +99,15 @@ class AuthRepository(BaseRepository):
         stmt = select(Permission.code)
         return set(self.db.execute(stmt).scalars().all())
 
+    def get_global_role_permission_codes(self, role_name: str) -> set[str]:
+        stmt = (
+            select(Permission.code)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .join(Role, Role.id == RolePermission.role_id)
+            .where(Role.tenant_id.is_(None), Role.name == role_name)
+        )
+        return set(self.db.execute(stmt).scalars().all())
+
     def get_user_with_type(self, user_id: uuid.UUID) -> Optional[User]:
         return self.db.get(User, user_id)
 

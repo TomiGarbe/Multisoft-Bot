@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, Plus, Radio as RadioIcon, Tag, Trash2, Use
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import ColorPicker from '@/components/ui/ColorPicker';
 import IconButton from '@/components/ui/IconButton';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
@@ -158,22 +159,15 @@ export default function ChannelSettingsSection({
                 }}
                 leadingIcon={<Tag className="h-4 w-4" />}
               />
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-slate-700">Color</label>
-                <div className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 py-1 transition-colors hover:border-slate-400">
-                  <input
-                    type="color"
-                    value={userType.color}
-                    onChange={(event) => {
-                      const next = [...userTypes.types];
-                      next[index] = { ...next[index], color: event.target.value };
-                      onUserTypesChange({ ...userTypes, types: next });
-                    }}
-                    className="h-7 w-7 cursor-pointer rounded border-0 bg-transparent"
-                  />
-                  <code className="font-mono text-xs text-slate-600">{userType.color}</code>
-                </div>
-              </div>
+              <ColorPicker
+                label="Color"
+                value={userType.color}
+                onChange={(nextColor) => {
+                  const next = [...userTypes.types];
+                  next[index] = { ...next[index], color: nextColor };
+                  onUserTypesChange({ ...userTypes, types: next });
+                }}
+              />
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-slate-700">Default</label>
                 <Button

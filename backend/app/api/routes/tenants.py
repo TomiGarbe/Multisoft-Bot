@@ -1,9 +1,10 @@
 import uuid
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.dependencies.auth import get_current_tenant, get_current_user
+from app.api.dependencies.auth import get_current_tenant, get_current_user, require_super_admin
 from app.api.dependencies.permissions import require_permission
 from app.core.timezones import LATAM_TIMEZONE_OPTIONS
 from app.db.session import get_db
@@ -21,6 +22,7 @@ from app.services.user_service import create_user, get_tenant_users, update_user
 from app.services.auth.access_service import can_operate_on_tenant_target
 
 router = APIRouter(tags=["tenants"])
+logger = logging.getLogger(__name__)
 
 
 def _ensure_tenant_context(current_user: User, target_tenant_id: uuid.UUID, current_tenant_id: uuid.UUID) -> None:
@@ -48,6 +50,7 @@ async def read_supported_tenant_timezones(
 async def create_tenant_endpoint(
     tenant_data: TenantCreate,
     db: Session = Depends(get_db),
+    __: None = Depends(require_super_admin),
     _: None = Depends(require_permission("tenants.create")),
 ):
 
@@ -73,6 +76,7 @@ async def update_tenant_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    __: None = Depends(require_super_admin),
     _: None = Depends(require_permission("tenants.update")),
 ):
     _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
@@ -96,6 +100,7 @@ async def delete_tenant_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     current_tenant_id: uuid.UUID = Depends(get_current_tenant),
+    __: None = Depends(require_super_admin),
     _: None = Depends(require_permission("tenants.delete")),
 ):
     _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
@@ -134,6 +139,9 @@ async def create_tenant_user(
     __: None = Depends(require_permission("users.create")),
 ):
     _ensure_tenant_context(current_user, tenant_id, current_tenant_id)
+    safe_payload = user_data.model_dump()
+    safe_payload["password"] = "***"
+    logger.info("[USERS][CREATE][REQUEST] tenant_scope=%s payload=%s", str(tenant_id), safe_payload)
     try:
         return create_user(
             db=db,
@@ -147,9 +155,38 @@ async def create_tenant_user(
             tenant_ids=[tenant_id],
         )
     except ValueError as exc:
+        logger.warning(
+            "[USERS][CREATE][VALIDATION_ERROR] tenant_scope=%s detail=%s role_id=%s permissions=%s tenant_id=%s payload=%s",
+            str(tenant_id),
+            str(exc),
+            str(user_data.role_id) if user_data.role_id else None,
+            [str(permission_id) for permission_id in user_data.permissions],
+            str(user_data.tenant_id) if user_data.tenant_id else None,
+            safe_payload,
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except LookupError as exc:
+        logger.warning(
+            "[USERS][CREATE][FAILED] tenant_scope=%s detail=%s role_id=%s permissions=%s tenant_id=%s payload=%s",
+            str(tenant_id),
+            str(exc),
+            str(user_data.role_id) if user_data.role_id else None,
+            [str(permission_id) for permission_id in user_data.permissions],
+            str(user_data.tenant_id) if user_data.tenant_id else None,
+            safe_payload,
+            exc_info=True,
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception:
+        logger.exception(
+            "[USERS][CREATE][FAILED] tenant_scope=%s role_id=%s permissions=%s tenant_id=%s payload=%s",
+            str(tenant_id),
+            str(user_data.role_id) if user_data.role_id else None,
+            [str(permission_id) for permission_id in user_data.permissions],
+            str(user_data.tenant_id) if user_data.tenant_id else None,
+            safe_payload,
+        )
+        raise
 
 
 @router.put("/{tenant_id}/users/{user_id}", response_model=UserResponse)

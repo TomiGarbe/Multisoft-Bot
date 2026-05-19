@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -65,13 +66,39 @@ configure_datetime_encoder()
 
 
 @app.exception_handler(RequestValidationError)
-async def request_validation_exception_handler(request, exc: RequestValidationError):
-    logger.warning(
-        "[MULTIMEDIA][UPLOAD] validation_error path=%s method=%s errors=%s",
-        request.url.path,
-        request.method,
-        exc.errors(),
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    payload_preview = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            if "password" in body:
+                body["password"] = "***"
+            payload_preview = body
+        else:
+            payload_preview = body
+    except Exception:
+        payload_preview = None
+
+    is_user_create_path = request.method.upper() == "POST" and (
+        request.url.path.endswith("/api/v1/users")
+        or ("/api/v1/tenants/" in request.url.path and request.url.path.endswith("/users"))
     )
+    if is_user_create_path:
+        logger.warning(
+            "[USERS][CREATE][VALIDATION_ERROR] path=%s method=%s payload=%s errors=%s",
+            request.url.path,
+            request.method,
+            payload_preview,
+            exc.errors(),
+        )
+    else:
+        logger.warning(
+            "[MULTIMEDIA][UPLOAD] validation_error path=%s method=%s payload=%s errors=%s",
+            request.url.path,
+            request.method,
+            payload_preview,
+            exc.errors(),
+        )
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 # CORS middleware

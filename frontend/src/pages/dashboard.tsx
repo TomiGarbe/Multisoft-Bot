@@ -10,9 +10,7 @@ import { useTenantContext } from '@/context/tenant-context';
 import ChannelDistributionChart from '@/dashboard/components/ChannelDistributionChart';
 import ChartCard from '@/dashboard/components/ChartCard';
 import ContactsByTypeGrid from '@/dashboard/components/ContactsByTypeGrid';
-import ConversionFlowList from '@/dashboard/components/ConversionFlowList';
 import DashboardSection from '@/dashboard/components/DashboardSection';
-import EmptyState from '@/dashboard/components/EmptyState';
 import ErrorState from '@/dashboard/components/ErrorState';
 import LoadingState from '@/dashboard/components/LoadingState';
 import TenantTokenRanking from '@/dashboard/components/TenantTokenRanking';
@@ -131,26 +129,17 @@ export default function DashboardPage() {
 
             {data.scope === 'tenant' ? (
               <DashboardSection
-                title="Usuarios por tipo"
-                description="Distribucion historica y crecimiento mensual por tipo de usuario/contacto."
+                title="Tipos de usuario"
+                description="Distribucion historica por tipo con jerarquia visual y crecimiento mensual."
               >
                 <ContactsByTypeGrid items={data.contactsByType} />
-              </DashboardSection>
-            ) : null}
-
-            {data.scope === 'tenant' ? (
-              <DashboardSection
-                title="Conversiones"
-                description="Flujos de conversion entre tipos de usuario."
-              >
-                <ConversionFlowList items={data.conversions} />
               </DashboardSection>
             ) : null}
 
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <ChartCard
                 title="Consumo de tokens por dia"
-                description="Serie diaria de uso para el alcance actual."
+                description="Serie temporal diaria para analizar tendencias de consumo."
               >
                 <UsageSeriesChart data={data.usageSeries} />
               </ChartCard>
@@ -172,28 +161,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            <DashboardSection
-              title="Notas operativas"
-              description="Limitaciones o consideraciones del calculo de metricas."
-            >
-              {data.notes.length > 0 ? (
-                <ul className="space-y-2 text-sm text-slate-600">
-                  {data.notes.map((item) => (
-                    <li
-                      key={item}
-                      className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2"
-                    >
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <EmptyState
-                  title="Sin observaciones"
-                  description="Todas las metricas cargaron correctamente para el alcance seleccionado."
-                />
-              )}
-            </DashboardSection>
           </div>
         ) : null}
       </div>

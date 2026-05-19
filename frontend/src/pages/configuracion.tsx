@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Cable, Filter, Settings, ShieldCheck, Sliders } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Cable, Check, Filter, Save, Settings, ShieldCheck, Sliders } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
+import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import EmptyState from '@/components/ui/EmptyState';
 import PageHeader from '@/components/ui/PageHeader';
@@ -23,6 +24,24 @@ export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState('general');
   const settings = useSettingsPage(toast);
 
+  const hasPendingChanges = settings.isChannelDirty || settings.isIntegrationsDirty;
+  const isSavingAny = settings.savingChannelConfig || settings.integrationsSaving;
+
+  const pendingScopes = useMemo(() => {
+    const scopes: string[] = [];
+    if (settings.isChannelDirty) scopes.push('General');
+    if (settings.isIntegrationsDirty) scopes.push('Integraciones');
+    return scopes;
+  }, [settings.isChannelDirty, settings.isIntegrationsDirty]);
+
+  const handleSaveAll = async () => {
+    const tasks: Promise<void>[] = [];
+    if (settings.isChannelDirty) tasks.push(settings.saveChannel());
+    if (settings.isIntegrationsDirty) tasks.push(settings.saveIntegrations());
+    if (tasks.length === 0) return;
+    await Promise.all(tasks);
+  };
+
   if (!settings.authResolved) return <div className="min-h-screen bg-slate-50" />;
   if (!settings.hasToken) return null;
 
@@ -30,18 +49,45 @@ export default function ConfiguracionPage() {
     <AppLayout>
       <ToastViewport toasts={toast.items} onClose={toast.remove} />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="shrink-0 px-6 pt-6 md:px-8 md:pt-8">
-          <PageHeader
-            icon={<Settings className="h-6 w-6" />}
-            title="Configuracion"
-            description="Configuracion operativa, comportamiento AI y seguridad webhook por canal."
-          />
+        <div className="shrink-0 px-6 pt-6 md:px-8 md:pt-8 backdrop-blur">
+          <div className="mx-auto w-full max-w-[1400px]">
+            <PageHeader
+              icon={<Settings className="h-6 w-6" />}
+              title="Configuracion"
+              description="Configuracion operativa, comportamiento AI y seguridad webhook por canal."
+              actions={
+                <div className="flex flex-wrap items-center gap-3">
+                  {hasPendingChanges ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+                      {pendingScopes.length > 1
+                        ? `${pendingScopes.length} secciones sin guardar`
+                        : `${pendingScopes[0]} sin guardar`}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                      Todo guardado
+                    </span>
+                  )}
+                  <Button
+                    onClick={() => void handleSaveAll()}
+                    loading={isSavingAny}
+                    disabled={!hasPendingChanges || isSavingAny}
+                    leadingIcon={<Save />}
+                    size="md"
+                  >
+                    Guardar todo
+                  </Button>
+                </div>
+              }
+            />
+          </div>
         </div>
 
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-6 md:px-8 md:pb-8">
-          <div className="space-y-6">
+          <div className="mx-auto w-full max-w-[1400px] space-y-6">
             <SettingsTabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
-
             <Card
               icon={<Filter className="h-5 w-5" />}
               title="Alcance de configuracion"
@@ -83,9 +129,6 @@ export default function ConfiguracionPage() {
                 onChannelSettingsChange={settings.updateChannelSettings}
                 onUserTypesChange={settings.updateUserTypes}
                 onBotConfigChange={settings.updateConfigState}
-                onSaveChannelConfig={() => void settings.saveChannel()}
-                isChannelDirty={settings.isChannelDirty}
-                savingChannel={settings.savingChannelConfig}
                 statusText={
                   settings.status.is_valid
                     ? 'Configuracion AI valida.'
@@ -119,9 +162,7 @@ export default function ConfiguracionPage() {
                 }
                 loading={settings.integrationsLoading}
                 saving={settings.integrationsSaving}
-                dirty={settings.isIntegrationsDirty}
                 onToggle={settings.toggleIntegration}
-                onSave={() => void settings.saveIntegrations()}
               />
             ) : null}
           </div>

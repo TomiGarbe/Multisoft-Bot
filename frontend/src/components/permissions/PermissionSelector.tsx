@@ -18,6 +18,7 @@ import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import Input from '@/components/ui/Input';
 import PermissionToggle from '@/components/ui/PermissionToggle';
+import Switch from '@/components/ui/Switch';
 import { getApiErrorMessage } from '@/services/api';
 import { getPermissions } from '@/services/permissions';
 import type { Permission } from '@/types/access';
@@ -35,8 +36,6 @@ interface PermissionCategory {
   icon: ReactNode;
   matchers: string[];
 }
-
-const HIDDEN_PERMISSION_PATTERNS = ['backdoor', 'tenant', 'tenants', 'admin permissions', 'ai test', 'realtime'];
 
 const CATEGORIES: PermissionCategory[] = [
   {
@@ -110,19 +109,6 @@ function resolvePermissionIcon(permission: Permission): ReactNode {
   return found ? found[1] : <ShieldCheck className="h-4 w-4" />;
 }
 
-function shouldHidePermission(permission: Permission): boolean {
-  const code = normalize(permission.code);
-  const name = normalize(permission.name);
-  const haystack = `${code} ${name}`;
-  const hiddenByPattern = HIDDEN_PERMISSION_PATTERNS.some((term) => haystack.includes(term));
-  const hiddenAdminUserCreate =
-    (haystack.includes('create') || haystack.includes('crear')) &&
-    (haystack.includes('admin') || haystack.includes('administrador')) &&
-    (haystack.includes('user') || haystack.includes('usuario'));
-
-  return hiddenByPattern || hiddenAdminUserCreate;
-}
-
 function findCategory(permission: Permission): string | null {
   const haystack = `${normalize(permission.code)} ${normalize(permission.name)}`;
   const category = CATEGORIES.find((item) => item.matchers.some((matcher) => haystack.includes(matcher)));
@@ -144,7 +130,7 @@ export default function PermissionSelector({ value, onChange, disabled = false }
       setIsLoading(true);
       setError(null);
       const permissionList = await getPermissions();
-      setAllPermissions(permissionList.filter((permission) => !shouldHidePermission(permission)));
+      setAllPermissions(permissionList.filter((permission) => permission.assignable !== false && permission.tenant_visible !== false));
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'No se pudieron cargar los permisos.'));
     } finally {
@@ -274,21 +260,20 @@ export default function PermissionSelector({ value, onChange, disabled = false }
                     ) : null}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    layout="inline"
+                    size="sm"
+                    label="Seleccionar todos"
+                    checked={allSelected}
+                    disabled={disabled}
+                    onChange={() => toggleCategory(category.key, category.permissions, allSelected)}
+                  />
                   <Badge
                     tone={selectedInCategory > 0 ? 'info' : 'neutral'}
-                    label={`${selectedInCategory}/${category.permissions.length}`}
+                    label={`${selectedInCategory}/${category.permissions.length} seleccionados`}
                     variant="soft"
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => toggleCategory(category.key, category.permissions, allSelected)}
-                  >
-                    {allSelected ? 'Quitar todos' : 'Seleccionar todos'}
-                  </Button>
                 </div>
               </header>
 

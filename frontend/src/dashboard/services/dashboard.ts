@@ -1,4 +1,5 @@
 import { getBusinessSummary, getUsageSeries } from '@/services/analytics';
+import { getChannelConfigBundle, getChannels } from '@/services/channels';
 import type {
   DashboardData,
   DashboardLoadOptions,
@@ -20,10 +21,37 @@ function toDashboardSeries(series: UsageSeriesResponse['series']): DashboardSeri
     const label = period ? period.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : 'N/A';
     return {
       label,
+      date: point.period_start,
       requests: point.request_count ?? 0,
       tokens: point.total_tokens ?? 0,
     };
   });
+}
+
+async function resolveUserTypeColors(): Promise<Record<string, string>> {
+  try {
+    const channels = await getChannels();
+    const entries = await Promise.all(
+      channels
+        .filter((channel) => channel.is_active)
+        .map(async (channel) => {
+          try {
+            const bundle = await getChannelConfigBundle(channel.id);
+            const types = bundle.user_types as { types?: Array<{ key?: string; color?: string }> };
+            const pairs =
+              types.types
+                ?.filter((item) => typeof item?.key === 'string' && typeof item?.color === 'string')
+                .map((item) => [String(item.key), String(item.color)] as const) ?? [];
+            return pairs;
+          } catch {
+            return [];
+          }
+        }),
+    );
+    return Object.fromEntries(entries.flat());
+  } catch {
+    return {};
+  }
 }
 
 function toTenantTokenDistribution(items: Array<{ tenant_id: string; tenant_name: string; total_tokens: number }>): DashboardTokenByTenantPoint[] {
@@ -40,9 +68,10 @@ export async function loadDashboardData(options: DashboardLoadOptions): Promise<
   const isGlobal = options.scope === 'global' && options.canUseGlobalScope;
   const notes: string[] = [];
 
-  const [summary, usageSeries] = await Promise.all([
+  const [summary, usageSeries, typeColors] = await Promise.all([
     getBusinessSummary({ scope: isGlobal ? 'global' : 'tenant' }),
     getUsageSeries({ granularity: 'day' }, { scope: isGlobal ? 'global' : 'tenant' }) as Promise<UsageSeriesResponse>,
+    resolveUserTypeColors(),
   ]);
 
   if (summary.scope === 'global') {
@@ -75,6 +104,7 @@ export async function loadDashboardData(options: DashboardLoadOptions): Promise<
     contactsByType: summary.contacts.by_type.map((item) => ({
       key: item.key,
       label: item.label,
+      color: typeColors[item.key],
       total: item.total,
       newThisMonth: item.new_this_month,
     })),

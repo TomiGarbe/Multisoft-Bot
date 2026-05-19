@@ -2,6 +2,7 @@ export type DashboardScope = 'tenant' | 'global';
 
 export interface DashboardSeriesPoint {
   label: string;
+  date?: string;
   requests: number;
   tokens: number;
 }
@@ -14,6 +15,7 @@ export interface DashboardContactOverview {
 export interface DashboardContactsByTypePoint {
   key: string;
   label: string;
+  color?: string;
   total: number;
   newThisMonth: number;
 }

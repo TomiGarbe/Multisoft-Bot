@@ -78,9 +78,10 @@ export default function ConversationsFilters({
           return (
             <span
               key={typeKey}
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
+              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset"
               style={{ backgroundColor: `${type.color}20`, color: type.color, borderColor: `${type.color}55` }}
             >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: type.color }} />
               {type.label}
             </span>
           );

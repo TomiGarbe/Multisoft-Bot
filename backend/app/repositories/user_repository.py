@@ -5,6 +5,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Permission, Role, RolePermission, Tenant, TenantUser, User, UserPermission
+from app.models.user import UserType
 from app.models.user_tenant import UserTenant
 
 
@@ -21,12 +22,24 @@ def get_role_by_id(db: Session, role_id: uuid.UUID) -> Optional[Role]:
     return db.get(Role, role_id)
 
 
+def get_global_role_by_name(db: Session, name: str) -> Optional[Role]:
+    stmt = select(Role).where(Role.tenant_id.is_(None), Role.name == name).limit(1)
+    return db.execute(stmt).scalar_one_or_none()
+
+
 def get_tenant_by_id(db: Session, tenant_id: uuid.UUID) -> Optional[Tenant]:
     return db.get(Tenant, tenant_id)
 
 
 def get_permissions_by_ids(db: Session, permission_ids: list[uuid.UUID]) -> list[Permission]:
     stmt = select(Permission).where(Permission.id.in_(permission_ids))
+    return db.execute(stmt).scalars().all()
+
+
+def get_permissions_by_codes(db: Session, permission_codes: list[str]) -> list[Permission]:
+    if not permission_codes:
+        return []
+    stmt = select(Permission).where(Permission.code.in_(permission_codes))
     return db.execute(stmt).scalars().all()
 
 
@@ -54,6 +67,15 @@ def add_user(
 
 def get_tenant_user_by_user_id(db: Session, user_id: uuid.UUID) -> Optional[TenantUser]:
     stmt = select(TenantUser).where(TenantUser.user_id == user_id).limit(1)
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def get_tenant_user_by_user_and_tenant_id(db: Session, user_id: uuid.UUID, tenant_id: uuid.UUID) -> Optional[TenantUser]:
+    stmt = (
+        select(TenantUser)
+        .where(TenantUser.user_id == user_id, TenantUser.tenant_id == tenant_id)
+        .limit(1)
+    )
     return db.execute(stmt).scalar_one_or_none()
 
 
@@ -173,6 +195,31 @@ def list_tenant_users(db: Session, tenant_id: uuid.UUID, skip: int = 0, limit: i
         select(User)
         .join(TenantUser, TenantUser.user_id == User.id)
         .where(TenantUser.tenant_id == tenant_id)
+        .offset(skip)
+        .limit(limit)
+        .options(
+            joinedload(User.tenant_scopes).joinedload(UserTenant.tenant),
+            joinedload(User.tenant_links)
+            .joinedload(TenantUser.role)
+            .joinedload(Role.role_permissions)
+            .joinedload(RolePermission.permission),
+            joinedload(User.tenant_links)
+            .joinedload(TenantUser.user_permissions)
+            .joinedload(UserPermission.permission),
+        )
+    )
+    return db.execute(stmt).unique().scalars().all()
+
+
+def list_tenant_business_users(db: Session, tenant_id: uuid.UUID, skip: int = 0, limit: int = 100) -> list[User]:
+    stmt = (
+        select(User)
+        .join(TenantUser, TenantUser.user_id == User.id)
+        .where(
+            TenantUser.tenant_id == tenant_id,
+            User.user_type == UserType.USER,
+            User.is_backdoor.is_(False),
+        )
         .offset(skip)
         .limit(limit)
         .options(

@@ -1,21 +1,24 @@
-import { Building2, KeyRound, Lock, Plus, ShieldCheck, UserCog, Users } from 'lucide-react';
+import { Building2, KeyRound, Lock, Pencil, Plus, ShieldCheck, Trash2, UserCog, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import EmptyState from '@/components/ui/EmptyState';
+import IconButton from '@/components/ui/IconButton';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import PermissionToggle from '@/components/ui/PermissionToggle';
 import Radio from '@/components/ui/Radio';
+import Switch from '@/components/ui/Switch';
 import Table from '@/components/ui/Table';
 import { ToastViewport, useToast } from '@/components/ui/toast';
+import { useTenantContext } from '@/context/tenant-context';
 import { useAuthToken } from '@/hooks/useAuthToken';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
 import { getTenants } from '@/services/tenants';
-import { createAdminUser, createBackdoorUser, getGlobalUsers } from '@/services/users';
+import { createAdminUser, createBackdoorUser, deleteGlobalUser, getGlobalUsers, updateGlobalUser } from '@/services/users';
 import type { User } from '@/types/access';
 import type { Tenant } from '@/types/tenant';
 
@@ -36,6 +39,7 @@ function isStrongPassword(value: string): boolean {
 
 export default function GlobalUsersPage() {
   const toast = useToast();
+  const { user: currentUser } = useTenantContext();
   const { authResolved, hasToken } = useAuthToken();
   const [users, setUsers] = useState<User[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -43,13 +47,16 @@ export default function GlobalUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [type, setType] = useState<GlobalUserType>('Administrador');
   const [businessIds, setBusinessIds] = useState<string[]>([]);
+  const [isActive, setIsActive] = useState(true);
 
   const fetchAll = async () => {
     try {
@@ -99,11 +106,25 @@ export default function GlobalUsersPage() {
     setPassword('');
     setBusinessIds([]);
     setType('Administrador');
+    setIsActive(true);
+    setEditingUser(null);
     setFormError(null);
   };
 
   const openCreate = () => {
     resetForm();
+    setIsOpen(true);
+  };
+
+  const openEdit = (user: User) => {
+    setEditingUser(user);
+    setName(user.name);
+    setEmail(user.email);
+    setPassword('');
+    setType((user.user_type as GlobalUserType) ?? 'Administrador');
+    setBusinessIds(user.tenant_ids ?? []);
+    setIsActive(user.is_active !== false);
+    setFormError(null);
     setIsOpen(true);
   };
 
@@ -123,8 +144,11 @@ export default function GlobalUsersPage() {
 
     if (!trimmedName) return setFormError('El nombre es obligatorio.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) return setFormError('Email invalido.');
-    if (!isStrongPassword(trimmedPassword)) {
+    if (!editingUser && !isStrongPassword(trimmedPassword)) {
       return setFormError('La contrasena debe tener al menos 8 caracteres, mayuscula, minuscula y numero.');
+    }
+    if (editingUser && trimmedPassword && !isStrongPassword(trimmedPassword)) {
+      return setFormError('Si cambias la contrasena, debe tener al menos 8 caracteres, mayuscula, minuscula y numero.');
     }
     if (type === 'Administrador' && businessIds.length === 0) {
       return setFormError('Selecciona al menos un negocio para el administrador.');
@@ -132,30 +156,61 @@ export default function GlobalUsersPage() {
 
     try {
       setSaving(true);
-      if (type === 'Backdoor') {
-        await createBackdoorUser({
+      if (editingUser) {
+        await updateGlobalUser(editingUser.id, {
           name: trimmedName,
           email: trimmedEmail,
-          password: trimmedPassword,
-          user_type: 'Backdoor',
+          user_type: type,
+          tenant_ids: type === 'Administrador' ? businessIds : [],
+          is_active: isActive,
+          ...(trimmedPassword ? { password: trimmedPassword } : {}),
         });
+        toast.success('Usuario global actualizado correctamente.');
       } else {
-        await createAdminUser({
-          name: trimmedName,
-          email: trimmedEmail,
-          password: trimmedPassword,
-          user_type: 'Administrador',
-          tenant_ids: businessIds,
-        });
+        if (type === 'Backdoor') {
+          await createBackdoorUser({
+            name: trimmedName,
+            email: trimmedEmail,
+            password: trimmedPassword,
+            user_type: 'Backdoor',
+          });
+        } else {
+          await createAdminUser({
+            name: trimmedName,
+            email: trimmedEmail,
+            password: trimmedPassword,
+            user_type: 'Administrador',
+            tenant_ids: businessIds,
+          });
+        }
+        toast.success('Usuario global creado correctamente.');
       }
-      toast.success('Usuario global creado correctamente.');
       setIsOpen(false);
       resetForm();
       await fetchAll();
     } catch (err) {
-      setFormError(getApiErrorMessage(err, 'No se pudo crear el usuario global.'));
+      setFormError(getApiErrorMessage(err, editingUser ? 'No se pudo actualizar el usuario global.' : 'No se pudo crear el usuario global.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const removeGlobalUser = async (user: User) => {
+    if (currentUser?.id === user.id) {
+      toast.error('No puedes eliminar tu propia cuenta.');
+      return;
+    }
+    const confirmed = window.confirm(`Eliminar el usuario global "${user.name}"? Esta accion no se puede deshacer.`);
+    if (!confirmed) return;
+    try {
+      setDeletingId(user.id);
+      await deleteGlobalUser(user.id);
+      toast.success('Usuario global eliminado correctamente.');
+      await fetchAll();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'No se pudo eliminar el usuario global.'));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -210,7 +265,7 @@ export default function GlobalUsersPage() {
                 />
               ) : (
                 <Table
-                  headers={['Administrador', 'Negocios asignados', '']}
+                  headers={['Administrador', 'Negocios asignados', 'Estado', '']}
                   hasRows={admins.length > 0}
                   emptyMessage="Sin admins."
                   dense
@@ -250,7 +305,13 @@ export default function GlobalUsersPage() {
                           )}
                         </td>
                         <td className="px-3 py-3 text-right text-xs text-slate-500">
-                          <Badge tone="success" label="Activo" variant="dot" size="sm" />
+                          <Badge tone={user.is_active === false ? 'neutral' : 'success'} label={user.is_active === false ? 'Inactivo' : 'Activo'} variant="dot" size="sm" />
+                        </td>
+                        <td className="px-3 py-3 text-right text-xs text-slate-500">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <IconButton icon={<Pencil />} label="Editar" size="sm" variant="ghost" onClick={() => openEdit(user)} />
+                            <IconButton icon={<Trash2 />} label="Eliminar" size="sm" variant="danger" onClick={() => void removeGlobalUser(user)} disabled={deletingId === user.id || currentUser?.id === user.id} />
+                          </div>
                         </td>
                       </tr>
                     );
@@ -280,7 +341,7 @@ export default function GlobalUsersPage() {
                   compact
                 />
               ) : (
-                <Table headers={['Backdoor', 'Acceso', '']} hasRows={backdoors.length > 0} dense>
+                <Table headers={['Backdoor', 'Acceso', 'Estado', '']} hasRows={backdoors.length > 0} dense>
                   {backdoors.map((user) => (
                     <tr key={user.id}>
                       <td className="px-3 py-3 text-sm">
@@ -298,7 +359,13 @@ export default function GlobalUsersPage() {
                         <Badge tone="warning" label="Acceso global" icon={<KeyRound />} variant="soft" />
                       </td>
                       <td className="px-3 py-3 text-right text-xs text-slate-500">
-                        <Badge tone="success" label="Activo" variant="dot" size="sm" />
+                        <Badge tone={user.is_active === false ? 'neutral' : 'success'} label={user.is_active === false ? 'Inactivo' : 'Activo'} variant="dot" size="sm" />
+                      </td>
+                      <td className="px-3 py-3 text-right text-xs text-slate-500">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <IconButton icon={<Pencil />} label="Editar" size="sm" variant="ghost" onClick={() => openEdit(user)} />
+                          <IconButton icon={<Trash2 />} label="Eliminar" size="sm" variant="danger" onClick={() => void removeGlobalUser(user)} disabled={deletingId === user.id || currentUser?.id === user.id} />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -312,15 +379,15 @@ export default function GlobalUsersPage() {
       <Modal
         isOpen={isOpen}
         onClose={closeModal}
-        title="Crear usuario global"
+        title={editingUser ? 'Editar usuario global' : 'Crear usuario global'}
         description="Configura el tipo de cuenta y su alcance."
         footer={
           <div className="flex items-center justify-end gap-3">
             <Button type="button" variant="secondary" onClick={closeModal} disabled={saving}>
               Cancelar
             </Button>
-            <Button type="submit" form="global-user-form" loading={saving} leadingIcon={<Plus />}>
-              Crear usuario
+            <Button type="submit" form="global-user-form" loading={saving} leadingIcon={editingUser ? <Pencil /> : <Plus />}>
+              {editingUser ? 'Guardar cambios' : 'Crear usuario'}
             </Button>
           </div>
         }
@@ -373,13 +440,19 @@ export default function GlobalUsersPage() {
           </div>
 
           <Input
-            label="Contrasena"
+            label={editingUser ? 'Nueva contrasena (opcional)' : 'Contrasena'}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Minimo 8 caracteres con mayuscula, minuscula y numero"
             hint="Debe incluir mayuscula, minuscula y al menos un numero."
-            required
+            required={!editingUser}
+          />
+
+          <Switch
+            label="Usuario activo"
+            checked={isActive}
+            onChange={() => setIsActive((prev) => !prev)}
           />
 
           {type === 'Administrador' ? (

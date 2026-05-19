@@ -24,6 +24,10 @@ class PermissionUpdate(BaseModel):
 class PermissionResponse(PermissionBase):
     id: uuid.UUID
     created_at: datetime
+    assignable: bool = True
+    internal_only: bool = False
+    backdoor_only: bool = False
+    tenant_visible: bool = True
 
     class Config:
         from_attributes = True

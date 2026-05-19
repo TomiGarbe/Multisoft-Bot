@@ -237,13 +237,17 @@ export default function ConversationsSidebar({
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {conv.contactCurrentType && userTypeMap[conv.contactCurrentType] && (
                       <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset"
+                        className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset"
                         style={{
                           backgroundColor: `${userTypeMap[conv.contactCurrentType].color}20`,
                           color: userTypeMap[conv.contactCurrentType].color,
                           borderColor: `${userTypeMap[conv.contactCurrentType].color}55`,
                         }}
                       >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ backgroundColor: userTypeMap[conv.contactCurrentType].color }}
+                        />
                         {userTypeMap[conv.contactCurrentType].label}
                       </span>
                     )}

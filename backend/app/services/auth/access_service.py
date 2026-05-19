@@ -11,6 +11,7 @@ from app.repositories.auth_repository import AuthRepository
 from app.services.auth.permission_service import get_user_permissions
 
 logger = logging.getLogger(__name__)
+ADMIN_ROLE_NAME = "Administrador"
 
 
 def is_super_admin(user: User) -> bool:
@@ -52,6 +53,8 @@ def get_effective_permissions(
     if tenant_user is None:
         tenant_user = get_default_tenant_user_link(db, user.id)
     if tenant_user is None:
+        if user.user_type == UserType.ADMINISTRADOR:
+            return repository.get_global_role_permission_codes(ADMIN_ROLE_NAME)
         return set()
 
     return get_user_permissions(db, tenant_user_id=tenant_user.id, user_id=user.id)

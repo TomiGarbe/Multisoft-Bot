@@ -3,6 +3,7 @@ import { Bot, FileText, Hash, Layers, ListChecks, Plus, Settings2, Trash2 } from
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Checkbox from '@/components/ui/Checkbox';
+import ColorPicker from '@/components/ui/ColorPicker';
 import IconButton from '@/components/ui/IconButton';
 import Input from '@/components/ui/Input';
 import MultiSelect from '@/components/ui/MultiSelect';
@@ -25,9 +26,6 @@ interface GeneralSettingsSectionProps {
   onChannelSettingsChange: (patch: Partial<ChannelSettingsEditable>) => void;
   onUserTypesChange: (next: UserTypesEditable) => void;
   onBotConfigChange: (next: BotConfigEditable) => void;
-  onSaveChannelConfig: () => void;
-  isChannelDirty: boolean;
-  savingChannel: boolean;
   statusText: string;
 }
 
@@ -463,9 +461,6 @@ export default function GeneralSettingsSection({
   onChannelSettingsChange,
   onUserTypesChange,
   onBotConfigChange,
-  onSaveChannelConfig,
-  isChannelDirty,
-  savingChannel,
   statusText,
 }: GeneralSettingsSectionProps) {
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -509,11 +504,6 @@ export default function GeneralSettingsSection({
         icon={<Settings2 className="h-5 w-5" />}
         title="Operacion por canal"
         description={`Alcance actual: ${scopeLabel}. ${statusText}`}
-        actions={
-          <Button onClick={onSaveChannelConfig} loading={savingChannel} disabled={!isChannelDirty}>
-            Guardar alcance
-          </Button>
-        }
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input
@@ -594,22 +584,15 @@ export default function GeneralSettingsSection({
                     onUserTypesChange({ ...userTypes, types: next });
                   }}
                 />
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-slate-700">Color</label>
-                  <div className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-2 py-1 transition-colors hover:border-slate-400">
-                    <input
-                      type="color"
-                      value={userType.color}
-                      onChange={(event) => {
-                        const next = [...userTypes.types];
-                        next[index] = { ...next[index], color: event.target.value };
-                        onUserTypesChange({ ...userTypes, types: next });
-                      }}
-                      className="h-7 w-7 cursor-pointer rounded border-0 bg-transparent"
-                    />
-                    <code className="font-mono text-xs text-slate-600">{userType.color}</code>
-                  </div>
-                </div>
+                <ColorPicker
+                  label="Color"
+                  value={userType.color}
+                  onChange={(nextColor) => {
+                    const next = [...userTypes.types];
+                    next[index] = { ...next[index], color: nextColor };
+                    onUserTypesChange({ ...userTypes, types: next });
+                  }}
+                />
                 <div className="space-y-1.5">
                   <label className="block text-sm font-medium text-slate-700">Default</label>
                   <Switch

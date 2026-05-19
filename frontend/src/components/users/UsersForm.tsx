@@ -153,7 +153,6 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
           permissions: permissionsToSend,
           ...(password ? { password } : {}),
           is_backdoor: false,
-          is_active: true,
         });
         onSaved('Usuario actualizado correctamente.');
       } else {
@@ -164,7 +163,6 @@ export default function UsersForm({ isOpen, user, onClose, onSaved }: UsersFormP
           role_id: form.roleId || null,
           permissions: permissionsToSend,
           is_backdoor: false,
-          is_active: true,
           user_type: 'User',
         });
         onSaved('Usuario creado correctamente.');
