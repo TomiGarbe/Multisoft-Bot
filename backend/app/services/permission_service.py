@@ -4,18 +4,26 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.bootstrap.security.catalog import PERMISSION_UI_METADATA
 from app.models import Permission
 from app.schemas.permission import PermissionResponse
 
-INTERNAL_PERMISSION_CODES = {
-    "users.create_admin",
-    "users.create_backdoor",
-    "tenants.create",
-    "tenants.delete",
-    "ai.test",
-    "realtime.read",
-}
 GLOBAL_PERMISSION_PREFIXES = ("tenants.",)
+HIDDEN_ALIAS_CODES = {
+    "manage_tenants",
+    "create_tenants",
+    "delete_tenants",
+    "tenant_admin",
+    "create_admins",
+    "manage_superadmins",
+    "create_backdoors",
+    "manage_backdoors",
+    "global_users",
+    "backdoor_access",
+    "test_ai",
+    "debug_ai",
+    "internal_ai_tools",
+}
 
 
 def get_permission_by_id(db: Session, permission_id: uuid.UUID) -> Optional[Permission]:
@@ -75,15 +83,24 @@ def get_permissions(db: Session, skip: int = 0, limit: int = 100):
     return db.execute(stmt).scalars().all()
 
 
-def get_permission_metadata(code: str) -> dict[str, bool]:
+def get_permission_metadata(code: str) -> dict[str, object]:
     normalized = code.strip().lower()
+    metadata = PERMISSION_UI_METADATA.get(normalized)
+    module = metadata.module if metadata else (normalized.split(".", 1)[0] if "." in normalized else normalized)
+    pages = list(metadata.pages) if metadata else []
     is_global = normalized.startswith(GLOBAL_PERMISSION_PREFIXES)
-    is_internal = normalized in INTERNAL_PERMISSION_CODES or normalized.startswith("internal.")
-    is_backdoor_only = normalized in {"users.create_backdoor"}
-    tenant_visible = not (is_global or is_internal or is_backdoor_only)
-    assignable = tenant_visible and normalized not in {"users.create_admin"}
+    is_internal = bool(metadata.internal_only) if metadata else normalized.startswith("internal.")
+    is_backdoor_only = bool(metadata.backdoor_only) if metadata else False
+    tenant_visible = bool(metadata.tenant_visible) if metadata else not (is_global or is_internal or is_backdoor_only)
+    assignable = bool(metadata.assignable) if metadata else tenant_visible
+    if normalized in HIDDEN_ALIAS_CODES:
+        is_internal = True
+        tenant_visible = False
+        assignable = False
 
     return {
+        "module": module,
+        "pages": pages,
         "assignable": assignable,
         "internal_only": is_internal,
         "backdoor_only": is_backdoor_only or is_global,

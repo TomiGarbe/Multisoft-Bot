@@ -3,6 +3,8 @@ export interface Permission {
   code: string;
   name: string;
   description?: string | null;
+  module?: string | null;
+  pages?: string[];
   assignable?: boolean;
   internal_only?: boolean;
   backdoor_only?: boolean;

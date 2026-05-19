@@ -38,9 +38,6 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     tenant_links: Mapped[List["TenantUser"]] = relationship(
         "TenantUser", back_populates="user", cascade="all, delete-orphan"
     )
-    tenant_scopes: Mapped[List["UserTenant"]] = relationship(
-        "UserTenant", back_populates="user", cascade="all, delete-orphan"
-    )
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )

@@ -17,10 +17,8 @@ import { ToastViewport, useToast } from '@/components/ui/toast';
 import { useTenantContext } from '@/context/tenant-context';
 import { useAuthToken } from '@/hooks/useAuthToken';
 import { getApiErrorMessage, TENANT_CONTEXT_CHANGED_EVENT } from '@/services/api';
-import { getTenants } from '@/services/tenants';
 import { createAdminUser, createBackdoorUser, deleteGlobalUser, getGlobalUsers, updateGlobalUser } from '@/services/users';
 import type { User } from '@/types/access';
-import type { Tenant } from '@/types/tenant';
 
 type GlobalUserType = 'Administrador' | 'Backdoor';
 
@@ -39,10 +37,9 @@ function isStrongPassword(value: string): boolean {
 
 export default function GlobalUsersPage() {
   const toast = useToast();
-  const { user: currentUser } = useTenantContext();
+  const { user: currentUser, tenants } = useTenantContext();
   const { authResolved, hasToken } = useAuthToken();
   const [users, setUsers] = useState<User[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -62,9 +59,8 @@ export default function GlobalUsersPage() {
     try {
       setLoading(true);
       setError(null);
-      const [globalUsers, tenantList] = await Promise.all([getGlobalUsers(), getTenants()]);
+      const globalUsers = await getGlobalUsers();
       setUsers(globalUsers);
-      setTenants(tenantList);
     } catch (err) {
       setError(getApiErrorMessage(err, 'No se pudieron cargar los usuarios globales.'));
     } finally {

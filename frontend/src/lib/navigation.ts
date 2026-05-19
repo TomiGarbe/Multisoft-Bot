@@ -40,37 +40,37 @@ export const NAV_ITEMS: NavItem[] = [
     path: '/roles',
     label: 'Roles',
     icon: ShieldCheck,
-    requiredPermissions: ['roles.read', 'roles.create', 'roles.update', 'roles.delete', 'permissions.read'],
+    requiredPermissions: ['roles.read', 'permissions.read'],
   },
   {
     path: '/users',
     label: 'Usuarios',
     icon: Users,
-    requiredPermissions: ['users.read', 'users.create', 'users.update', 'users.delete'],
+    requiredPermissions: ['users.read', 'roles.read', 'permissions.read'],
   },
   {
     path: '/conversaciones',
     label: 'Conversaciones',
     icon: MessageSquare,
-    requiredPermissions: ['conversations.read', 'conversations.update', 'messages.read', 'messages.send'],
+    requiredPermissions: ['conversations.read', 'messages.read', 'channels.read'],
   },
   {
     path: '/canales',
     label: 'Canales',
     icon: Radio,
-    requiredPermissions: ['channels.read', 'channels.create', 'channels.update', 'channels.delete'],
+    requiredPermissions: ['channels.read', 'channel_config.read'],
   },
   {
     path: '/integraciones',
     label: 'Integraciones',
     icon: Link2,
-    requiredPermissions: ['bot_actions.read', 'bot_actions.create', 'bot_actions.update', 'bot_actions.delete'],
+    requiredPermissions: ['bot_actions.read'],
   },
   {
     path: '/configuracion',
     label: 'Configuracion',
     icon: Settings,
-    requiredPermissions: ['channel_config.read', 'channel_config.update', 'api_keys.manage'],
+    requiredPermissions: ['channel_config.read', 'bot_actions.read', 'api_keys.manage'],
   },
 ];
 
@@ -97,7 +97,7 @@ export function canAccessSection(
   if (section.backdoorOnly && !isSuperAdmin) return false;
   if (section.requiredPermissions.length === 0) return true;
   const permissionSet = new Set(userPermissions);
-  return section.requiredPermissions.some((permission) => permissionSet.has(permission));
+  return section.requiredPermissions.every((permission) => permissionSet.has(permission));
 }
 
 export function canAccessPath(userPermissions: string[], pathname: string, isSuperAdmin = false): boolean {

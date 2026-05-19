@@ -21,7 +21,9 @@ def get_all_by_user(db: Session, user: User) -> list[Tenant]:
     stmt = (
         select(Tenant)
         .join(TenantUser, TenantUser.tenant_id == Tenant.id)
-        .where(TenantUser.user_id == user.id)
+        .where(TenantUser.user_id == user.id, TenantUser.tenant_id.is_not(None))
+        .distinct()
+        .order_by(Tenant.name.asc())
     )
     return db.execute(stmt).scalars().all()
 

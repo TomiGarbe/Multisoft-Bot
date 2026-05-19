@@ -106,8 +106,8 @@ def _build_user_response(user: User) -> UserResponse:
     if role:
         role_data = UserRoleSummary(id=role.id, name=role.name, description=role.description)
 
-    tenant_ids = [link.tenant_id for link in user.tenant_scopes]
-    tenant_data = user.tenant_scopes[0].tenant if user.tenant_scopes else None
+    tenant_ids = list(dict.fromkeys([link.tenant_id for link in user.tenant_links if link.tenant_id is not None]))
+    tenant_data = next((link.tenant for link in user.tenant_links if link.tenant is not None), None)
 
     return UserResponse(
         id=user.id,
@@ -148,7 +148,7 @@ def get_user_response_by_id(db: Session, user_id: uuid.UUID) -> UserResponse:
 def can_access_tenant(user: User, tenant_id: uuid.UUID) -> bool:
     if user.user_type == UserType.BACKDOOR:
         return True
-    return tenant_id in {link.tenant_id for link in user.tenant_scopes}
+    return tenant_id in {link.tenant_id for link in user.tenant_links if link.tenant_id is not None}
 
 
 def create_user(
@@ -198,10 +198,6 @@ def create_user(
             user_type=final_user_type,
         )
         user_repository.flush(db)
-
-        if final_user_type in (UserType.ADMINISTRADOR, UserType.USER):
-            for tenant_link_id in final_tenant_ids:
-                user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=tenant_link_id)
 
         if final_user_type == UserType.ADMINISTRADOR:
             for tenant_link_id in final_tenant_ids:
@@ -282,10 +278,9 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
             user.user_type = UserType.BACKDOOR
             user.is_backdoor = True
             user_repository.delete_tenant_users_by_user_id(db, user.id)
-            user_repository.delete_user_tenant_links_by_user_id(db, user.id)
 
         elif final_user_type == UserType.ADMINISTRADOR:
-            admin_tenant_ids = requested_tenant_ids or [link.tenant_id for link in user.tenant_scopes]
+            admin_tenant_ids = requested_tenant_ids or [link.tenant_id for link in user.tenant_links if link.tenant_id]
             if not admin_tenant_ids:
                 raise ValueError("Admin user must have at least one tenant assigned")
             admin_role = _get_admin_role(db)
@@ -293,9 +288,7 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
             user.user_type = UserType.ADMINISTRADOR
             user.is_backdoor = False
             user_repository.delete_tenant_users_by_user_id(db, user.id)
-            user_repository.delete_user_tenant_links_by_user_id(db, user.id)
             for tenant_link_id in admin_tenant_ids:
-                user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=tenant_link_id)
                 user_repository.add_tenant_user(
                     db,
                     tenant_id=tenant_link_id,
@@ -318,8 +311,6 @@ def update_user(db: Session, user_id: uuid.UUID, **updates) -> Optional[UserResp
 
             user.user_type = UserType.USER
             user.is_backdoor = False
-            user_repository.delete_user_tenant_links_by_user_id(db, user.id)
-            user_repository.add_user_tenant_link(db, user_id=user.id, tenant_id=user_tenant_ids[0])
 
             tenant_user = user_repository.get_tenant_user_by_user_id(db, user.id)
             if tenant_user is None:

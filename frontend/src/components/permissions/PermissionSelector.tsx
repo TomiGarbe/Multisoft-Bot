@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Sliders,
   UserCog,
-  Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Badge from '@/components/ui/Badge';
@@ -34,7 +33,6 @@ interface PermissionCategory {
   title: string;
   description?: string;
   icon: ReactNode;
-  matchers: string[];
 }
 
 const CATEGORIES: PermissionCategory[] = [
@@ -43,42 +41,42 @@ const CATEGORIES: PermissionCategory[] = [
     title: 'Dashboard',
     description: 'Metricas, analiticas y vistas generales.',
     icon: <LayoutDashboard className="h-4 w-4" />,
-    matchers: ['analytics', 'metric', 'dashboard'],
-  },
-  {
-    key: 'general',
-    title: 'Configuracion general',
-    description: 'Ajustes globales, API keys y configuracion de bot.',
-    icon: <Sliders className="h-4 w-4" />,
-    matchers: ['config', 'api key', 'apikey', 'setting'],
-  },
-  {
-    key: 'integrations',
-    title: 'Integraciones',
-    description: 'Conexion con servicios externos y webhooks.',
-    icon: <Cable className="h-4 w-4" />,
-    matchers: ['integration', 'bot action', 'bot_action', 'webhook'],
-  },
-  {
-    key: 'conversations',
-    title: 'Conversaciones',
-    description: 'Mensajes, handoff y gestion de chats.',
-    icon: <MessagesSquare className="h-4 w-4" />,
-    matchers: ['conversation', 'message', 'handoff'],
-  },
-  {
-    key: 'users',
-    title: 'Usuarios',
-    description: 'Administracion de usuarios internos.',
-    icon: <Users className="h-4 w-4" />,
-    matchers: ['user'],
   },
   {
     key: 'roles',
     title: 'Roles y permisos',
     description: 'Politicas de acceso y gestion de roles.',
     icon: <ShieldCheck className="h-4 w-4" />,
-    matchers: ['role', 'permission'],
+  },
+  {
+    key: 'users',
+    title: 'Usuarios',
+    description: 'Administracion de usuarios, roles y asignaciones granulares.',
+    icon: <UserCog className="h-4 w-4" />,
+  },
+  {
+    key: 'conversations',
+    title: 'Conversaciones',
+    description: 'Conversaciones, mensajes, multimedia y datos relacionados al chat.',
+    icon: <MessagesSquare className="h-4 w-4" />,
+  },
+  {
+    key: 'channels',
+    title: 'Canales',
+    description: 'Canales, reconexion, sincronizacion y configuraciones del canal.',
+    icon: <BarChart3 className="h-4 w-4" />,
+  },
+  {
+    key: 'integrations',
+    title: 'Integraciones',
+    description: 'Bot actions, webhooks y proveedores externos.',
+    icon: <Cable className="h-4 w-4" />,
+  },
+  {
+    key: 'settings',
+    title: 'Configuracion',
+    description: 'Configuracion general, API keys, automatizaciones y AI settings.',
+    icon: <Sliders className="h-4 w-4" />,
   },
 ];
 
@@ -109,14 +107,33 @@ function resolvePermissionIcon(permission: Permission): ReactNode {
   return found ? found[1] : <ShieldCheck className="h-4 w-4" />;
 }
 
-function findCategory(permission: Permission): string | null {
-  const haystack = `${normalize(permission.code)} ${normalize(permission.name)}`;
-  const category = CATEGORIES.find((item) => item.matchers.some((matcher) => haystack.includes(matcher)));
-  return category?.key ?? null;
-}
-
 function unique(ids: string[]): string[] {
   return Array.from(new Set(ids));
+}
+
+function resolvePageKeys(permission: Permission): string[] {
+  const explicit = (permission.pages ?? []).filter(Boolean);
+  if (explicit.length > 0) return unique(explicit);
+
+  const moduleKey = (permission.module ?? permission.code.split('.')[0] ?? '').toLowerCase();
+  const fallbackByModule: Record<string, string[]> = {
+    analytics: ['dashboard'],
+    conversations: ['conversations'],
+    messages: ['conversations'],
+    contacts: ['conversations'],
+    contact_notes: ['conversations'],
+    contact_tags: ['conversations', 'settings'],
+    contact_types: ['conversations', 'settings'],
+    user_types: ['conversations', 'settings'],
+    users: ['users'],
+    roles: ['roles', 'users'],
+    permissions: ['roles', 'users'],
+    channels: ['channels', 'conversations'],
+    channel_config: ['channels', 'settings', 'integrations'],
+    bot_actions: ['integrations'],
+    api_keys: ['settings'],
+  };
+  return fallbackByModule[moduleKey] ?? [];
 }
 
 export default function PermissionSelector({ value, onChange, disabled = false }: PermissionSelectorProps) {
@@ -159,13 +176,16 @@ export default function PermissionSelector({ value, onChange, disabled = false }
     CATEGORIES.forEach((category) => grouped.set(category.key, []));
 
     allPermissions.forEach((permission) => {
-      const categoryKey = findCategory(permission);
-      if (!categoryKey) return;
+      const pageKeys = resolvePageKeys(permission);
       if (q) {
         const haystack = `${permission.code} ${permission.name}`.toLowerCase();
         if (!haystack.includes(q)) return;
       }
-      grouped.get(categoryKey)?.push(permission);
+      pageKeys.forEach((pageKey) => {
+        if (grouped.has(pageKey)) {
+          grouped.get(pageKey)?.push(permission);
+        }
+      });
     });
 
     return CATEGORIES.map((category) => ({

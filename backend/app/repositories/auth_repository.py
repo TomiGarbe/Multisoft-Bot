@@ -12,7 +12,6 @@ from app.models.auth import Role, RolePermission, TenantUser, UserPermission
 from app.models.channel import Channel
 from app.models.config import ChannelBotConfig
 from app.models.conversation import Conversation
-from app.models.user_tenant import UserTenant
 from app.repositories.base_repository import BaseRepository
 
 
@@ -69,14 +68,14 @@ class AuthRepository(BaseRepository):
     def get_default_tenant_user_link(self, user_id: uuid.UUID) -> Optional[TenantUser]:
         stmt = (
             select(TenantUser)
-            .where(TenantUser.user_id == user_id)
+            .where(TenantUser.user_id == user_id, TenantUser.tenant_id.is_not(None))
             .order_by(TenantUser.created_at.asc())
             .limit(1)
         )
         return self.db.execute(stmt).scalar_one_or_none()
 
     def user_has_tenant_scope(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> bool:
-        stmt = select(UserTenant.id).where(UserTenant.user_id == user_id, UserTenant.tenant_id == tenant_id).limit(1)
+        stmt = select(TenantUser.id).where(TenantUser.user_id == user_id, TenantUser.tenant_id == tenant_id).limit(1)
         return self.db.execute(stmt).scalar_one_or_none() is not None
 
     def has_tenant_user_link(self, user_id: uuid.UUID, tenant_id: uuid.UUID) -> bool:

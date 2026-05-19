@@ -3,7 +3,6 @@ from .ai_log import AILog
 from .tenant import Tenant
 from .tenant_wallet import TenantWallet
 from .user import User
-from .user_tenant import UserTenant
 from .auth import TenantUser, Role, Permission, RolePermission, UserPermission, RefreshToken
 from .config import ChannelBotConfig
 from .channel import Channel
@@ -19,7 +18,6 @@ __all__ = [
     "Tenant",
     "TenantWallet",
     "User",
-    "UserTenant",
     "TenantUser",
     "Role",
     "Permission",

@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models import Permission, Role, RolePermission, Tenant, TenantUser, User, UserPermission
 from app.models.user import UserType
-from app.models.user_tenant import UserTenant
 
 
 def get_user_by_id(db: Session, user_id: uuid.UUID) -> Optional[User]:
@@ -95,16 +94,6 @@ def add_tenant_user(
     return tenant_user
 
 
-def add_user_tenant_link(db: Session, *, user_id: uuid.UUID, tenant_id: uuid.UUID) -> UserTenant:
-    link = UserTenant(user_id=user_id, tenant_id=tenant_id)
-    db.add(link)
-    return link
-
-
-def delete_user_tenant_links_by_user_id(db: Session, user_id: uuid.UUID) -> None:
-    db.execute(delete(UserTenant).where(UserTenant.user_id == user_id))
-
-
 def add_user_permission(
     db: Session,
     *,
@@ -138,7 +127,6 @@ def load_user_with_relations(db: Session, user_id: uuid.UUID) -> Optional[User]:
         select(User)
         .where(User.id == user_id)
         .options(
-            joinedload(User.tenant_scopes).joinedload(UserTenant.tenant),
             joinedload(User.tenant_links)
             .joinedload(TenantUser.role)
             .joinedload(Role.role_permissions)
@@ -157,7 +145,6 @@ def list_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
         .offset(skip)
         .limit(limit)
         .options(
-            joinedload(User.tenant_scopes).joinedload(UserTenant.tenant),
             joinedload(User.tenant_links)
             .joinedload(TenantUser.role)
             .joinedload(Role.role_permissions)
@@ -177,7 +164,6 @@ def list_users_by_type(db: Session, user_type, skip: int = 0, limit: int = 100) 
         .offset(skip)
         .limit(limit)
         .options(
-            joinedload(User.tenant_scopes).joinedload(UserTenant.tenant),
             joinedload(User.tenant_links)
             .joinedload(TenantUser.role)
             .joinedload(Role.role_permissions)
@@ -198,7 +184,6 @@ def list_tenant_users(db: Session, tenant_id: uuid.UUID, skip: int = 0, limit: i
         .offset(skip)
         .limit(limit)
         .options(
-            joinedload(User.tenant_scopes).joinedload(UserTenant.tenant),
             joinedload(User.tenant_links)
             .joinedload(TenantUser.role)
             .joinedload(Role.role_permissions)
@@ -223,7 +208,6 @@ def list_tenant_business_users(db: Session, tenant_id: uuid.UUID, skip: int = 0,
         .offset(skip)
         .limit(limit)
         .options(
-            joinedload(User.tenant_scopes).joinedload(UserTenant.tenant),
             joinedload(User.tenant_links)
             .joinedload(TenantUser.role)
             .joinedload(Role.role_permissions)

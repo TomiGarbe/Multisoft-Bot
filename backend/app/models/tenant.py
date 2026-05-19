@@ -41,9 +41,6 @@ class Tenant(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         uselist=False,
         cascade="all, delete-orphan"
     )
-    user_tenant_links: Mapped[List["UserTenant"]] = relationship(
-        "UserTenant", back_populates="tenant", cascade="all, delete-orphan"
-    )
     api_keys: Mapped[List["ApiKey"]] = relationship(
         "ApiKey", back_populates="tenant", cascade="all, delete-orphan"
     )

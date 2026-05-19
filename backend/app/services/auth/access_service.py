@@ -33,9 +33,6 @@ def can_access_tenant(db: Session, user: User, tenant_id: uuid.UUID) -> bool:
         logger.debug("AUTH access bypass: user=%s tenant=%s", user.id, tenant_id)
         return True
 
-    if user.user_type == UserType.ADMINISTRADOR:
-        return repository.user_has_tenant_scope(user_id=user.id, tenant_id=tenant_id)
-
     return repository.has_tenant_user_link(user_id=user.id, tenant_id=tenant_id)
 
 
@@ -44,6 +41,7 @@ def get_effective_permissions(
     user: User,
     tenant_id: Optional[uuid.UUID] = None,
 ) -> set[str]:
+    repository = AuthRepository(db)
     if is_super_admin(user):
         return get_user_permissions(db, user_id=user.id)
 

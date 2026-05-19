@@ -2,6 +2,8 @@ import uuid
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
+from app.schemas.tenant import TenantResponse
+from app.schemas.user import UserResponse
 
 
 class AuthResult(BaseModel):
@@ -30,3 +32,9 @@ class TokenData(BaseModel):
     email: str
     is_backdoor: bool = False
     tenant_id: Optional[uuid.UUID] = None
+
+
+class AuthContextResponse(BaseModel):
+    user: UserResponse
+    tenants: list[TenantResponse]
+    is_global_access: bool

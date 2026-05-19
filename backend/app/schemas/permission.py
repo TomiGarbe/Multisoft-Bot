@@ -24,6 +24,8 @@ class PermissionUpdate(BaseModel):
 class PermissionResponse(PermissionBase):
     id: uuid.UUID
     created_at: datetime
+    module: Optional[str] = None
+    pages: list[str] = Field(default_factory=list)
     assignable: bool = True
     internal_only: bool = False
     backdoor_only: bool = False

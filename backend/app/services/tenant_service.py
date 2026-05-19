@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import Tenant, User
+from app.models.user import UserType
 from app.repositories import tenant_repository
 from app.schemas.tenant import TenantResponse
 
@@ -32,7 +33,7 @@ def _resolve_tenants_for_user_scope(db: Session, user: Optional[User]) -> list[T
         return []
     if not user.is_active:
         return []
-    if user.is_backdoor:
+    if user.user_type == UserType.BACKDOOR:
         return tenant_repository.get_all_active_for_backdoor(db)
     return tenant_repository.get_all_by_user(db, user)
 

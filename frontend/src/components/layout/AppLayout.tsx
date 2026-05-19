@@ -14,14 +14,8 @@ export default function AppLayout({ children, scrollMain = true }: AppLayoutProp
   const router = useRouter();
   const { loading, permissionCodes, isSuperAdmin } = useTenantContext();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
   const hasRouteAccess = canAccessPath(permissionCodes, router.pathname, isSuperAdmin);
   const firstAllowedRoute = NAV_ITEMS.find((item) => canAccessSection(permissionCodes, item, isSuperAdmin))?.path ?? null;
-
-  useEffect(() => {
-    if (!hydrationDebugEnabled) return;
-    console.info('[HYDRATION] client mounted app layout');
-  }, [hydrationDebugEnabled]);
 
   useEffect(() => {
     if (loading) return;

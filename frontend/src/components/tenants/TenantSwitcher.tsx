@@ -3,18 +3,18 @@ import { useTenantContext } from '@/context/tenant-context';
 import Select from '@/components/ui/Select';
 
 export default function TenantSwitcher() {
-  const { loading, error, tenants, activeTenantId, setTenant, canSwitchTenant, isSuperAdmin } = useTenantContext();
+  const { loading, error, tenants, activeTenantId, setTenant, canSwitchTenant } = useTenantContext();
 
   if (loading) {
-    return <span className="text-xs text-slate-500">Cargando tenant...</span>;
+    return null;
   }
 
   if (error) {
-    return <span className="text-xs text-rose-600">Tenant no disponible</span>;
+    return null;
   }
 
   if (tenants.length === 0) {
-    return <span className="text-xs text-slate-500">Sin tenants asignados</span>;
+    return null;
   }
 
   if (!canSwitchTenant) {
@@ -29,7 +29,7 @@ export default function TenantSwitcher() {
         onChange={(event) => setTenant(event.target.value)}
         options={tenants.map((tenant) => ({ value: tenant.id, label: tenant.name }))}
         leadingIcon={<Building2 className="h-4 w-4" />}
-        placeholder={isSuperAdmin ? 'Selecciona un tenant' : undefined}
+        searchable={tenants.length >= 8}
       />
     </div>
   );

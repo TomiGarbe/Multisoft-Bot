@@ -1,8 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Tenant } from '@/types/tenant';
 import type { User } from '@/types/access';
-import { getTenants } from '@/services/tenants';
-import { getCurrentUser, getToken } from '@/services/auth';
+import { AUTH_SESSION_CHANGED_EVENT, getAuthContext, getToken } from '@/services/auth';
 import {
   getActiveTenantContext,
   setActiveTenantContext,
@@ -24,65 +23,62 @@ interface TenantContextValue {
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null);
-const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
-
-function hydrationLog(message: string, payload?: Record<string, unknown>) {
-  if (!hydrationDebugEnabled) return;
-  if (payload) {
-    console.info(`[HYDRATION] ${message}`, payload);
-    return;
-  }
-  console.info(`[HYDRATION] ${message}`);
-}
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  hydrationLog(typeof window === 'undefined' ? 'server render tenant provider' : 'client render tenant provider');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
+  const refreshRequestIdRef = useRef(0);
+
+  const resolveInitialTenantId = useCallback((tenantList: Tenant[]): string | null => {
+    const tenantSet = new Set(tenantList.map((tenant) => tenant.id));
+    const stored = getActiveTenantContext();
+    const fallbackTenantId = tenantList[0]?.id ?? null;
+    return stored.tenantId && tenantSet.has(stored.tenantId) ? stored.tenantId : fallbackTenantId;
+  }, []);
 
   const refresh = useCallback(async () => {
-    hydrationLog('tenant refresh start');
-    if (!getToken()) {
+    const requestId = ++refreshRequestIdRef.current;
+    const tokenAtStart = getToken();
+    if (!tokenAtStart) {
       setUser(null);
       setTenants([]);
       setActiveTenantId(null);
       setLoading(false);
-      hydrationLog('tenant refresh no token');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      const [profile, tenantList] = await Promise.all([getCurrentUser(), getTenants()]);
+      const context = await getAuthContext();
+      const tokenNow = getToken();
+      const isStale = requestId !== refreshRequestIdRef.current || !tokenNow || tokenNow !== tokenAtStart;
+      if (isStale) {
+        return;
+      }
+      const profile = context.user;
+      const tenantList = context.tenants;
 
       setUser(profile);
       setTenants(tenantList);
-
-      const stored = getActiveTenantContext();
-      const tenantSet = new Set(tenantList.map((tenant) => tenant.id));
-      const fallbackTenantId = tenantList[0]?.id ?? null;
-      const nextTenantId = stored.tenantId && tenantSet.has(stored.tenantId) ? stored.tenantId : fallbackTenantId;
+      const nextTenantId = resolveInitialTenantId(tenantList);
 
       setActiveTenantId(nextTenantId);
       setActiveTenantContext(nextTenantId);
-      hydrationLog('tenant loaded', { tenantCount: tenantList.length, activeTenantId: nextTenantId });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el contexto de tenant');
       setUser(null);
       setTenants([]);
       setActiveTenantId(null);
-      hydrationLog('tenant refresh error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resolveInitialTenantId]);
 
   useEffect(() => {
-    hydrationLog('client mounted tenant provider');
     void refresh();
   }, [refresh]);
 
@@ -103,6 +99,30 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    const handler = () => {
+      void refresh();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener(AUTH_SESSION_CHANGED_EVENT, handler);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, handler);
+      }
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    if (tenants.length === 0) return;
+    const hasCurrent = activeTenantId && tenants.some((tenant) => tenant.id === activeTenantId);
+    if (hasCurrent) return;
+    const nextTenantId = resolveInitialTenantId(tenants);
+    if (!nextTenantId) return;
+    setActiveTenantId(nextTenantId);
+    setActiveTenantContext(nextTenantId);
+  }, [activeTenantId, resolveInitialTenantId, tenants]);
+
   const setTenant = useCallback((tenantId: string) => {
     const nextTenantId = tenantId.trim();
     if (!nextTenantId) return;
@@ -115,7 +135,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const activeTenant = tenants.find((tenant) => tenant.id === activeTenantId) ?? null;
     const permissionCodes = (user?.permissions ?? []).map((permission) => permission.code);
     const isSuperAdmin = user?.user_type === 'Backdoor' || user?.is_backdoor === true;
-    const canSwitchTenant = isSuperAdmin || tenants.length > 1;
+    const canSwitchTenant = tenants.length > 1;
 
     return {
       loading,

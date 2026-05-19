@@ -23,6 +23,7 @@ class SecurityBootstrapRepository:
     def create_permission(self, code: str, name: str, description: str) -> Permission:
         permission = Permission(code=code, name=name, description=description)
         self.db.add(permission)
+        self.db.flush()
         return permission
 
     def get_role_by_name(self, name: str) -> Optional[Role]:

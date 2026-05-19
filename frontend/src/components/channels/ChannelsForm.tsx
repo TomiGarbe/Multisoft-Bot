@@ -13,11 +13,10 @@ import {
   isKnownChannelType,
   validatePhone,
 } from '@/components/channels/channelFormUtils';
+import { useTenantContext } from '@/context/tenant-context';
 import { getApiErrorMessage } from '@/services/api';
 import { createChannel, updateChannel } from '@/services/channels';
-import { getTenants } from '@/services/tenants';
 import type { Channel, ChannelCreate, ChannelUpdate } from '@/types/channel';
-import type { Tenant } from '@/types/tenant';
 
 interface ChannelsFormProps {
   isOpen: boolean;
@@ -48,11 +47,10 @@ const initialForm: FormState = {
 
 export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: ChannelsFormProps) {
   const isEditing = Boolean(channel);
+  const { tenants: allowedTenants } = useTenantContext();
   const [form, setForm] = useState<FormState>(initialForm);
   const [existingExternalId, setExistingExternalId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingTenants, setIsLoadingTenants] = useState(false);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const providerOptions = useMemo(() => getProviderOptions(form.type), [form.type]);
@@ -66,22 +64,6 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const loadTenants = async () => {
-      try {
-        setIsLoadingTenants(true);
-        const tenantList = await getTenants();
-        setTenants(tenantList);
-
-        if (!channel && tenantList.length > 0) {
-          setForm((prev) => ({ ...prev, tenant_id: prev.tenant_id || tenantList[0].id }));
-        }
-      } catch (err) {
-        setError(getApiErrorMessage(err, 'No se pudieron cargar los negocios.'));
-      } finally {
-        setIsLoadingTenants(false);
-      }
-    };
 
     if (channel) {
       const channelType = isKnownChannelType(channel.type) ? channel.type : DEFAULT_TYPE;
@@ -99,13 +81,12 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
       });
       setExistingExternalId(channel.external_id);
     } else {
-      setForm(initialForm);
+      setForm((prev) => ({ ...initialForm, tenant_id: prev.tenant_id || allowedTenants[0]?.id || '' }));
       setExistingExternalId('');
     }
 
     setError(null);
-    void loadTenants();
-  }, [isOpen, channel]);
+  }, [isOpen, channel, allowedTenants]);
 
   const phoneError = useMemo(() => {
     if (!dynamicFields.some((field) => field.key === 'phone')) return null;
@@ -219,9 +200,9 @@ export default function ChannelsForm({ isOpen, channel, onClose, onSaved }: Chan
           id="channel-tenant"
           value={form.tenant_id}
           onChange={(event) => setForm((prev) => ({ ...prev, tenant_id: event.target.value }))}
-          disabled={isSaving || isEditing || isLoadingTenants}
-          placeholder={isLoadingTenants ? 'Cargando negocios...' : 'Selecciona un negocio'}
-          options={tenants.map((tenant) => ({ value: tenant.id, label: tenant.name }))}
+          disabled={isSaving || isEditing}
+          placeholder="Selecciona un negocio"
+          options={allowedTenants.map((tenant) => ({ value: tenant.id, label: tenant.name }))}
           required
         />
 

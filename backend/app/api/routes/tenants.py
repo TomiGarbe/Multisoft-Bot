@@ -36,7 +36,16 @@ async def read_tenants(
     current_user: User = Depends(get_current_user),
     _: None = Depends(require_permission("tenants.read")),
 ):
-    return get_tenants(db, user=current_user)
+    tenant_list = get_tenants(db, user=current_user)
+    logger.info(
+        "[TENANT] list current_user=%s email=%s user_type=%s is_backdoor=%s allowed_tenants=%s",
+        str(current_user.id),
+        current_user.email,
+        current_user.user_type.value,
+        bool(current_user.is_backdoor),
+        len(tenant_list),
+    )
+    return tenant_list
 
 
 @router.get("/timezones", response_model=list[TenantTimezoneOption])

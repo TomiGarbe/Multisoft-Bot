@@ -23,7 +23,6 @@ function isSuperAdmin(userType?: string, isBackdoor?: boolean): boolean {
 }
 
 export default function DashboardPage() {
-  const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
   const router = useRouter();
   const { authResolved, hasToken } = useAuthToken();
   const { user } = useTenantContext();
@@ -34,11 +33,6 @@ export default function DashboardPage() {
     canUseGlobalScope,
     authResolved && hasToken,
   );
-
-  useEffect(() => {
-    if (!hydrationDebugEnabled) return;
-    console.info('[RENDER] Dashboard', { authResolved, hasToken, dashboardScope, canUseGlobalScope });
-  }, [hydrationDebugEnabled, authResolved, hasToken, dashboardScope, canUseGlobalScope]);
 
   useEffect(() => {
     if (!authResolved) return;

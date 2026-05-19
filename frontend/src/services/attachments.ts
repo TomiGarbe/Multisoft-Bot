@@ -199,22 +199,6 @@ export async function uploadAttachmentFile(
   form.append('attachment_type', toUploadAttachmentType(type));
 
   const endpoint = resolveUploadEndpoint();
-  const formEntries = Array.from(form.entries()).map(([key, value]) => {
-    if (value instanceof File) {
-      return `${key}=File(name=${value.name}, type=${value.type || 'application/octet-stream'}, size=${value.size})`;
-    }
-    return `${key}=${String(value)}`;
-  });
-  console.warn('[MULTIMEDIA][UPLOAD] request_prepare', {
-    endpoint,
-    baseURL: api.defaults.baseURL,
-    file: {
-      name: file.name,
-      type: file.type || 'application/octet-stream',
-      size: file.size,
-    },
-    formEntries,
-  });
 
   try {
     const { data } = await api.post<unknown>(endpoint, form, {
@@ -231,7 +215,6 @@ export async function uploadAttachmentFile(
         options?.onProgress?.({ loadedBytes: loaded, totalBytes: total, percent });
       },
     });
-    console.warn('[MULTIMEDIA][UPLOAD] request_success', { endpoint, fileName: file.name, type });
     const payload = parseUploadResponse(data);
     const providerUrl = payload.provider_url ?? payload.providerUrl ?? payload.url ?? undefined;
     const providerMediaId = payload.provider_media_id ?? payload.providerMediaId ?? payload.media_id ?? undefined;
@@ -247,15 +230,7 @@ export async function uploadAttachmentFile(
     };
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      const statusCode = error.response?.status;
       const detail = error.response?.data?.detail;
-      const requestContentType = error.config?.headers?.['Content-Type'] ?? error.config?.headers?.['content-type'];
-      console.warn('[MULTIMEDIA][UPLOAD] request_error', {
-        endpoint,
-        statusCode,
-        requestContentType,
-        detail,
-      });
       if (typeof detail === 'string') {
         throw new Error(detail);
       }

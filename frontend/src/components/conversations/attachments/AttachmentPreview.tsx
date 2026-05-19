@@ -7,14 +7,6 @@ import ProcessingArtifact from './ProcessingArtifact';
 import VideoAttachment from './VideoAttachment';
 
 function AttachmentPreviewBase({ attachment }: { attachment: Attachment }) {
-  console.warn('[MESSAGE_ATTACHMENT]', {
-    attachmentId: attachment.id,
-    messageId: attachment.messageId,
-    type: attachment.type,
-    status: attachment.status,
-    mimeType: attachment.mimeType,
-    hasStream: Boolean(attachment.streamUrl),
-  });
   return (
     <div className="flex flex-col gap-1.5">
       {attachment.type === 'image' ? <ImageAttachment attachment={attachment} /> : null}

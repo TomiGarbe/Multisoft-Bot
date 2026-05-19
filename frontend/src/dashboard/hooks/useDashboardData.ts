@@ -3,8 +3,6 @@ import { TENANT_CONTEXT_CHANGED_EVENT, getApiErrorMessage } from '@/services/api
 import { loadDashboardData } from '@/dashboard/services/dashboard';
 import type { DashboardData, DashboardScope } from '@/dashboard/types';
 
-const hydrationDebugEnabled = process.env.NEXT_PUBLIC_DEBUG_HYDRATION === '1';
-
 export function useDashboardData(scope: DashboardScope, canUseGlobalScope: boolean, enabled = true) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -12,9 +10,6 @@ export function useDashboardData(scope: DashboardScope, canUseGlobalScope: boole
 
   const load = useCallback(async () => {
     if (!enabled) return;
-    if (hydrationDebugEnabled) {
-      console.info('[QUERY] analytics usage series', { scope, canUseGlobalScope });
-    }
     setLoading(true);
     setError(null);
     try {
